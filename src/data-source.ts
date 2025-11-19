@@ -6,7 +6,11 @@ import { ISTDateSubscriber } from "./ist-date-subscriber";
 dotenv.config();
 
 // Determine if we're in production
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === "production";
+
+// Allow TypeORM synchronize to be controlled via env; default off outside prod
+const shouldSynchronize =
+  process.env.TYPEORM_SYNCHRONIZE === "true" || (isProd && process.env.TYPEORM_SYNCHRONIZE !== "false");
 
 // Set the entity path based on environment
 const entitiesPath = isProd 
@@ -25,7 +29,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DATABASE_USER_NAME,
   password: process.env.DATABASE_PASSWORD,
   database: process.env.DATABASE_NAME,
-  synchronize: true,
+  synchronize: shouldSynchronize,
   logging: ["error"],
   // logging:true,
   entities: entitiesPath,
@@ -33,7 +37,7 @@ export const AppDataSource = new DataSource({
   extra: {
     timezone: "Z",
     // Add connection parameters using proper MySQL2 option names
-    connectTimeout: 60000,
+    connectTimeout: Number.parseInt(process.env.DATABASE_CONNECT_TIMEOUT ?? "5000"),
   },
   subscribers: [ISTDateSubscriber]
 });
