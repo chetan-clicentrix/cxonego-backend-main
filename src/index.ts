@@ -59,16 +59,10 @@ app.use('/api/v1/superAdmin/verifyCaptcha', cors({
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
-  'http://13.235.48.242:5173',
-  'http://13.235.48.242',
-  'http://13.235.48.242:8000',
-  'https://cxonego.me',
-  'https://cxonego.me:8000',
-  'https://cxonego.me:5173',
-  'http://cxonego.me:8000',
-  'http://cxonego.me:5173',
-  'https://api.cxonego.me',
-  // ,
+  'http://62.72.30.141',
+  'https://cxonego.clicentrix.com',
+  'https://api.clicentrix.com',
+  'https://admin.clicentrix.com',
   undefined // This will match requests without an origin header
 ].filter(Boolean) as (string | undefined)[];
 
