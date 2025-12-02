@@ -44,7 +44,6 @@ class CaseController {
 
             const cases = await _caseService.getCases(
                 userId,
-                role,
                 search,
                 status,
                 priority,
@@ -215,7 +214,6 @@ class CaseController {
                 async (transactionEntityManager) => {
                     const deleted = await _caseService.bulkDeleteCase(
                         payload,
-                        userId,
                         transactionEntityManager
                     );
                     return deleted;

@@ -50,7 +50,6 @@ class CaseService {
     // Get cases with pagination and filters
     async getCases(
         userId: string,
-        role: Role[],
         search: string | undefined,
         status: string[] | undefined,
         priority: string[] | undefined,
@@ -388,7 +387,6 @@ class CaseService {
     // Bulk delete cases
     async bulkDeleteCase(
         caseIds: string[],
-        userId: string,
         transactionEntityManager: EntityManager
     ) {
         const caseRepository = transactionEntityManager.getRepository(Case);
