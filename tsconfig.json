@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
-    "lib": ["es5", "es6"],
+    "lib": [
+      "es5",
+      "es6"
+    ],
     "target": "es6",
     "module": "commonjs",
     "moduleResolution": "node",
@@ -12,5 +15,8 @@
     "strictNullChecks": true,
     "noUnusedParameters": true,
     "resolveJsonModule": true
+  },
+  "ts-node": {
+    "transpileOnly": true
   }
 }
