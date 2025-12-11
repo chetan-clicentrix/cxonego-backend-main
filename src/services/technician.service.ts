@@ -392,7 +392,7 @@ class TechnicianService {
             .createQueryBuilder("technician")
             .where("technician.organizationId = :organizationId", { organizationId })
             .andWhere("JSON_CONTAINS(technician.specialization, :specialization)", {
-                specialization: JSON.stringify([specialization]),
+                specialization: JSON.stringify(specialization),
             })
             .andWhere("technician.status = :status", {
                 status: technicianStatus.ACTIVE,

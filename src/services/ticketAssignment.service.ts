@@ -92,7 +92,7 @@ class TicketAssignmentService {
         // Get case
         const caseItem = await transactionEntityManager
             .getRepository(Case)
-            .findOne({ where: { caseId: String(payload.case) } });
+            .findOne({ where: { caseId: String(payload.caseId) } });
 
         if (!caseItem) {
             throw new ResourceNotFoundError("Case not found");
@@ -101,7 +101,7 @@ class TicketAssignmentService {
         // Get technician
         const technician = await transactionEntityManager
             .getRepository(Technician)
-            .findOne({ where: { technicianId: String(payload.technician) } });
+            .findOne({ where: { technicianId: String(payload.technicianId) } });
 
         if (!technician) {
             throw new ResourceNotFoundError("Technician not found");

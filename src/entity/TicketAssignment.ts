@@ -70,16 +70,24 @@ export class TicketAssignment extends CustomBaseEntity {
         onUpdate: "CASCADE",
         eager: true,
     })
+    @ManyToOne(() => Case)
     @JoinColumn({ name: "caseId" })
     case: Case;
+
+    @Column()
+    caseId: string;
 
     @ManyToOne(() => Technician, (technician) => technician.assignmentHistory, {
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
         eager: true,
     })
+    @ManyToOne(() => Technician)
     @JoinColumn({ name: "technicianId" })
     technician: Technician;
+
+    @Column()
+    technicianId: string;
 
     @ManyToOne(() => User, (user) => user.ticketAssignments, {
         // onDelete: "CASCADE",
