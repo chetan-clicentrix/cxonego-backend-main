@@ -315,8 +315,8 @@ export enum referStatus {
 }
 
 //-------------------
-const key = Buffer.from("df32a38775fe682bf3bede615b8707c2", "hex");
-const staticIV = Buffer.from("9ad530ff86c4b33c21258adaf364e354", "hex");
+const key = Buffer.from("df32a38775fe682bf3bede615b8707c2", "hex") as crypto.CipherKey;
+const staticIV = Buffer.from("9ad530ff86c4b33c21258adaf364e354", "hex") as crypto.BinaryLike;
 export function encryption(text: string) {
   try {
     const cipher = crypto.createCipheriv("aes-128-cbc", key, staticIV);
@@ -335,12 +335,12 @@ export function decrypt(encryptedData: string) {
     return encryptedData;
   }
 
-  try{
+  try {
     const decipher = crypto.createDecipheriv("aes-128-cbc", key, staticIV);
     let decrypted = decipher.update(encryptedData, "base64", "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;
-  }catch(error){
+  } catch (error) {
     return encryptedData
   }
 }
@@ -377,4 +377,59 @@ export enum customRequestStatus {
   PENDING = "Pending",
   APPROVED = "Approved",
   REJECTED = "Rejected",
+}
+
+// Customer Service Ticketing Module Enums
+export enum ticketStatus {
+  NEW = "New",
+  ASSIGNED = "Assigned",
+  IN_PROGRESS = "In Progress",
+  ON_HOLD = "On Hold",
+  RESOLVED = "Resolved",
+  CLOSED = "Closed",
+  CANCELLED = "Cancelled"
+}
+
+export enum ticketPriority {
+  LOW = "Low",
+  MEDIUM = "Medium",
+  HIGH = "High",
+  CRITICAL = "Critical"
+}
+
+export enum ticketCategory {
+  ELECTRONICS = "Electronics",
+  APPLIANCES = "Appliances",
+  PLUMBING = "Plumbing",
+  ELECTRICAL = "Electrical",
+  HVAC = "HVAC",
+  CARPENTRY = "Carpentry",
+  OTHER = "Other"
+}
+
+export enum warrantyStatus {
+  IN_WARRANTY = "In Warranty",
+  OUT_OF_WARRANTY = "Out of Warranty",
+  EXTENDED_WARRANTY = "Extended Warranty"
+}
+
+export enum technicianStatus {
+  ACTIVE = "Active",
+  INACTIVE = "Inactive",
+  ON_LEAVE = "On Leave"
+}
+
+export enum technicianAvailability {
+  AVAILABLE = "Available",
+  BUSY = "Busy",
+  OFF_DUTY = "Off Duty"
+}
+
+export enum assignmentStatus {
+  PENDING = "Pending",
+  ACCEPTED = "Accepted",
+  REJECTED = "Rejected",
+  IN_PROGRESS = "In Progress",
+  COMPLETED = "Completed",
+  CANCELLED = "Cancelled"
 }

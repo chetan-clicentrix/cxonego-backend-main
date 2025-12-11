@@ -25,6 +25,10 @@ import { Activity } from "./Activity";
 import { Note } from "./Note";
 import { Subscription } from "./Subscription";
 import { Document } from "./Document";
+import { Case } from "./Case";
+import { Technician } from "./Technician";
+import { TicketAssignment } from "./TicketAssignment";
+import { TicketStatusHistory } from "./TicketStatusHistory";
 
 @Entity()
 export class User extends BaseEntity {
@@ -208,4 +212,16 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Document, (document) => document.uploadedBy)
   documents: Document[];
+
+  @OneToMany(() => Case, (caseItem) => caseItem.createdBy)
+  createdCases: Case[];
+
+  @OneToOne(() => Technician, (technician) => technician.user)
+  technician: Technician;
+
+  @OneToMany(() => TicketAssignment, (assignment) => assignment.assignedBy)
+  ticketAssignments: TicketAssignment[];
+
+  @OneToMany(() => TicketStatusHistory, (history) => history.changedBy)
+  ticketStatusChanges: TicketStatusHistory[];
 }

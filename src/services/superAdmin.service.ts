@@ -75,13 +75,20 @@ class SuperAdminService {
   async verifyCaptcha(request: Request) {
     try {
       console.log("====== CAPTCHA VERIFICATION ATTEMPT ======");
+
+      // CAPTCHA bypass for development/testing
+      if (process.env.DISABLE_CAPTCHA === 'true') {
+        console.log("⚠️  CAPTCHA DISABLED - Bypassing verification");
+        return true;
+      }
+
       const secretKey = process.env.CAPTCHA_SECRET_KEY;
       if (!secretKey) {
         console.error("CAPTCHA_SECRET_KEY environment variable is not set");
         throw new ResourceNotFoundError("Captcha secret key not found");
       }
       console.log("Secret key available (first 5 chars):", secretKey.substring(0, 5) + "...");
-      
+
       const token = request.body.token;
       if (!token) {
         console.error("Captcha token not provided in request body");
@@ -91,17 +98,17 @@ class SuperAdminService {
       console.log("Request headers:", JSON.stringify(request.headers));
       console.log("Client IP:", request.ip);
       console.log("Request origin:", request.headers.origin || "No origin header");
-      
+
       // Use URLSearchParams instead of including parameters directly in the URL
       const params = new URLSearchParams();
       params.append('secret', secretKey);
       params.append('response', token);
       params.append('remoteip', request.ip); // Add remote IP for better verification
-      
+
       console.log("Making request to Google reCAPTCHA API...");
       console.log("Request URL: https://www.google.com/recaptcha/api/siteverify");
       console.log("Request params:", params.toString().replace(secretKey, "SECRET_KEY_HIDDEN"));
-      
+
       try {
         const { data } = await axios.post(
           'https://www.google.com/recaptcha/api/siteverify',
@@ -112,13 +119,13 @@ class SuperAdminService {
             }
           }
         );
-        
+
         console.log("Full reCAPTCHA API response:", JSON.stringify(data));
-        
+
         if (!data.success) {
           console.error("Captcha verification failed. Error codes:", data['error-codes']);
           console.error("Possible reasons:");
-          
+
           // Explain common error codes
           if (data['error-codes'] && data['error-codes'].includes('invalid-input-secret')) {
             console.error("- Your secret key is invalid or incorrect");
@@ -136,7 +143,7 @@ class SuperAdminService {
         } else {
           console.log("Captcha verification successful!");
         }
-        
+
         return data?.success;
       } catch (axiosError) {
         console.error("Network error contacting Google reCAPTCHA API:");

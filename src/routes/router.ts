@@ -20,6 +20,9 @@ import noteRouter from "./note.routes";
 import healthRouter from "./health.routes";
 import planRouter from "./plan.routes";
 import subscriptionRouter from "./subscription.routes";
+import caseRouter from "./case.routes";
+import technicianRouter from "./technician.routes";
+import assignmentRouter from "./ticketAssignment.routes";
 import customPlanRequestRouter from "./customPlanRequest.routes";
 import superAdminRouter from "./superAdmin.routes";
 import cronRouter from "./cron.routes";
@@ -54,4 +57,10 @@ router.use("/customPlanRequest", customPlanRequestRouter);
 router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
+
+// Case Management Module
+router.use("/cases", caseRouter);
+router.use("/technicians", technicianRouter);
+router.use("/assignments", assignmentRouter);
+
 export default router;

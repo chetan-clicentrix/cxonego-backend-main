@@ -11,6 +11,10 @@ import { Note } from "./Note";
 import { Refer } from "./Refer";
 import { Subscription } from "./Subscription";
 import { Payment } from "./Payment";
+import { Case } from "./Case";
+import { Technician } from "./Technician";
+import { TicketAssignment } from "./TicketAssignment";
+import { TicketStatusHistory } from "./TicketStatusHistory";
 @Entity()
 export class Organisation extends CustomBaseEntity {
   constructor(payload: Organisation) {
@@ -102,4 +106,16 @@ export class Organisation extends CustomBaseEntity {
 
   @OneToMany(() => Subscription, (Subscription) => Subscription.orgnization)
   subscriptions: Subscription[];
+
+  @OneToMany(() => Case, (caseItem) => caseItem.organization)
+  cases: Case[];
+
+  @OneToMany(() => Technician, (technician) => technician.organization)
+  technicians: Technician[];
+
+  @OneToMany(() => TicketAssignment, (assignment) => assignment.organization)
+  ticketAssignments: TicketAssignment[];
+
+  @OneToMany(() => TicketStatusHistory, (history) => history.organization)
+  ticketStatusHistory: TicketStatusHistory[];
 }
