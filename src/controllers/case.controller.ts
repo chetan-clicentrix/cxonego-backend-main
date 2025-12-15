@@ -92,6 +92,7 @@ class CaseController {
 
     async createCase(request: CustomRequest, response: Response) {
         try {
+
             const caseItem = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
                     const caseObj = await _caseService.createCase(

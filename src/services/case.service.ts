@@ -271,16 +271,20 @@ class CaseService {
             if (orgData) payload.organization = orgData;
         }
 
-        // Set customer (Contact)
         if (payload.customer) {
+            const customerId = String(payload.customer);
+
             const customer = await transactionEntityManager
                 .getRepository(Contact)
-                .findOne({ where: { contactId: String(payload.customer) } });
+                .findOne({ where: { contactId: customerId } });
+
             if (!customer) {
                 throw new ResourceNotFoundError("Customer not found");
             }
+
             payload.customer = customer;
         }
+
 
         // Set account (optional)
         if (payload.account) {
