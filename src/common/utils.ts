@@ -433,3 +433,26 @@ export enum assignmentStatus {
   COMPLETED = "Completed",
   CANCELLED = "Cancelled"
 }
+export enum routingOperator {
+  EQUALS = "EQUALS",
+  CONTAINS = "CONTAINS",
+  IN = "IN",
+  STARTS_WITH = "STARTS_WITH",
+}
+
+export enum routingAttribute {
+  PHONE = "phone",
+  TITLE = "title",
+  EMAIL = "email",
+  COUNTRY = "country",
+  STATE = "state",
+  CITY = "city",
+  LEAD_SOURCE = "leadSource",
+  COUNTRY_CODE = "countryCode",
+  PRICE = "price",
+}
+
+export enum routingAssignToType {
+  USER = "USER",
+  ROLE = "ROLE",
+}
