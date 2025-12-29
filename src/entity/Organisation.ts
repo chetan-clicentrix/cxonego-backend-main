@@ -15,6 +15,7 @@ import { Case } from "./Case";
 import { Technician } from "./Technician";
 import { TicketAssignment } from "./TicketAssignment";
 import { TicketStatusHistory } from "./TicketStatusHistory";
+import { LeadRoutingConfig } from "./LeadRoutingConfig";
 @Entity()
 export class Organisation extends CustomBaseEntity {
   constructor(payload: Organisation) {
@@ -118,4 +119,7 @@ export class Organisation extends CustomBaseEntity {
 
   @OneToMany(() => TicketStatusHistory, (history) => history.organization)
   ticketStatusHistory: TicketStatusHistory[];
+
+  @OneToMany(() => LeadRoutingConfig, (config) => config.organization)
+  leadRoutingConfigs: LeadRoutingConfig[];
 }

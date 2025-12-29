@@ -3,9 +3,14 @@ import {
     Column,
     PrimaryGeneratedColumn,
     Index,
+    ManyToOne,
+    JoinColumn,
+    BeforeInsert,
+    BeforeUpdate
 } from "typeorm";
 import { CustomBaseEntity } from "./CustomBaseEntity";
-import { routingOperator, routingAssignToType, routingAttribute } from "../common/utils";
+import { Organisation } from "./Organisation";
+import { routingOperator, routingAssignToType, routingAttribute, encryption } from "../common/utils";
 
 @Entity()
 export class LeadRoutingConfig extends CustomBaseEntity {
@@ -59,10 +64,25 @@ export class LeadRoutingConfig extends CustomBaseEntity {
     })
     priority: number;
 
-    @Index()
     @Column({
         type: "varchar",
         nullable: false,
     })
-    organisationId: string;
+    organizationId: string;
+
+    @ManyToOne(() => Organisation, (organisation) => organisation.leadRoutingConfigs, {
+        onUpdate: "CASCADE",
+        nullable: true,
+        eager: true
+    })
+    @JoinColumn({ name: "organizationId" })
+    organization: Organisation;
+
+    @BeforeInsert()
+    @BeforeUpdate()
+    encrypt() {
+        if (this.value) {
+            this.value = encryption(this.value);
+        }
+    }
 }

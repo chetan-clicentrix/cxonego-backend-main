@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Organisation } from '../entity/Organisation';
 import leadAssignmentService from "./leadAssignment.service";
 import { EntityManager } from "typeorm";
+import LeadRoutingConfigService from "./leadRoutingConfig.service";
 
 
 interface IndiaMartLead {
@@ -43,23 +44,25 @@ interface IndiaMartResponse {
 
 class IndiaMartService {
   private leadService: LeadService;
+  private leadRoutingConfigService: LeadRoutingConfigService;
 
   constructor() {
     this.leadService = new LeadService();
+    this.leadRoutingConfigService = new LeadRoutingConfigService();
   }
 
   async fetchLeads(): Promise<IndiaMartLead[]> {
     try {
       const apiKey = process.env.INDIA_MART_API_KEY || '';
-      
+
       // If no API key is provided, use sample data with unique IDs
       if (!apiKey || apiKey === 'your_api_key_here') {
         console.log('Using sample IndiaMART data for testing (no API key provided)');
         return this.getSampleData().RESPONSE;
       }
-      
+
       const baseUrl = process.env.INDIA_MART_BASE_URL || 'https://mapi.indiamart.com/wservce/crm/crmListing/v2/';
-      
+
       const response = await axios.get(baseUrl, {
         params: {
           glusr_crm_key: apiKey,
@@ -67,19 +70,19 @@ class IndiaMartService {
           end_time: this.getEndTimeForQuery()
         }
       });
-      
+
       const data = response.data as IndiaMartResponse;
-      
+
       if (data.CODE === 200 && data.STATUS === 'SUCCESS' && Array.isArray(data.RESPONSE)) {
         console.log(`Fetched ${data.TOTAL_RECORDS} leads from IndiaMART`);
         return data.RESPONSE;
       }
-      
+
       console.log('No leads found or API error:', data.MESSAGE);
       return [];
     } catch (error) {
       console.error('Error fetching leads from IndiaMART:', error);
-      
+
       // On error, also return sample data for testing
       console.log('Using sample IndiaMART data due to fetch error');
       return this.getSampleData().RESPONSE;
@@ -88,27 +91,27 @@ class IndiaMartService {
 
   private getStartTimeForQuery(): string {
     const date = new Date(Date.now() - 15 * 60 * 1000);
-    
+
     const day = date.getDate().toString().padStart(2, '0');
     const month = date.toLocaleString('en-US', { month: 'short' });
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     const seconds = date.getSeconds().toString().padStart(2, '0');
-    
+
     return `${day}-${month}-${year}${hours}:${minutes}:${seconds}`;
   }
 
   private getEndTimeForQuery(): string {
     const date = new Date();
-    
+
     const day = date.getDate().toString().padStart(2, '0');
     const month = date.toLocaleString('en-US', { month: 'short' });
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     const seconds = date.getSeconds().toString().padStart(2, '0');
-    
+
     return `${day}-${month}-${year}${hours}:${minutes}:${seconds}`;
   }
 
@@ -118,28 +121,28 @@ class IndiaMartService {
       if (indiaMartLeads.length === 0) {
         return 0;
       }
-      
+
       // Get the default handler for organization information
       const defaultHandler = await this.getDefaultHandler();
       if (!defaultHandler) {
         console.error('Default lead handler could not be determined');
         return 0;
       }
-      
+
       // Get the organization
       const organization = await this.getOrganization(defaultHandler);
       if (!organization) {
         console.error('Organization could not be determined');
         return 0;
       }
-      
+
       // Start a transaction
       const queryRunner = AppDataSource.createQueryRunner();
       await queryRunner.connect();
       await queryRunner.startTransaction();
-      
+
       let savedCount = 0;
-      
+
       try {
         for (const imLead of indiaMartLeads) {
           try {
@@ -149,10 +152,10 @@ class IndiaMartService {
               console.log(`Skipping duplicate lead: ${imLead.UNIQUE_QUERY_ID}`);
               continue;
             }
-            
+
             // Get the product name from the IndiaMart lead
             const leadType = imLead.QUERY_PRODUCT_NAME || "Unknown Product";
-            
+
             // Register this lead type if it doesn't exist yet
             await leadAssignmentService.registerLeadType(
               leadType,
@@ -160,19 +163,42 @@ class IndiaMartService {
               defaultHandler.userId,
               queryRunner.manager
             );
-            
-            // Get the appropriate owner for this lead type
-            const effectiveOwner = await this.getLeadOwner(
-              leadType, 
-              organization.organisationId,
-              queryRunner.manager
+
+            // First, try rule-based routing using LeadRoutingConfigService
+            const tempLead = this.mapIndiaMArtLeadToLead(
+              imLead,
+              "", // dummy ID
+              {} as any, // dummy owner
+              organization
             );
-            
+
+            const routedUserId = await this.leadRoutingConfigService.executeRouting(tempLead);
+            let effectiveOwner: User | null = null;
+
+            if (routedUserId) {
+              effectiveOwner = await queryRunner.manager.getRepository(User).findOne({
+                where: { userId: routedUserId },
+                relations: ['roles', 'organisation']
+              });
+              if (effectiveOwner) {
+                console.log(`Lead routed via rules to user ${effectiveOwner.userId}`);
+              }
+            }
+
+            if (!effectiveOwner) {
+              // Get the appropriate owner for this lead type (legacy assignment logic)
+              effectiveOwner = await this.getLeadOwner(
+                leadType,
+                organization.organisationId,
+                queryRunner.manager
+              );
+            }
+
             if (!effectiveOwner) {
               console.error(`Could not determine owner for lead type "${leadType}"`);
               continue;
             }
-            
+
             // Create properly-typed userInfo object for lead creation
             const userInfo: userInfo = {
               userId: effectiveOwner.userId,
@@ -182,29 +208,29 @@ class IndiaMartService {
               emailVerified: true,
               role: effectiveOwner.roles || []
             };
-            
+
             // Get a proper lead ID
             const leadId = await this.leadService.getLeadId(new Date());
-            
+
             // Map IndiaMART lead to our Lead format with the effective owner
             const leadPayload = this.mapIndiaMArtLeadToLead(
-              imLead, 
-              leadId, 
-              effectiveOwner, 
+              imLead,
+              leadId,
+              effectiveOwner,
               organization
             );
-            
+
             // Add the lead type for reference
             leadPayload.leadType = leadType;
-            
+
             console.log(`Creating lead with ID ${leadId} for product "${leadType}" assigned to ${effectiveOwner.userId}`);
-            
+
             await this.leadService.createLead(
-              leadPayload as Lead, 
-              userInfo, 
+              leadPayload as Lead,
+              userInfo,
               queryRunner.manager
             );
-            
+
             savedCount++;
             console.log(`Successfully created lead: ${leadId}`);
           } catch (error) {
@@ -215,7 +241,7 @@ class IndiaMartService {
             throw error;
           }
         }
-        
+
         await queryRunner.commitTransaction();
         return savedCount;
       } catch (error) {
@@ -242,7 +268,7 @@ class IndiaMartService {
     try {
       const userRepository = AppDataSource.getRepository(User);
       const defaultHandler = await userRepository.findOne({
-        where: { 
+        where: {
           email: encryption(process.env.INDIAMART_HANDLER_EMAIL || '')
         },
         relations: ['roles', 'organisation']
@@ -269,24 +295,24 @@ class IndiaMartService {
     try {
       // First try to get the assigned user from lead assignments
       console.log(`Checking for assigned owner for lead type: ${leadType}`);
-      
+
       // Get lead assignment for this lead type and organization
       const leadAssignment = await leadAssignmentService.getLeadAssignment(leadType);
-      
+
       // Check if we have an assignment and if it belongs to the correct organization
       if (leadAssignment && leadAssignment.user && leadAssignment.organisationId === organisationId) {
         console.log(`Found assignment for lead type "${leadType}": user ${leadAssignment.user.userId}`);
         return leadAssignment.user;
       }
-      
+
       // If no assignment found or wrong organization, fall back to default handler
       console.log(`No lead assignment found for "${leadType}" in organization ${organisationId}, using default handler`);
-      const userRepository = entityManager 
+      const userRepository = entityManager
         ? entityManager.getRepository(User)
         : AppDataSource.getRepository(User);
-        
+
       const defaultHandler = await userRepository.findOne({
-        where: { 
+        where: {
           email: encryption(process.env.INDIAMART_HANDLER_EMAIL || '')
         },
         relations: ['roles', 'organisation']
@@ -308,7 +334,7 @@ class IndiaMartService {
     if (!user.organisation) {
       return null;
     }
-    
+
     try {
       const organizationRepository = AppDataSource.getRepository(Organisation);
       return await organizationRepository.findOne({
@@ -323,22 +349,22 @@ class IndiaMartService {
   private async checkDuplicateLead(uniqueQueryId: string): Promise<boolean> {
     try {
       const leadRepository = AppDataSource.getRepository(Lead);
-      
+
       // First check by externalId
       const leadByExternalId = await leadRepository.findOne({
         where: { externalId: uniqueQueryId }
       });
-      
+
       if (leadByExternalId) {
         return true;
       }
-      
+
       // Fallback check by description content (for backward compatibility)
       const leadByDescription = await leadRepository
         .createQueryBuilder('lead')
         .where('lead.description LIKE :query', { query: `%${uniqueQueryId}%` })
         .getOne();
-      
+
       return !!leadByDescription;
     } catch (error) {
       console.error('Error checking for duplicate lead:', error);
@@ -347,8 +373,8 @@ class IndiaMartService {
   }
 
   private mapIndiaMArtLeadToLead(
-    imLead: IndiaMartLead, 
-    leadId: string, 
+    imLead: IndiaMartLead,
+    leadId: string,
     owner: User,
     organization: Organisation
   ): Lead {
@@ -356,11 +382,11 @@ class IndiaMartService {
     const nameParts = imLead.SENDER_NAME ? imLead.SENDER_NAME.split(' ') : ['Unknown'];
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-    
+
     // Handle phone number format
     let phone = imLead.SENDER_MOBILE || '';
     let countryCode = '+91'; // Default for India
-    
+
     if (phone.startsWith('+')) {
       const parts = phone.split('-');
       if (parts.length > 1) {
@@ -368,7 +394,7 @@ class IndiaMartService {
         phone = parts[1];
       }
     }
-    
+
     // Build the description including the unique ID (for deduplication)
     const description = `IndiaMART Lead ID: ${imLead.UNIQUE_QUERY_ID || ''}
 Product: ${imLead.QUERY_PRODUCT_NAME || ''}
@@ -399,7 +425,7 @@ Address: ${imLead.SENDER_ADDRESS || ''}`;
       organization,
       modifiedBy: owner.userId
     } as Lead);
-    
+
     return lead;
   }
 

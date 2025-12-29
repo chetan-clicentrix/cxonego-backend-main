@@ -450,6 +450,7 @@ export enum routingAttribute {
   LEAD_SOURCE = "leadSource",
   COUNTRY_CODE = "countryCode",
   PRICE = "price",
+  LEAD_TYPE = "leadType",
 }
 
 export enum routingAssignToType {

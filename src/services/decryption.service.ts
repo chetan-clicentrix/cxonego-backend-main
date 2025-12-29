@@ -15,6 +15,7 @@ import { Plan } from "../entity/Plan";
 import { Subscription } from "../entity/Subscription";
 import { CustomPlanRequest } from "../entity/CustomPlanRequest";
 import { Document } from "../entity/Document";
+import { LeadRoutingConfig } from "../entity/LeadRoutingConfig";
 
 export const accountDecryption = async (company: Account) => {
   if (company?.accountName) company.accountName = decrypt(company.accountName);
@@ -130,6 +131,12 @@ export const opportunityDecryption = async (opportunity: Oppurtunity) => {
     opportunity.actualRevenue = decrypt(opportunity.actualRevenue);
 
   return opportunity;
+};
+
+// Decrypt LeadRoutingConfig value
+export const leadRoutingConfigDecryption = async (config: LeadRoutingConfig) => {
+  if (config?.value) config.value = decrypt(config.value);
+  return config;
 };
 
 export const noteDecryption = async (note: Note) => {
@@ -293,7 +300,7 @@ export const documentDecryption = async (document: Document) => {
 
 export const multipleDocumentsDecryption = async (documents: Array<Document>) => {
   if (!documents || documents.length === 0) return documents;
-  
+
   const documentsArray: Array<Document> = [];
   for (let document of documents) {
     document = await documentDecryption(document);
