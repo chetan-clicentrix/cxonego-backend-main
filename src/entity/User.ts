@@ -29,6 +29,7 @@ import { Case } from "./Case";
 import { Technician } from "./Technician";
 import { TicketAssignment } from "./TicketAssignment";
 import { TicketStatusHistory } from "./TicketStatusHistory";
+import { Skill } from "./Skill";
 
 @Entity()
 export class User extends BaseEntity {
@@ -224,4 +225,7 @@ export class User extends BaseEntity {
 
   @OneToMany(() => TicketStatusHistory, (history) => history.changedBy)
   ticketStatusChanges: TicketStatusHistory[];
+
+  @OneToMany(() => Skill, (skill) => skill.owner)
+  skills: Skill[];
 }

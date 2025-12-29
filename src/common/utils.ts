@@ -433,3 +433,10 @@ export enum assignmentStatus {
   COMPLETED = "Completed",
   CANCELLED = "Cancelled"
 }
+
+export enum proficiencyLevel {
+  BEGINNER = "Beginner",
+  INTERMEDIATE = "Intermediate",
+  ADVANCED = "Advanced",
+  EXPERT = "Expert"
+}

@@ -15,6 +15,7 @@ import { Plan } from "../entity/Plan";
 import { Subscription } from "../entity/Subscription";
 import { CustomPlanRequest } from "../entity/CustomPlanRequest";
 import { Document } from "../entity/Document";
+import { Skill } from "../entity/Skill";
 
 export const accountDecryption = async (company: Account) => {
   if (company?.accountName) company.accountName = decrypt(company.accountName);
@@ -293,11 +294,18 @@ export const documentDecryption = async (document: Document) => {
 
 export const multipleDocumentsDecryption = async (documents: Array<Document>) => {
   if (!documents || documents.length === 0) return documents;
-  
+
   const documentsArray: Array<Document> = [];
   for (let document of documents) {
     document = await documentDecryption(document);
     documentsArray.push(document);
   }
   return documentsArray;
+};
+
+export const skillDecryption = async (skill: Skill) => {
+  if (skill?.name) skill.name = decrypt(skill.name);
+  if (skill?.category) skill.category = decrypt(skill.category);
+  if (skill?.certificationName) skill.certificationName = decrypt(skill.certificationName);
+  return skill;
 };

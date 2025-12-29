@@ -45,7 +45,11 @@ class LeadService {
       if (lead.company) lead.company = await accountDecryption(lead.company);
       if (lead.contact) lead.contact = await contactDecryption(lead.contact);
       lead.owner = await userDecryption(lead.owner);
+      console.log(lead.organization);
     }
+
+    console.log(leads);
+
     return leads;
   }
 
@@ -55,7 +59,7 @@ class LeadService {
         ? date.getMonth() + 1
         : "0" + (date.getMonth() + 1)
     );
-    
+
     const year = String(date.getFullYear().toString().slice(-2));
     const lastLead = await AppDataSource.getRepository(Lead)
       .createQueryBuilder("LeadEntity")
@@ -68,7 +72,7 @@ class LeadService {
     const yearFromRecord = String(lastLead?.leadId.slice(3, 5)); //L032409,L0324010
 
     const leadIdFromRecord = String(lastLead?.leadId.substring(5));
-    
+
     if (year === yearFromRecord) {
       leadNo = leadIdFromRecord;
     }
@@ -261,7 +265,7 @@ class LeadService {
 
     payload.leadId = await this.getLeadId(new Date());
     console.log(payload.leadId);
-    
+
     const userRepo = AppDataSource.getRepository(User);
     const userData = await userRepo.findOne({ where: { userId: user.userId } });
     if (userData) {
@@ -292,7 +296,7 @@ class LeadService {
     const leadInstance = new Lead(payload);
     const lead = await leadInstance.save();
     // console.log('lead',lead);
-    
+
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(transactionEntityManager, lead, auditId);
 
@@ -421,6 +425,7 @@ class LeadService {
         lead.company = await accountDecryption(lead.company as Account);
         lead.contact = await contactDecryption(lead.contact as Contact);
         lead.owner = await userDecryption(lead.owner as User);
+        console.log("lead", lead.owner);
       }
 
       let skip = 0;
@@ -1593,7 +1598,7 @@ class LeadService {
 
       // Encrypt the title for search if encryption is used in the system
       const encryptedTitle = encryption(leadTitle);
-      
+
       // Update all leads with matching title
       const result = await transactionEntityManager
         .createQueryBuilder()

@@ -28,7 +28,7 @@ import superAdminRouter from "./superAdmin.routes";
 import cronRouter from "./cron.routes";
 import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
-// import customeToken from "./firebaseToken.routes";
+import skillRouter from "./skill.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadAssignment", leadAssignmentRouter)
@@ -57,6 +57,7 @@ router.use("/customPlanRequest", customPlanRequestRouter);
 router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
+router.use("/skills", skillRouter);
 
 // Case Management Module
 router.use("/cases", caseRouter);
