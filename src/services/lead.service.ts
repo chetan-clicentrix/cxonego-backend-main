@@ -24,6 +24,7 @@ import { User } from "../entity/User";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
 import * as XLSX from "xlsx";
+import LeadRoutingConfigService from "./leadRoutingConfig.service";
 
 class LeadService {
   async getAllLeads(userInfo: userInfo) {
@@ -55,7 +56,7 @@ class LeadService {
         ? date.getMonth() + 1
         : "0" + (date.getMonth() + 1)
     );
-    
+
     const year = String(date.getFullYear().toString().slice(-2));
     const lastLead = await AppDataSource.getRepository(Lead)
       .createQueryBuilder("LeadEntity")
@@ -68,7 +69,7 @@ class LeadService {
     const yearFromRecord = String(lastLead?.leadId.slice(3, 5)); //L032409,L0324010
 
     const leadIdFromRecord = String(lastLead?.leadId.substring(5));
-    
+
     if (year === yearFromRecord) {
       leadNo = leadIdFromRecord;
     }
@@ -261,19 +262,54 @@ class LeadService {
 
     payload.leadId = await this.getLeadId(new Date());
     console.log(payload.leadId);
-    
-    const userRepo = AppDataSource.getRepository(User);
-    const userData = await userRepo.findOne({ where: { userId: user.userId } });
-    if (userData) {
-      payload.owner = userData as User;
-    }
 
+    const userRepo = AppDataSource.getRepository(User);
     const organizationRepo = AppDataSource.getRepository(Organisation);
+
+    // Set organization first (needed for routing)
     if (user.organizationId) {
       const orgnizationData = await organizationRepo.findOne({
         where: { organisationId: user.organizationId },
       });
       if (orgnizationData) payload.organization = orgnizationData;
+    }
+
+    // Execute lead routing logic to determine owner
+    const leadRoutingService = new LeadRoutingConfigService();
+    let ownerAssigned = false;
+
+    try {
+      // Create a temporary lead object for routing evaluation
+      const tempLead = new Lead(payload);
+      const routedUserId = await leadRoutingService.executeRouting(tempLead);
+
+      if (routedUserId) {
+        console.log(`[Lead Routing] Rule matched. Routing lead to user: ${routedUserId}`);
+        const routedUser = await userRepo.findOne({ where: { userId: routedUserId } });
+
+        if (routedUser && routedUser.isActive) {
+          payload.owner = routedUser as User;
+          ownerAssigned = true;
+          const decryptedEmail = routedUser.email ? decrypt(routedUser.email) : routedUser.email;
+          console.log(`[Lead Routing] Successfully assigned lead to: ${decryptedEmail}`);
+        } else {
+          console.log(`[Lead Routing] Routed user not found or inactive. Falling back to creator.`);
+        }
+      } else {
+        console.log(`[Lead Routing] No routing rules matched. Assigning to creator.`);
+      }
+    } catch (error) {
+      console.error(`[Lead Routing] Error during routing execution:`, error);
+    }
+
+    // Fallback: Assign to creator if routing didn't assign an owner
+    if (!ownerAssigned) {
+      const userData = await userRepo.findOne({ where: { userId: user.userId } });
+      if (userData) {
+        payload.owner = userData as User;
+        const decryptedEmail = userData.email ? decrypt(userData.email) : userData.email;
+        console.log(`[Lead Routing] Assigned to creator: ${decryptedEmail}`);
+      }
     }
 
     if (payload.contact) {
@@ -292,7 +328,7 @@ class LeadService {
     const leadInstance = new Lead(payload);
     const lead = await leadInstance.save();
     // console.log('lead',lead);
-    
+
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(transactionEntityManager, lead, auditId);
 
@@ -612,8 +648,50 @@ class LeadService {
     // console.log('3rd log.');
 
     const userRepo = AppDataSource.getRepository(User);
+
+    // Check if routing-relevant attributes have changed
+    const routingAttributes: (keyof Lead)[] = ['phone', 'title', 'email', 'country', 'state', 'city', 'leadSource', 'countryCode', 'price', 'leadType'];
+    let routingAttributesChanged = false;
+
+    for (const attr of routingAttributes) {
+      if (payload[attr] !== undefined && payload[attr] !== lead[attr]) {
+        routingAttributesChanged = true;
+        break;
+      }
+    }
+
+    // Re-evaluate routing if relevant attributes changed and owner not explicitly set
     const userObj: User = payload.owner;
-    if (payload.owner) {
+    if (routingAttributesChanged && !userObj) {
+      console.log('[Lead Routing] Routing-relevant attributes changed. Re-evaluating routing rules...');
+
+      try {
+        const leadRoutingService = new LeadRoutingConfigService();
+        // Merge payload with existing lead for routing evaluation
+        const tempLead = new Lead(lead);
+        Object.assign(tempLead, payload);
+        const routedUserId = await leadRoutingService.executeRouting(tempLead);
+
+        if (routedUserId && routedUserId !== lead.owner?.userId) {
+          console.log(`[Lead Routing] New rule matched. Re-routing lead from ${lead.owner?.userId} to ${routedUserId}`);
+          const routedUser = await userRepo.findOne({ where: { userId: routedUserId } });
+
+          if (routedUser && routedUser.isActive) {
+            payload.owner = routedUser as User;
+            console.log(`[Lead Routing] Successfully re-assigned lead to: ${routedUser.email}`);
+          } else {
+            console.log(`[Lead Routing] Routed user not found or inactive. Keeping current owner.`);
+          }
+        } else if (routedUserId) {
+          console.log(`[Lead Routing] Same owner matched. No change needed.`);
+        } else {
+          console.log(`[Lead Routing] No routing rules matched. Keeping current owner.`);
+        }
+      } catch (error) {
+        console.error(`[Lead Routing] Error during routing re-evaluation:`, error);
+      }
+    } else if (payload.owner) {
+      // Owner explicitly set in payload - validate and assign
       const userData = await userRepo
         .createQueryBuilder("user")
         .leftJoinAndSelect("user.organisation", "organisation")
@@ -1593,7 +1671,7 @@ class LeadService {
 
       // Encrypt the title for search if encryption is used in the system
       const encryptedTitle = encryption(leadTitle);
-      
+
       // Update all leads with matching title
       const result = await transactionEntityManager
         .createQueryBuilder()
