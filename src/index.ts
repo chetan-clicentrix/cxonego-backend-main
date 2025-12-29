@@ -67,15 +67,15 @@ const allowedOrigins = [
 ].filter(Boolean) as (string | undefined)[];
 
 // General CORS for all other routes
-app.use(cors({ 
-  credentials: true, 
-  origin: function(origin, callback) {
-  
+app.use(cors({
+  credentials: true,
+  origin: function (origin, callback) {
+
     if (!origin) return callback(null, true);
-    
+
 
     console.log(`Received request with origin: ${origin}`);
-    
+
 
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
@@ -102,16 +102,16 @@ app.use((_req, res, next) => {
 app.options('*', (req, res) => {
   // Get the origin from the request header
   const origin = req.headers.origin;
-  
+
   // Log the origin for debugging
   console.log(`OPTIONS request received from origin: ${origin}`);
-  
+
   // Set CORS headers
   res.header('Access-Control-Allow-Origin', origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
-  
+
   // Respond with 204 No Content
   res.status(204).end();
 });
@@ -133,6 +133,11 @@ app.use(
       RegExp("/api/v1/document/auth/google/connection"),
       RegExp("/api/v1/document/auth/google/reconnect"),
       RegExp("/api/v1/document/debug/connection"),
+      // SharePoint OAuth routes - no auth required
+      RegExp("/api/v1/sharepoint/auth"),
+      RegExp("/api/v1/sharepoint/auth/callback"),
+      RegExp("/api/v1/sharepoint/connection"),
+      RegExp("/api/v1/sharepoint/status"),
       RegExp("/api/v1/email-poc/"),
       RegExp("/api/v1/users/invite"),
       RegExp("/api/v1/users/update"),
@@ -189,7 +194,7 @@ app.use(errorMiddleware);
 app.listen(port, async () => {
   logger.info("App Started on port", { port });
   console.log(`Server running at http://localhost:${port}`);
-  
+
   // Database connection with better error handling
   try {
     // Log database connection parameters (without password)
@@ -199,10 +204,10 @@ app.listen(port, async () => {
       username: process.env.DATABASE_USER_NAME,
       database: process.env.DATABASE_NAME,
     });
-    
+
     // Initialize database connection
     await AppDataSource.initialize();
-    
+
     logger.info("Database connection successful...");
   } catch (error) {
     logger.error("Database connection error:", error);
@@ -212,7 +217,7 @@ app.listen(port, async () => {
       errno: error.errno,
       stack: error.stack,
     });
-    
+
     // Don't crash the server on database connection failure
     // This allows the server to start and serve routes that don't require database
   }

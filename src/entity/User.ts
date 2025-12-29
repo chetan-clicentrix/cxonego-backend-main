@@ -16,6 +16,7 @@ import {
 } from "typeorm";
 import { Account } from "./Account";
 import { Role } from "./Role";
+import { SharePointDocument } from "./SharePointDocument";
 import { Organisation } from "./Organisation";
 import { MoodImage } from "./MoodImage";
 import { Contact } from "./Contact";
@@ -165,6 +166,16 @@ export class User extends BaseEntity {
     expiryDate: number;
   };
 
+  @Column({
+    type: "json",
+    nullable: true
+  })
+  sharepointTokens?: {
+    refreshToken: string;
+    accessToken: string;
+    expiryDate: number;
+  };
+
   @ManyToMany(() => Role, (role) => role.users, {
     eager: true,
     cascade: true,
@@ -188,6 +199,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Account, (Account) => Account.owner)
   company: Account[];
+
+  @OneToMany(() => SharePointDocument, (doc) => doc.uploadedBy)
+  sharepointDocuments: SharePointDocument[];
 
   @OneToMany(() => Contact, (Contact) => Contact.owner)
   contact: Contact[];
