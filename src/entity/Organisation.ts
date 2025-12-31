@@ -15,6 +15,7 @@ import { Case } from "./Case";
 import { Technician } from "./Technician";
 import { TicketAssignment } from "./TicketAssignment";
 import { TicketStatusHistory } from "./TicketStatusHistory";
+import { SharePointDocument } from "./SharePointDocument";
 import { LeadRoutingConfig } from "./LeadRoutingConfig";
 @Entity()
 export class Organisation extends CustomBaseEntity {
@@ -119,6 +120,9 @@ export class Organisation extends CustomBaseEntity {
 
   @OneToMany(() => TicketStatusHistory, (history) => history.organization)
   ticketStatusHistory: TicketStatusHistory[];
+
+  @OneToMany(() => SharePointDocument, (doc) => doc.organization)
+  sharepointDocuments: SharePointDocument[];
 
   @OneToMany(() => LeadRoutingConfig, (config) => config.organization)
   leadRoutingConfigs: LeadRoutingConfig[];

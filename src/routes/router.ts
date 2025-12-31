@@ -28,6 +28,7 @@ import superAdminRouter from "./superAdmin.routes";
 import cronRouter from "./cron.routes";
 import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
+import sharepointRouter from "./sharepoint.routes";
 import leadRoutingConfigRouter from "./leadRoutingConfig.routes";
 // import customeToken from "./firebaseToken.routes";
 
@@ -59,6 +60,7 @@ router.use("/customPlanRequest", customPlanRequestRouter);
 router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
+router.use("/sharepoint", sharepointRouter)
 
 // Case Management Module
 router.use("/cases", caseRouter);
