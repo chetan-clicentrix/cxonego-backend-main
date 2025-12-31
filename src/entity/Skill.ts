@@ -82,3 +82,37 @@ export class Skill extends CustomBaseEntity {
         if (this.certificationName) this.certificationName = encryption(this.certificationName);
     }
 }
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Skill:
+ *       type: object
+ *       properties:
+ *         skillId:
+ *           type: string
+ *           format: uuid
+ *         name:
+ *           type: string
+ *         category:
+ *           type: string
+ *         proficiencyLevel:
+ *           type: string
+ *           enum: [Beginner, Intermediate, Advanced, Expert]
+ *         yearsOfExperience:
+ *           type: integer
+ *         isCertified:
+ *           type: boolean
+ *         certificationName:
+ *           type: string
+ *         lastUsedDate:
+ *           type: string
+ *           format: date
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ */
