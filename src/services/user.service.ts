@@ -534,6 +534,7 @@ class UserServices {
 
     if (invites.length > 0) {
       for (let invite of invites) {
+        
         const htmlTemplate = `
         <head>
         <title>CXOneGo Invitation</title>
@@ -571,11 +572,12 @@ class UserServices {
                 </html>             
                 `;
 
-        const emailManager = new EmailManager();
+        // const emailManager = new EmailManager();
         // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="https://cxonego-frontend.vercel.app/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
         // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="http://localhost:5173/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
         //    =useable= await emailManager.sendEmail([invite?.email],subject,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} - we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue; <br><br> <a href="https://stage.d2zp02j1k6pdkx.amplifyapp.com/sign-up?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        await emailManager.sendEmail([invite?.email], subject, htmlTemplate);
+        // await emailManager.sendEmail([invite?.email], subject, htmlTemplate);
+       
 
         const duplicateEntry =
           adminUserInstance.invitedUsers === null

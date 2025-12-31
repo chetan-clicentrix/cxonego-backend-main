@@ -98,7 +98,7 @@ export class SharePointAuthService {
             // Extract tokens from response
             const tokens: SharePointTokens = {
                 accessToken: response.accessToken,
-                refreshToken: response.refreshToken || '',
+                refreshToken: (response as any).refreshToken || '',
                 expiryDate: response.expiresOn ? response.expiresOn.getTime() : Date.now() + 3600000, // Default 1 hour
                 tokenType: response.tokenType,
                 scope: response.scopes?.join(' ')
@@ -151,8 +151,8 @@ export class SharePointAuthService {
                     user.sharepointTokens.expiryDate = response.expiresOn?.getTime() || Date.now() + 3600000;
 
                     // Update refresh token if new one provided
-                    if (response.refreshToken) {
-                        user.sharepointTokens.refreshToken = response.refreshToken;
+                    if ((response as any).refreshToken) {
+                        user.sharepointTokens.refreshToken = (response as any).refreshToken;
                     }
 
                     await this.userRepository.save(user);
