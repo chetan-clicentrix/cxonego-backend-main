@@ -30,7 +30,7 @@ import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
 import sharepointRouter from "./sharepoint.routes";
 import leadRoutingConfigRouter from "./leadRoutingConfig.routes";
-// import customeToken from "./firebaseToken.routes";
+import skillRouter from "./skill.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
@@ -61,6 +61,7 @@ router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
 router.use("/sharepoint", sharepointRouter)
+router.use("/skills", skillRouter);
 
 // Case Management Module
 router.use("/cases", caseRouter);

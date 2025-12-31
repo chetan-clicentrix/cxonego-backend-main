@@ -46,7 +46,11 @@ class LeadService {
       if (lead.company) lead.company = await accountDecryption(lead.company);
       if (lead.contact) lead.contact = await contactDecryption(lead.contact);
       lead.owner = await userDecryption(lead.owner);
+      console.log(lead.organization);
     }
+
+    console.log(leads);
+
     return leads;
   }
 
@@ -56,6 +60,7 @@ class LeadService {
         ? date.getMonth() + 1
         : "0" + (date.getMonth() + 1)
     );
+
 
     const year = String(date.getFullYear().toString().slice(-2));
     const lastLead = await AppDataSource.getRepository(Lead)
@@ -457,6 +462,7 @@ class LeadService {
         lead.company = await accountDecryption(lead.company as Account);
         lead.contact = await contactDecryption(lead.contact as Contact);
         lead.owner = await userDecryption(lead.owner as User);
+        console.log("lead", lead.owner);
       }
 
       let skip = 0;

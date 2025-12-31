@@ -457,3 +457,10 @@ export enum routingAssignToType {
   USER = "USER",
   ROLE = "ROLE",
 }
+
+export enum proficiencyLevel {
+  BEGINNER = "Beginner",
+  INTERMEDIATE = "Intermediate",
+  ADVANCED = "Advanced",
+  EXPERT = "Expert"
+}
