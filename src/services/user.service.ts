@@ -252,7 +252,7 @@ class UserServices {
         for (const subscription of user.organisation.subscriptions) {
           if (
             subscription.subscription_status ===
-              subscriptionStatus.SUBSCRIPTION_ACTIVE &&
+            subscriptionStatus.SUBSCRIPTION_ACTIVE &&
             subscription.endDateTime
           ) {
             const endDateTime = new Date(subscription.endDateTime);
@@ -534,7 +534,16 @@ class UserServices {
 
     if (invites.length > 0) {
       for (let invite of invites) {
-        
+
+        const inviteLink = `http://localhost:5173/sign-up?email=${encodeURIComponent(
+          invite.email
+        )}&company=${encodeURIComponent(invite.company)}&role=${encodeURIComponent(
+          invite.role
+        )}&organizationId=${invite.organizationId}`;
+
+
+        console.log("INVITE LINK:", inviteLink);
+
         const htmlTemplate = `
         <head>
         <title>CXOneGo Invitation</title>
@@ -548,18 +557,14 @@ class UserServices {
             I hope this message finds you well!
           </p>
           <p style="margin: 20px 0;">
-            ${adminName} has invited you to join as <strong>${
-          invite?.role
-        }</strong> in organization <strong>${
-          invite?.company
-        } on CXOneGo. Please click on the button below to accept the invitation.
+            ${adminName} has invited you to join as <strong>${invite?.role
+          }</strong> in organization <strong>${invite?.company
+          } on CXOneGo. Please click on the button below to accept the invitation.
                 
                 <br> <br> 
-                <a href="http://localhost:5173/sign-up?email=${
-                  invite?.email
-                }&company=${invite?.company}&role=${
-          invite?.role
-        }&organizationId=${invite?.organizationId}"><Button>Accept</Button></a>
+                <a href="http://localhost:5173/sign-up?email=${invite?.email
+          }&company=${invite?.company}&role=${invite?.role
+          }&organizationId=${invite?.organizationId}"><Button>Accept</Button></a>
         <br>
         Once you click on Accept Link, you will be prompted to register yourself, first go through registration steps then you will be able to login with your credentials.
                 <br> <br> 
@@ -583,9 +588,9 @@ class UserServices {
           adminUserInstance.invitedUsers === null
             ? false
             : adminUserInstance.invitedUsers.some(
-                (user) =>
-                  user.email === invite?.email && user.role === invite?.role
-              );
+              (user) =>
+                user.email === invite?.email && user.role === invite?.role
+            );
 
         if (!duplicateEntry) {
           const newInvite = {
@@ -608,9 +613,8 @@ class UserServices {
       }
     }
     return {
-      message: `${newInvites} new user(s) have been invited successfully, you have ${
-        maxNoOfUsers - alreadyInvitedUsers - newInvites
-      } invites left.`,
+      message: `${newInvites} new user(s) have been invited successfully, you have ${maxNoOfUsers - alreadyInvitedUsers - newInvites
+        } invites left.`,
     };
   }
   async partiallyUpadateUser(
@@ -899,20 +903,20 @@ class UserServices {
   };
 
   isInvitationRevoked = async (payload: IsIinvitationRevokedSchemaType) => {
-    const {organizationId, userEmail} = payload
+    const { organizationId, userEmail } = payload
     const orgRepository = AppDataSource.getRepository(Organisation);
     const organization = await orgRepository.createQueryBuilder("organization")
-    .leftJoinAndSelect("organization.users", "user")
-    .leftJoinAndSelect("user.roles", "role")
-    .where("organization.organisationId = :organizationId", {organizationId})
-    .getOne()
+      .leftJoinAndSelect("organization.users", "user")
+      .leftJoinAndSelect("user.roles", "role")
+      .where("organization.organisationId = :organizationId", { organizationId })
+      .getOne()
 
-    if(!organization){
+    if (!organization) {
       throw new ResourceNotFoundError("Provided Organization does not exist.")
     }
     const admin = organization.users.find(cur => cur.roles[0].roleName === roleNames.ADMIN)
 
-    if(admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
+    if (admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
 
     const isInvitationValid = admin.invitedUsers.some(cur => cur.email === userEmail);
     return isInvitationValid;

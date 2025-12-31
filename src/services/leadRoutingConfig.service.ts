@@ -51,7 +51,13 @@ class LeadRoutingConfigService {
         const leadRoutingRepository: Repository<LeadRoutingConfig> =
             transactionEntityManager.getRepository(LeadRoutingConfig);
         const configInstance = new LeadRoutingConfig(payload);
-        const config = await leadRoutingRepository.save(configInstance);
+        let config = await leadRoutingRepository.save(configInstance);
+
+        // Decrypt config value and organization data before returning
+        config = await leadRoutingConfigDecryption(config);
+        if (config.organization) {
+            config.organization = await orgnizationDecryption(config.organization);
+        }
 
         return config;
     }
