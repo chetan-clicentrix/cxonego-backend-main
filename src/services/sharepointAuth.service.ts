@@ -35,7 +35,7 @@ export class SharePointAuthService {
             },
             system: {
                 loggerOptions: {
-                    loggerCallback: (level, message, containsPii) => {
+                    loggerCallback: (_level, message, containsPii) => {
                         if (!containsPii) {
                             console.log(`[MSAL] ${message}`);
                         }
