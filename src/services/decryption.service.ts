@@ -17,6 +17,7 @@ import { CustomPlanRequest } from "../entity/CustomPlanRequest";
 import { Document } from "../entity/Document";
 import { LeadRoutingConfig } from "../entity/LeadRoutingConfig";
 import { Skill } from "../entity/Skill";
+import { SharePointDocument } from "../entity/SharePointDocument";
 
 export const accountDecryption = async (company: Account) => {
   if (company?.accountName) company.accountName = decrypt(company.accountName);
@@ -315,4 +316,23 @@ export const skillDecryption = async (skill: Skill) => {
   if (skill?.category) skill.category = decrypt(skill.category);
   if (skill?.certificationName) skill.certificationName = decrypt(skill.certificationName);
   return skill;
+};
+
+// SharePoint Document Decryption
+export const sharepointDocumentDecryption = async (document: SharePointDocument): Promise<SharePointDocument> => {
+  if (document?.fileName) document.fileName = decrypt(document.fileName);
+  if (document?.description) document.description = decrypt(document.description);
+  if (document?.customDocumentType) document.customDocumentType = decrypt(document.customDocumentType);
+  return document;
+};
+
+export const multipleSharepointDocumentsDecryption = async (documents: Array<SharePointDocument>): Promise<Array<SharePointDocument>> => {
+  if (!documents || documents.length === 0) return documents;
+
+  const documentsArray: Array<SharePointDocument> = [];
+  for (let document of documents) {
+    document = await sharepointDocumentDecryption(document);
+    documentsArray.push(document);
+  }
+  return documentsArray;
 };
