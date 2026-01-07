@@ -3,7 +3,7 @@ import { SharePointAuthService } from "./sharepointAuth.service";
 import { SharePointConfig } from "../config/sharepoint.config";
 import { AppDataSource } from "../data-source";
 import { SharePointDocument, DocumentType } from "../entity/SharePointDocument";
-import { Contact } from "../entity/Contact";
+import { Oppurtunity } from "../entity/Oppurtunity";
 import { User } from "../entity/User";
 import { Organisation } from "../entity/Organisation";
 import { decrypt } from "../common/utils";
@@ -14,7 +14,7 @@ import { sharepointDocumentDecryption, multipleSharepointDocumentsDecryption } f
 export class SharePointService {
     private authService = new SharePointAuthService();
     private documentRepository = AppDataSource.getRepository(SharePointDocument);
-    private contactRepository = AppDataSource.getRepository(Contact);
+    private opportunityRepository = AppDataSource.getRepository(Oppurtunity);
     private userRepository = AppDataSource.getRepository(User);
     private organizationRepository = AppDataSource.getRepository(Organisation);
     private siteId: string | undefined;
@@ -83,7 +83,7 @@ export class SharePointService {
      */
     async uploadFile(
         userId: string,
-        contactId: string,
+        opportunityId: string,
         file: Express.Multer.File,
         metadata: {
             description?: string;
@@ -98,33 +98,25 @@ export class SharePointService {
             const user = await this.userRepository.findOne({ where: { userId }, relations: ['organisation'] });
             if (!user) throw new Error("User not found");
 
-            const contact = await this.contactRepository.findOne({ where: { contactId } });
-            if (!contact) throw new Error("Contact not found");
+            const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+            if (!opportunity) throw new Error("Opportunity not found");
 
             // 2. Get Graph Client (Service Principal)
             const client = await this.getGraphClient();
             const siteId = await this.getSiteId();
 
-            // 3. Create Folder Structure: CxOneGo Documents / [Customer Name]
-            // decrypt a contacts 
-            const FirstName = contact.firstName ? decrypt(contact.firstName) : '';
-            const LastName = contact.lastName ? decrypt(contact.lastName) : '';
-            let displayName = '';
-            if (FirstName) {
-                displayName += FirstName;
+            // 3. Create Folder Structure: CxOneGo Documents / [Opportunity Title]
+            // decrypt opportunity title
+            const opportunityTitle = opportunity.title ? decrypt(opportunity.title) : '';
+            let displayName = opportunityTitle.trim();
+            if (!displayName) {
+                displayName = `Opportunity-${opportunity.opportunityId}`;
             }
-            if (LastName) {
-                if (displayName) displayName += ' ';
-                displayName += LastName;
-            }
-            if (!displayName.trim()) {
-                displayName = `Contact-${contact.contactId}`;
-            }
-            const customerFolderName = displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const opportunityFolderName = displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
 
             // Build the file path in SharePoint
-            const filePath = `${rootFolder}/${customerFolderName}/${file.originalname}`;
+            const filePath = `${rootFolder}/${opportunityFolderName}/${file.originalname}`;
 
             console.log(`Uploading file to SharePoint site: ${filePath}`);
 
@@ -151,14 +143,14 @@ export class SharePointService {
                 fileSize: file.size,
                 sharepointFileId: driveItem.id,
                 sharepointLink: webUrl,
-                sharepointFolderPath: `${rootFolder}/${customerFolderName}`,
-                customerFolderName: customerFolderName,
+                sharepointFolderPath: `${rootFolder}/${opportunityFolderName}`,
+                opportunityFolderName: opportunityFolderName,
                 description: metadata.description,
                 documentType: metadata.documentType,
                 customDocumentType: metadata.customDocumentType,
                 startTime: metadata.startTime,
                 endTime: metadata.endTime,
-                contact: contact,
+                opportunity: opportunity,
                 uploadedBy: user,
                 organization: user.organisation // Associate with user's org
             });
@@ -176,10 +168,10 @@ export class SharePointService {
     }
 
     /**
-     * Get documents for a specific contact
+     * Get documents for a specific opportunity
      */
-    async getContactDocuments(
-        contactId: string,
+    async getOpportunityDocuments(
+        opportunityId: string,
         page: number = 1,
         limit: number = 10,
         search?: string
@@ -188,7 +180,7 @@ export class SharePointService {
 
         const queryBuilder = this.documentRepository.createQueryBuilder("doc")
             .leftJoinAndSelect("doc.uploadedBy", "user")
-            .where("doc.contactId = :contactId", { contactId });
+            .where("doc.opportunityId = :opportunityId", { opportunityId });
 
         if (search) {
             queryBuilder.andWhere("(doc.fileName LIKE :search OR doc.description LIKE :search)", { search: `%${search}%` });
@@ -226,7 +218,7 @@ export class SharePointService {
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.documentRepository.createQueryBuilder("doc")
-            .leftJoinAndSelect("doc.contact", "contact")
+            .leftJoinAndSelect("doc.opportunity", "opportunity")
             .where("doc.uploadedById = :userId", { userId });
 
         if (search) {
@@ -266,7 +258,7 @@ export class SharePointService {
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.documentRepository.createQueryBuilder("doc")
-            .leftJoinAndSelect("doc.contact", "contact")
+            .leftJoinAndSelect("doc.opportunity", "opportunity")
             .leftJoinAndSelect("doc.uploadedBy", "user");
 
         if (organizationId) {

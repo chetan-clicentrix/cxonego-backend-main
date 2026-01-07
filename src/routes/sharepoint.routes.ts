@@ -13,7 +13,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @swagger
- * /sharepoint/upload/{contactId}:
+ * /sharepoint/upload/{opportunityId}:
  *   post:
  *     summary: Upload a document to SharePoint
  *     tags: [SharePoint]
@@ -21,11 +21,11 @@ const upload = multer({ storage: multer.memoryStorage() });
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: contactId
+ *         name: opportunityId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID of the contact to associate the document with
+ *         description: ID of the opportunity to associate the document with
  *     requestBody:
  *       required: true
  *       content:
@@ -60,22 +60,22 @@ const upload = multer({ storage: multer.memoryStorage() });
  *         description: Internal server error
  */
 router.post(
-    "/upload/:contactId",
+    "/upload/:opportunityId",
     upload.single("file"),
     sharepointController.uploadDocument.bind(sharepointController)
 );
 
 /**
  * @swagger
- * /sharepoint/contact/{contactId}:
+ * /sharepoint/opportunity/{opportunityId}:
  *   get:
- *     summary: Get documents for a specific contact
+ *     summary: Get documents for a specific opportunity
  *     tags: [SharePoint]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: contactId
+ *         name: opportunityId
  *         required: true
  *         schema:
  *           type: string
@@ -99,7 +99,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.get("/contact/:contactId", sharepointController.getContactDocuments.bind(sharepointController));
+router.get("/opportunity/:opportunityId", sharepointController.getOpportunityDocuments.bind(sharepointController));
 
 /**
  * @swagger

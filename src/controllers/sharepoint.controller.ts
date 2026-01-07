@@ -24,11 +24,11 @@ export class SharePointController {
 
     /**
      * Upload document to SharePoint
-     * POST /api/v1/sharepoint/upload/:contactId
+     * POST /api/v1/sharepoint/upload/:opportunityId
      */
     async uploadDocument(req: ExtendedRequest, res: Response) {
         try {
-            const { contactId } = req.params;
+            const { opportunityId } = req.params;
             const userId = req.user?.userId || req.userId;
             const file = req.file;
 
@@ -44,7 +44,7 @@ export class SharePointController {
 
             const document = await this.sharepointService.uploadFile(
                 userId,
-                contactId,
+                opportunityId,
                 file,
                 {
                     description,
@@ -63,17 +63,17 @@ export class SharePointController {
     }
 
     /**
-     * Get documents for a contact
-     * GET /api/v1/sharepoint/contact/:contactId
+     * Get documents for an opportunity
+     * GET /api/v1/sharepoint/opportunity/:opportunityId
      */
-    async getContactDocuments(req: ExtendedRequest, res: Response) {
+    async getOpportunityDocuments(req: ExtendedRequest, res: Response) {
         try {
-            const { contactId } = req.params;
+            const { opportunityId } = req.params;
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const search = req.query.search as string;
 
-            const result = await this.sharepointService.getContactDocuments(contactId, page, limit, search);
+            const result = await this.sharepointService.getOpportunityDocuments(opportunityId, page, limit, search);
 
             return res.status(200).json(buildResponse(result, "Documents retrieved successfully"));
         } catch (error) {
