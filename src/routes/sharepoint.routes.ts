@@ -7,156 +7,9 @@ const sharepointController = new SharePointController();
 const upload = multer({ storage: multer.memoryStorage() });
 
 /**
- * @swagger
- * /api/v1/sharepoint/auth:
- *   get:
- *     tags:
- *       - SharePoint
- *     summary: Get SharePoint OAuth authorization URL
- *     description: Returns a URL to redirect user for SharePoint authentication
- *     parameters:
- *       - in: query
- *         name: userId
- *         schema:
- *           type: string
- *         required: false
- *         description: Optional user ID to maintain through OAuth flow
- *     responses:
- *       200:
- *         description: Auth URL generated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: object
- *                   properties:
- *                     authUrl:
- *                       type: string
- *                       description: URL to redirect user to for authentication
- *                 message:
- *                   type: string
- *       500:
- *         description: Failed to generate auth URL
+ * SharePoint Document Management Routes
+ * Uses Service Principal authentication - no user OAuth required
  */
-router.get("/auth", sharepointController.getAuthUrl.bind(sharepointController));
-
-/**
- * @swagger
- * /api/v1/sharepoint/auth/callback:
- *   get:
- *     tags:
- *       - SharePoint
- *     summary: Handle SharePoint OAuth callback
- *     description: Process the callback from Microsoft after user authentication
- *     parameters:
- *       - in: query
- *         name: code
- *         schema:
- *           type: string
- *         required: true
- *         description: Authorization code from Microsoft
- *       - in: query
- *         name: state
- *         schema:
- *           type: string
- *         required: false
- *         description: State parameter (typically userId)
- *     responses:
- *       200:
- *         description: Authentication successful
- *       302:
- *         description: Redirect to frontend (if configured)
- *       400:
- *         description: Invalid code
- *       500:
- *         description: Failed to authenticate
- */
-router.get("/auth/callback", sharepointController.handleCallback.bind(sharepointController));
-
-/**
- * @swagger
- * /api/v1/sharepoint/connection:
- *   get:
- *     tags:
- *       - SharePoint
- *     summary: Check SharePoint connection status
- *     description: Checks if the user is connected to SharePoint
- *     parameters:
- *       - in: query
- *         name: userId
- *         schema:
- *           type: string
- *         required: false
- *         description: User ID to check (required if not authenticated)
- *     responses:
- *       200:
- *         description: Connection status retrieved
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: object
- *                   properties:
- *                     connected:
- *                       type: boolean
- *                       description: Whether user is connected to SharePoint
- *                 message:
- *                   type: string
- *       401:
- *         description: No user ID provided
- *       500:
- *         description: Failed to check connection
- */
-router.get("/connection", sharepointController.checkConnection.bind(sharepointController));
-
-/**
- * @swagger
- * /api/v1/sharepoint/status:
- *   get:
- *     tags:
- *       - SharePoint
- *     summary: Get detailed SharePoint connection status
- *     description: Returns detailed information about user's SharePoint connection including token status
- *     parameters:
- *       - in: query
- *         name: userId
- *         schema:
- *           type: string
- *         required: false
- *         description: User ID to check
- *     responses:
- *       200:
- *         description: Detailed status retrieved
- *       401:
- *         description: No user ID provided
- *       500:
- *         description: Failed to get status
- */
-router.get("/status", sharepointController.getConnectionStatus.bind(sharepointController));
-
-/**
- * @swagger
- * /api/v1/sharepoint/connection:
- *   delete:
- *     tags:
- *       - SharePoint
- *     summary: Disconnect SharePoint
- *     description: Remove SharePoint connection and tokens for the authenticated user
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Connection removed successfully
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Failed to disconnect
- */
-router.delete("/connection", sharepointController.disconnect.bind(sharepointController));
 
 /**
  * @swagger
@@ -209,7 +62,7 @@ router.delete("/connection", sharepointController.disconnect.bind(sharepointCont
 router.post(
     "/upload/:contactId",
     upload.single("file"),
-    sharepointController.uploadDocument
+    sharepointController.uploadDocument.bind(sharepointController)
 );
 
 /**
@@ -246,7 +99,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.get("/contact/:contactId", sharepointController.getContactDocuments);
+router.get("/contact/:contactId", sharepointController.getContactDocuments.bind(sharepointController));
 
 /**
  * @swagger
@@ -277,7 +130,7 @@ router.get("/contact/:contactId", sharepointController.getContactDocuments);
  *       401:
  *         description: Unauthorized
  */
-router.get("/user", sharepointController.getUserDocuments);
+router.get("/user", sharepointController.getUserDocuments.bind(sharepointController));
 
 /**
  * @swagger
@@ -312,7 +165,7 @@ router.get("/user", sharepointController.getUserDocuments);
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin", sharepointController.getAdminDocuments);
+router.get("/admin", sharepointController.getAdminDocuments.bind(sharepointController));
 
 /**
  * @swagger
@@ -334,7 +187,7 @@ router.get("/admin", sharepointController.getAdminDocuments);
  *       404:
  *         description: Document not found
  */
-router.get("/:documentId", sharepointController.getDocument);
+router.get("/:documentId", sharepointController.getDocument.bind(sharepointController));
 
 /**
  * @swagger
@@ -358,6 +211,6 @@ router.get("/:documentId", sharepointController.getDocument);
  *       401:
  *         description: Unauthorized
  */
-router.delete("/:documentId", sharepointController.deleteDocument);
+router.delete("/:documentId", sharepointController.deleteDocument.bind(sharepointController));
 
 export default router;

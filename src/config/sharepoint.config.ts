@@ -4,32 +4,36 @@ dotenv.config();
 
 /**
  * SharePoint/Microsoft Graph configuration
- * Manages OAuth and API settings for SharePoint integration
+ * Uses Service Principal (Application Permissions) for backend authentication
  */
 export class SharePointConfig {
-    // Microsoft Azure AD OAuth Configuration
+    // Microsoft Azure AD Service Principal Configuration
     static readonly TENANT_ID = process.env.MICROSOFT_TENANT_ID || '';
     static readonly CLIENT_ID = process.env.MICROSOFT_CLIENT_ID || '';
     static readonly CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || '';
-    static readonly REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI || 'http://localhost:8000/api/v1/sharepoint/auth/callback';
+
+    // SharePoint Site Configuration
+    // Format: https://yourtenant.sharepoint.com/sites/yoursite
+    static readonly SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL || '';
+    // Optional: If you know the site ID, you can set it directly
+    static readonly SHAREPOINT_SITE_ID = process.env.SHAREPOINT_SITE_ID || '';
 
     // Microsoft Graph API Configuration
     static readonly GRAPH_API_ENDPOINT = 'https://graph.microsoft.com/v1.0';
     static readonly AUTHORITY = `https://login.microsoftonline.com/${SharePointConfig.TENANT_ID}`;
 
-    // OAuth Scopes - Define required permissions
-    static readonly SCOPES = [
-        'Files.ReadWrite.All',      // Read and write files in all site collections
-        'Sites.ReadWrite.All',      // Read and write items in all site collections
-        'User.Read',                // Read user profile
-        'offline_access'            // Allow refresh token
-    ];
+    // Token endpoint for client credentials flow
+    static readonly TOKEN_ENDPOINT = `https://login.microsoftonline.com/${SharePointConfig.TENANT_ID}/oauth2/v2.0/token`;
+
+    // Application Permission Scope (Service Principal)
+    // Using .Default scope which includes all configured API permissions
+    static readonly SCOPE = 'https://graph.microsoft.com/.default';
 
     // Token expiry buffer (refresh 5 minutes before expiry)
     static readonly TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000; // 5 minutes in milliseconds
 
     // Folder structure configuration
-    static readonly ROOT_FOLDER_NAME = 'CxOneGo Documents';
+    static readonly ROOT_FOLDER_NAME = 'cx1';
     static readonly CONTACTS_FOLDER_NAME = 'Contacts';
 
     /**
@@ -42,7 +46,7 @@ export class SharePointConfig {
         if (!this.TENANT_ID) missingConfig.push('MICROSOFT_TENANT_ID');
         if (!this.CLIENT_ID) missingConfig.push('MICROSOFT_CLIENT_ID');
         if (!this.CLIENT_SECRET) missingConfig.push('MICROSOFT_CLIENT_SECRET');
-        if (!this.REDIRECT_URI) missingConfig.push('MICROSOFT_REDIRECT_URI');
+        if (!this.SHAREPOINT_SITE_URL) missingConfig.push('SHAREPOINT_SITE_URL');
 
         if (missingConfig.length > 0) {
             throw new Error(
@@ -51,47 +55,19 @@ export class SharePointConfig {
             );
         }
 
-        console.log('✓ SharePoint configuration validated successfully');
-    }
-
-    /**
-     * Get the authorization URL for OAuth flow
-     * @param state Optional state parameter (typically userId) to maintain through OAuth flow
-     * @returns Authorization URL
-     */
-    static getAuthorizationUrl(state?: string): string {
-        const params = new URLSearchParams({
-            client_id: this.CLIENT_ID,
-            response_type: 'code',
-            redirect_uri: this.REDIRECT_URI,
-            response_mode: 'query',
-            scope: this.SCOPES.join(' '),
-            prompt: 'consent' // Force consent to ensure refresh token
-        });
-
-        if (state) {
-            params.append('state', state);
-        }
-
-        return `${this.AUTHORITY}/oauth2/v2.0/authorize?${params.toString()}`;
-    }
-
-    /**
-     * Get the token endpoint URL
-     */
-    static getTokenEndpoint(): string {
-        return `${this.AUTHORITY}/oauth2/v2.0/token`;
+        console.log('✓ SharePoint Service Principal configuration validated successfully');
     }
 
     /**
      * Log configuration status (without exposing secrets)
      */
     static logConfigStatus(): void {
-        console.log('SharePoint Configuration Status:');
+        console.log('SharePoint Service Principal Configuration:');
         console.log('- Tenant ID:', this.TENANT_ID ? '✓ Set' : '✗ Missing');
         console.log('- Client ID:', this.CLIENT_ID ? '✓ Set' : '✗ Missing');
         console.log('- Client Secret:', this.CLIENT_SECRET ? '✓ Set' : '✗ Missing');
-        console.log('- Redirect URI:', this.REDIRECT_URI);
-        console.log('- Required Scopes:', this.SCOPES.join(', '));
+        console.log('- SharePoint Site URL:', this.SHAREPOINT_SITE_URL ? '✓ Set' : '✗ Missing');
+        console.log('- Authentication Scope:', this.SCOPE);
+        console.log('- Authentication Mode: Service Principal (Application Permissions)');
     }
 }

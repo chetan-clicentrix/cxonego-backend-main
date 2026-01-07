@@ -15,12 +15,58 @@ export class SharePointService {
     private contactRepository = AppDataSource.getRepository(Contact);
     private userRepository = AppDataSource.getRepository(User);
     private organizationRepository = AppDataSource.getRepository(Organisation);
+    private siteId: string | undefined;
 
     /**
-     * Get an authenticated Microsoft Graph client for a user
+     * Get the SharePoint site ID from the site URL
+     * Caches the site ID for subsequent requests
      */
-    private async getGraphClient(userId: string): Promise<Client> {
-        const accessToken = await this.authService.getValidAccessToken(userId);
+    private async getSiteId(): Promise<string> {
+        if (this.siteId) {
+            return this.siteId;
+        }
+
+        // If site ID is configured directly, use it
+        if (SharePointConfig.SHAREPOINT_SITE_ID) {
+            this.siteId = SharePointConfig.SHAREPOINT_SITE_ID;
+            console.log('✓ Using configured SharePoint Site ID');
+            return this.siteId;
+        }
+
+        // Otherwise, resolve site ID from URL
+        const client = await this.getGraphClient();
+
+        // Parse the site URL to extract hostname and site path
+        const siteUrl = new URL(SharePointConfig.SHAREPOINT_SITE_URL);
+        const hostname = siteUrl.hostname;
+        const sitePath = siteUrl.pathname;
+
+        console.log(`Resolving SharePoint site ID for: ${hostname}${sitePath}`);
+
+        // Get site ID using Graph API
+        const site = await client.api(`/sites/${hostname}:${sitePath}`)
+            .get();
+
+        if (!site || !site.id) {
+            throw new Error('Failed to resolve SharePoint site ID - no ID returned from Graph API');
+        }
+
+        this.siteId = site.id;
+        console.log(`✓ Resolved SharePoint Site ID: ${this.siteId}`);
+
+        if (!this.siteId) {
+            throw new Error('Site ID is undefined after resolution');
+        }
+
+        return this.siteId;
+    }
+
+    /**
+     * Get an authenticated Microsoft Graph client using Service Principal
+     * No user context required - uses application permissions
+     */
+    private async getGraphClient(): Promise<Client> {
+        const accessToken = await this.authService.getAccessToken();
 
         return Client.init({
             authProvider: (done) => {
@@ -30,7 +76,8 @@ export class SharePointService {
     }
 
     /**
-     * Upload a file to SharePoint/OneDrive and create database record
+     * Upload a file to SharePoint site and create database record
+     * Uses Service Principal - no user authentication required
      */
     async uploadFile(
         userId: string,
@@ -52,38 +99,31 @@ export class SharePointService {
             const contact = await this.contactRepository.findOne({ where: { contactId } });
             if (!contact) throw new Error("Contact not found");
 
-            // 2. Get Graph Client
-            const client = await this.getGraphClient(userId);
+            // 2. Get Graph Client (Service Principal)
+            const client = await this.getGraphClient();
+            const siteId = await this.getSiteId();
 
             // 3. Create Folder Structure: CxOneGo Documents / [Customer Name]
             const customerFolderName = contact.getDisplayName().replace(/[^\w\s-]/g, '_'); // Sanitize
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
 
-            // Note: In a real production app, we should check/create folders recursively.
-            // For simplicity/MVP, we'll upload to a specific path or root/customer folder.
-            // Microsoft Graph allows uploading by path: /drive/root:/path/to/file:/content
-
+            // Build the file path in SharePoint
             const filePath = `${rootFolder}/${customerFolderName}/${file.originalname}`;
 
-            console.log(`Uploading file to OneDrive: ${filePath}`);
+            console.log(`Uploading file to SharePoint site: ${filePath}`);
 
-            // 4. Upload File
-            // Using large file upload task is better for large files, but for MVP simple put is okay for small files
-            // For production, we should implement upload session for files > 4MB
-
-            const driveItem = await client.api(`/me/drive/root:/${filePath}:/content`)
+            // 4. Upload File to SharePoint Site
+            // Using the site's drive instead of user's OneDrive
+            const driveItem = await client.api(`/sites/${siteId}/drive/root:/${filePath}:/content`)
                 .put(file.buffer);
 
-            console.log("File uploaded to OneDrive:", driveItem.id);
+            console.log("✓ File uploaded to SharePoint site:", driveItem.id);
 
             // 5. Create Sharing Link (View Link)
-            // We create a sharing link so we can access it later without user context if needed, 
-            // or just use the webUrl provided by Graph
-
-            const permission = await client.api(`/me/drive/items/${driveItem.id}/createLink`)
+            const permission = await client.api(`/sites/${siteId}/drive/items/${driveItem.id}/createLink`)
                 .post({
                     type: "view",
-                    scope: "organization" // or "anonymous" if needed public
+                    scope: "organization" // Organization-wide access
                 });
 
             const webUrl = permission.link.webUrl;
@@ -110,6 +150,7 @@ export class SharePointService {
             // Encrypt sensitive fields
             document.encrypt();
 
+            console.log('✓ Document metadata saved to database');
             return await this.documentRepository.save(document);
 
         } catch (error) {
@@ -232,7 +273,8 @@ export class SharePointService {
     }
 
     /**
-     * Delete a document
+     * Delete a document from SharePoint site and database
+     * Uses Service Principal - has permissions to delete any file
      */
     async deleteDocument(documentId: string, userId: string, isAdmin: boolean = false): Promise<void> {
         const document = await this.documentRepository.findOne({
@@ -250,28 +292,23 @@ export class SharePointService {
         }
 
         try {
-            // 1. Delete from SharePoint
-            // We need a valid token. If the uploader is deleting, use their token.
-            // If admin is deleting, we might need the uploader's token OR admin's token if they have access.
-            // For now, we assume the user performing the action has access to the file in SharePoint.
-            // Note: If admin deletes another user's file, this might fail if admin doesn't have permissions on that specific OneDrive file.
-            // In a real enterprise app, we'd use Application Permissions, but here we use Delegated.
-            // We'll try to use the current user's token.
+            // 1. Delete from SharePoint Site using Service Principal
+            const client = await this.getGraphClient();
+            const siteId = await this.getSiteId();
 
-            const client = await this.getGraphClient(userId);
-
-            await client.api(`/me/drive/items/${document.sharepointFileId}`)
+            await client.api(`/sites/${siteId}/drive/items/${document.sharepointFileId}`)
                 .delete();
 
-            console.log(`File ${document.sharepointFileId} deleted from SharePoint`);
+            console.log(`✓ File ${document.sharepointFileId} deleted from SharePoint site`);
 
         } catch (error) {
-            console.error("Error deleting from SharePoint (might already be deleted or permission issue):", error);
+            console.error("Error deleting from SharePoint (might already be deleted):", error);
             // We proceed to soft delete from DB even if SharePoint delete fails/is already gone
         }
 
         // 2. Soft delete from Database
         await this.documentRepository.softRemove(document);
+        console.log(`✓ Document ${documentId} soft deleted from database`);
     }
 
     /**

@@ -64,10 +64,11 @@ import { Organisation } from "./Organisation";
   
     @Column({
       type: "varchar",
-      nullable: false,
+      nullable: true
     })
     @IsEmail()
     email: string;
+
   
     @ManyToOne(() => Account, (Account) => Account.leads, {
       cascade: true,
