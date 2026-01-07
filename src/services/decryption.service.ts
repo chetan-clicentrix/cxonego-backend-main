@@ -43,8 +43,7 @@ export const accountDecryption = async (company: Account) => {
 };
 
 export const leadDecryption = async (lead: Lead) => {
-  if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-  if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+  if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
   if (lead?.phone) lead.phone = decrypt(lead.phone);
   if (lead?.country) lead.country = decrypt(lead.country);
   if (lead?.state) lead.state = decrypt(lead.state);
@@ -55,6 +54,8 @@ export const leadDecryption = async (lead: Lead) => {
   if (lead?.description) lead.description = decrypt(lead.description);
   if (lead?.price) lead.price = decrypt(lead.price);
   if (lead?.countryCode) lead.countryCode = decrypt(lead.countryCode);
+  if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
+  if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
 
   return lead;
 };
@@ -81,8 +82,7 @@ export const contactDecryption = async (contact: Contact) => {
 export const multipleleadsDecryption = async (leads: Array<Lead>) => {
   const leadsArray: Array<Lead> = [];
   for (let lead of leads) {
-    if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-    if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+    if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
     if (lead?.phone) lead.phone = decrypt(lead.phone);
     if (lead?.country) lead.country = decrypt(lead.country);
     if (lead?.state) lead.state = decrypt(lead.state);
@@ -91,6 +91,8 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
     if (lead?.title) lead.title = decrypt(lead.title);
     if (lead?.leadSource) lead.leadSource = decrypt(lead.leadSource);
     if (lead?.description) lead.description = decrypt(lead.description);
+    if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
+    if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
     leadsArray.push(lead);
   }
 
