@@ -6,6 +6,7 @@ import { SharePointDocument, DocumentType } from "../entity/SharePointDocument";
 import { Contact } from "../entity/Contact";
 import { User } from "../entity/User";
 import { Organisation } from "../entity/Organisation";
+import { decrypt } from "../common/utils";
 import { Readable } from "stream";
 import { Like } from "typeorm";
 
@@ -104,9 +105,23 @@ export class SharePointService {
             const siteId = await this.getSiteId();
 
             // 3. Create Folder Structure: CxOneGo Documents / [Customer Name]
-            const customerFolderName = contact.getDisplayName().replace(/[^\w\s-]/g, '_'); // Sanitize
+             // decrypt a contacts 
+             const FirstName = contact.firstName ? decrypt(contact.firstName) : '';
+             const LastName = contact.lastName ? decrypt(contact.lastName) : '';
+             let displayName = '';
+             if (FirstName) {
+                 displayName += FirstName;
+             }
+             if (LastName) {
+                 if (displayName) displayName += ' ';
+                 displayName += LastName;
+             }
+             if (!displayName.trim()) {
+                 displayName = `Contact-${contact.contactId}`;
+             }
+            const customerFolderName =displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
-
+   
             // Build the file path in SharePoint
             const filePath = `${rootFolder}/${customerFolderName}/${file.originalname}`;
 

@@ -2,10 +2,7 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-/**
- * SharePoint/Microsoft Graph configuration
- * Uses Service Principal (Application Permissions) for backend authentication
- */
+
 export class SharePointConfig {
     // Microsoft Azure AD Service Principal Configuration
     static readonly TENANT_ID = process.env.MICROSOFT_TENANT_ID || '';
@@ -13,9 +10,9 @@ export class SharePointConfig {
     static readonly CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || '';
 
     // SharePoint Site Configuration
-    // Format: https://yourtenant.sharepoint.com/sites/yoursite
+    
     static readonly SHAREPOINT_SITE_URL = process.env.SHAREPOINT_SITE_URL || '';
-    // Optional: If you know the site ID, you can set it directly
+
     static readonly SHAREPOINT_SITE_ID = process.env.SHAREPOINT_SITE_ID || '';
 
     // Microsoft Graph API Configuration
@@ -25,7 +22,7 @@ export class SharePointConfig {
     // Token endpoint for client credentials flow
     static readonly TOKEN_ENDPOINT = `https://login.microsoftonline.com/${SharePointConfig.TENANT_ID}/oauth2/v2.0/token`;
 
-    // Application Permission Scope (Service Principal)
+ 
     // Using .Default scope which includes all configured API permissions
     static readonly SCOPE = 'https://graph.microsoft.com/.default';
 
@@ -58,9 +55,7 @@ export class SharePointConfig {
         console.log('✓ SharePoint Service Principal configuration validated successfully');
     }
 
-    /**
-     * Log configuration status (without exposing secrets)
-     */
+  
     static logConfigStatus(): void {
         console.log('SharePoint Service Principal Configuration:');
         console.log('- Tenant ID:', this.TENANT_ID ? '✓ Set' : '✗ Missing');
