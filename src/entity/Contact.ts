@@ -31,10 +31,7 @@ export class Contact extends CustomBaseEntity {
     contactIdForUsers: string;
 
     @Column()
-    firstName: string;
-
-    @Column()
-    lastName: string;
+    fullName: string;
 
     @Column({
         nullable: true
@@ -52,24 +49,28 @@ export class Contact extends CustomBaseEntity {
     email: string;
 
     @Column({
-        nullable: false,
+        nullable: true,
     })
     addressLine: string;
 
     @Column({
-        nullable: false,
+        nullable: true,
     })
     area: string;
 
-    @Column()
+    @Column({
+        nullable: true
+    })
     city: string;
 
-    @Column()
+    @Column({
+        nullable: true
+    })
     state: string;
 
     @Column({
         default: "India",
-        nullable: false,
+        nullable: true,
     })
     country: string;
 
@@ -86,7 +87,7 @@ export class Contact extends CustomBaseEntity {
     leads: Lead[];
 
     @Column({
-        nullable: false
+        nullable: true
     })
     industry: string;
 
@@ -134,6 +135,7 @@ export class Contact extends CustomBaseEntity {
     @Column({
         type: "enum",
         enum: contactType,
+        nullable: true
     })
     contactType: contactType;
 
@@ -180,13 +182,8 @@ export class Contact extends CustomBaseEntity {
     getDisplayName(): string {
         let displayName = '';
 
-        if (this.firstName) {
-            displayName += this.firstName;
-        }
-
-        if (this.lastName) {
-            if (displayName) displayName += ' ';
-            displayName += this.lastName;
+        if (this.fullName) {
+            displayName += this.fullName;
         }
 
         if (!displayName.trim()) {
@@ -199,8 +196,7 @@ export class Contact extends CustomBaseEntity {
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
-        if (this.firstName) this.firstName = encryption(this.firstName);
-        if (this.lastName) this.lastName = encryption(this.lastName);
+        if (this.fullName) this.fullName = encryption(this.fullName);
         if (this.countryCode) this.countryCode = encryption(this.countryCode);
         if (this.phone) this.phone = encryption(this.phone);
         if (this.area) this.area = encryption(this.area);

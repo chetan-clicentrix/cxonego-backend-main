@@ -61,8 +61,7 @@ export const leadDecryption = async (lead: Lead) => {
 };
 
 export const contactDecryption = async (contact: Contact) => {
-  if (contact?.firstName) contact.firstName = decrypt(contact.firstName);
-  if (contact?.lastName) contact.lastName = decrypt(contact.lastName);
+  if (contact?.fullName) contact.fullName = decrypt(contact.fullName);
   if (contact?.countryCode) contact.countryCode = decrypt(contact.countryCode);
   if (contact?.phone) contact.phone = decrypt(contact.phone);
   if (contact?.area) contact.area = decrypt(contact.area);
@@ -100,8 +99,7 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
 };
 
 export const contactDecryptionFilter = async (contact: ContactSchemaType) => {
-  if (contact?.firstName) contact.firstName = decrypt(contact.firstName);
-  if (contact?.lastName) contact.lastName = decrypt(contact.lastName);
+  if (contact?.fullName) contact.fullName = decrypt(contact.fullName);
   if (contact?.countryCode) contact.countryCode = decrypt(contact.countryCode);
   if (contact?.phone) contact.phone = decrypt(contact.phone);
   if (contact?.area) contact.area = decrypt(contact.area);

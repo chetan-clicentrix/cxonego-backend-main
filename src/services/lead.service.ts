@@ -143,24 +143,16 @@ class LeadService {
         const updatedContact = updatedLead[key];
         if (!oldContact && updatedContact) {
           description += `null --> ${decrypt(
-            updatedContact.firstName
-          )} ${decrypt(updatedContact.lastName)}`;
+            updatedContact.fullName
+          )}`;
         } else if (oldContact && !updatedContact) {
-          description += `${decrypt(oldContact.firstName)} ${decrypt(
-            oldContact.lastName
-          )} --> null`;
+          description += `${decrypt(oldContact.fullName)} --> null`;
         } else if (
           oldContact != updatedContact &&
           updatedLead[key].contactId !== oldLead[key].contactId
         ) {
-          const oldContactName =
-            decrypt(oldLead[key].firstName) +
-            " " +
-            decrypt(oldLead[key].lastName);
-          const updatedContactName =
-            decrypt(updatedLead[key].firstName) +
-            " " +
-            decrypt(updatedLead[key].lastName);
+          const oldContactName = decrypt(oldLead[key].fullName);
+          const updatedContactName = decrypt(updatedLead[key].fullName);
           description += `${key} ${oldContactName} --> ${updatedContactName} `;
         }
       } else if (`${key}` === "company") {
@@ -536,13 +528,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -573,13 +560,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -588,12 +568,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
@@ -1274,13 +1251,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1311,13 +1283,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -1326,12 +1291,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
@@ -1560,13 +1522,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1597,13 +1554,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -1612,12 +1562,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
