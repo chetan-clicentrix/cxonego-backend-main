@@ -60,12 +60,12 @@ export class GoogleDriveService {
         try {
             const { tokens } = await this.oauth2Client.getToken(code);
             this.oauth2Client.setCredentials(tokens);
-            
+
             // If userId is provided, store tokens in the database
             if (userId) {
                 await this.saveUserTokens(userId, tokens as GoogleTokens);
             }
-            
+
             return tokens as GoogleTokens;
         } catch (error) {
             console.error('Error getting tokens:', error);
@@ -81,11 +81,11 @@ export class GoogleDriveService {
                 hasRefreshToken: !!tokens.refresh_token,
                 expiryDate: tokens.expiry_date
             });
-            
+
             if (!tokens.refresh_token) {
                 console.warn("WARNING: No refresh token received from Google. This will cause authentication issues!");
             }
-            
+
             const user = await this.userRepository.findOne({ where: { userId } });
             if (!user) {
                 console.error(`User with ID ${userId} not found when saving Google tokens`);
@@ -112,25 +112,25 @@ export class GoogleDriveService {
     async getUserTokens(userId: string): Promise<{ refreshToken: string, accessToken: string, expiryDate: number } | null> {
         try {
             console.log(`Retrieving Google tokens for user ${userId}`);
-            
+
             // Find the user by ID
             const user = await this.userRepository.findOne({ where: { userId } });
-            
+
             if (!user) {
                 console.log(`User ${userId} not found when retrieving Google tokens`);
                 return null;
             }
-            
+
             if (!user.googleTokens) {
                 console.log(`User ${userId} has no googleTokens property in database`);
                 return null;
             }
-            
+
             // Ensure refreshToken is available
             if (!user.googleTokens.refreshToken) {
                 console.log(`User ${userId} has googleTokens but missing refreshToken`);
             }
-            
+
             console.log(`Successfully retrieved tokens for user ${userId}`);
             return user.googleTokens;
         } catch (error) {
@@ -144,9 +144,9 @@ export class GoogleDriveService {
             this.oauth2Client.setCredentials({
                 refresh_token: refreshToken
             });
-            
+
             const { credentials } = await this.oauth2Client.refreshAccessToken();
-            
+
             return credentials.access_token || '';
         } catch (error) {
             console.error('Error refreshing access token:', error);
@@ -165,10 +165,10 @@ export class GoogleDriveService {
             // Check if token is expired and refresh if needed
             const now = Date.now();
             let accessToken = tokens.accessToken;
-            
+
             if (now >= tokens.expiryDate) {
                 accessToken = await this.refreshAccessToken(tokens.refreshToken);
-                
+
                 // Update stored token
                 const user = await this.userRepository.findOne({ where: { userId } });
                 if (user && user.googleTokens) {
@@ -200,7 +200,7 @@ export class GoogleDriveService {
             });
 
             const fileId = createResponse.data.id;
-            
+
             if (!fileId) {
                 throw new Error('Failed to create file in Google Drive');
             }
@@ -246,7 +246,7 @@ export class GoogleDriveService {
             });
 
             const fileId = createResponse.data.id;
-            
+
             if (!fileId) {
                 throw new Error('Failed to create file in Google Drive');
             }
@@ -290,7 +290,7 @@ export class GoogleDriveService {
         };
 
         console.log(`Generating forced reconnection URL for user ${userId}`);
-        
+
         return this.oauth2Client.generateAuthUrl(authOptions);
     }
 
@@ -322,7 +322,7 @@ export class GoogleDriveService {
         try {
             // Sanitize contact name for use as folder name (remove special chars)
             const sanitizedContactName = contactName.replace(/[^\w\s-]/g, '_');
-            
+
             // Get user's stored tokens
             const tokens = await this.getUserTokens(userId);
             if (!tokens) {
@@ -334,22 +334,22 @@ export class GoogleDriveService {
 
             // Cache for folder IDs to avoid repeated lookups
             const folderCache: Record<string, string> = {};
-            
+
             // Step 1: Find or create the root "cxonego" folder
             const rootFolderId = await this.findOrCreateFolder('cxonego', 'root', folderCache);
-            
+
             // Step 2: Find or create "Documents" subfolder
             const documentsFolderId = await this.findOrCreateFolder('Documents', rootFolderId, folderCache);
-            
+
             // Step 3: Find or create "contacts" subfolder
             const contactsFolderId = await this.findOrCreateFolder('contacts', documentsFolderId, folderCache);
-            
+
             // Step 4: Find or create specific contact folder
             const contactFolderId = await this.findOrCreateFolder(sanitizedContactName, contactsFolderId, folderCache);
 
             // Step 5: Upload the file to the contact's folder
             console.log(`Uploading file "${fileName}" to contact folder "${sanitizedContactName}"`);
-            
+
             // Create file in Drive
             const createResponse = await this.drive.files.create({
                 requestBody: {
@@ -364,7 +364,7 @@ export class GoogleDriveService {
             });
 
             const fileId = createResponse.data.id;
-            
+
             if (!fileId) {
                 throw new Error('Failed to create file in Google Drive');
             }
@@ -403,21 +403,21 @@ export class GoogleDriveService {
      * @returns ID of the found or created folder
      */
     private async findOrCreateFolder(
-        folderName: string, 
+        folderName: string,
         parentId: string,
         cache: Record<string, string>
     ): Promise<string> {
         // Create a cache key using parent ID and folder name
         const cacheKey = `${parentId}:${folderName}`;
-        
+
         // Check if folder ID is in cache
         if (cache[cacheKey]) {
             return cache[cacheKey];
         }
-        
+
         try {
             console.log(`Looking for folder "${folderName}" in parent "${parentId}"`);
-            
+
             // Search for existing folder
             const folderMimeType = 'application/vnd.google-apps.folder';
             const response = await this.drive.files.list({
@@ -434,7 +434,7 @@ export class GoogleDriveService {
                     throw new Error(`Found folder "${folderName}" but ID is missing`);
                 }
                 console.log(`Found existing folder "${folderName}" with ID: ${folderId}`);
-                
+
                 // Cache the folder ID
                 cache[cacheKey] = folderId;
                 return folderId;
@@ -456,7 +456,7 @@ export class GoogleDriveService {
                 throw new Error(`Failed to create folder "${folderName}": ID is missing in response`);
             }
             console.log(`Created new folder "${folderName}" with ID: ${newFolderId}`);
-            
+
             // Cache the new folder ID
             cache[cacheKey] = newFolderId;
             return newFolderId;
@@ -473,18 +473,18 @@ export class GoogleDriveService {
      * @param tokens User's Google tokens
      */
     private async setupAuthentication(
-        userId: string, 
+        userId: string,
         tokens: { refreshToken: string, accessToken: string, expiryDate: number }
     ): Promise<void> {
         try {
             // Check if token is expired and refresh if needed
             const now = Date.now();
             let accessToken = tokens.accessToken;
-            
+
             if (now >= tokens.expiryDate) {
                 console.log(`Access token expired for user ${userId}, refreshing...`);
                 accessToken = await this.refreshAccessToken(tokens.refreshToken);
-                
+
                 // Update stored token
                 const user = await this.userRepository.findOne({ where: { userId } });
                 if (user && user.googleTokens) {

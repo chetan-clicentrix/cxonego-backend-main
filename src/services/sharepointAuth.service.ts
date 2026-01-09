@@ -1,32 +1,23 @@
-import { ConfidentialClientApplication, AuthorizationUrlRequest, AuthorizationCodeRequest } from '@azure/msal-node';
+import { ConfidentialClientApplication } from '@azure/msal-node';
 import { SharePointConfig } from '../config/sharepoint.config';
-import { AppDataSource } from '../data-source';
-import { User } from '../entity/User';
 
 /**
- * SharePoint OAuth tokens structure
- */
-export interface SharePointTokens {
-    accessToken: string;
-    refreshToken: string;
-    expiryDate: number;
-    tokenType?: string;
-    scope?: string;
-}
-
-/**
- * SharePoint Authentication Service
- * Handles OAuth 2.0 authentication flow with Microsoft using MSAL
+ * SharePoint Service Principal Authentication Service
+ * Handles authentication using Client Credentials flow (Application Permissions)
+ * No user authentication required - uses service principal
  */
 export class SharePointAuthService {
     private msalClient: ConfidentialClientApplication;
-    private userRepository = AppDataSource.getRepository(User);
+    private cachedToken: {
+        accessToken: string;
+        expiryDate: number;
+    } | null = null;
 
     constructor() {
         // Validate configuration before initializing
         SharePointConfig.validateConfig();
 
-        // Initialize MSAL Confidential Client
+        // Initialize MSAL Confidential Client for Service Principal
         this.msalClient = new ConfidentialClientApplication({
             auth: {
                 clientId: SharePointConfig.CLIENT_ID,
@@ -37,7 +28,7 @@ export class SharePointAuthService {
                 loggerOptions: {
                     loggerCallback: (_level, message, containsPii) => {
                         if (!containsPii) {
-                            console.log(`[MSAL] ${message}`);
+                            console.log(`[MSAL Service Principal] ${message}`);
                         }
                     },
                     piiLoggingEnabled: false,
@@ -46,267 +37,83 @@ export class SharePointAuthService {
             }
         });
 
-        console.log(' SharePoint Authentication Service initialized');
+        console.log('✓ SharePoint Service Principal Authentication Service initialized');
     }
 
     /**
-     * Generate OAuth authorization URL for user login
-     * @param userId Optional user ID to maintain state through OAuth flow
-     * @returns Authorization URL to redirect user to
+     * Get a valid access token using Client Credentials flow
+     * Automatically caches and refreshes tokens
+     * @returns Valid access token
      */
-    async getAuthorizationUrl(userId?: string): Promise<string> {
+    async getAccessToken(): Promise<string> {
         try {
-            const authUrlRequest: AuthorizationUrlRequest = {
-                scopes: SharePointConfig.SCOPES,
-                redirectUri: SharePointConfig.REDIRECT_URI,
-                prompt: 'consent', // Force consent screen to get refresh token
-                state: userId // Pass userId as state to retrieve after callback
-            };
+            // Check if we have a cached token that's still valid
+            if (this.cachedToken) {
+                const now = Date.now();
+                const isExpired = now >= (this.cachedToken.expiryDate - SharePointConfig.TOKEN_EXPIRY_BUFFER);
 
-            const authUrl = await this.msalClient.getAuthCodeUrl(authUrlRequest);
-
-            console.log(`Generated SharePoint auth URL ${userId ? `for user ${userId}` : 'without user context'}`);
-            return authUrl;
-        } catch (error) {
-            console.error('Error generating authorization URL:', error);
-            throw new Error(`Failed to generate authorization URL: ${error.message}`);
-        }
-    }
-
-    /**
-     * Exchange authorization code for access tokens
-     * @param code Authorization code from OAuth callback
-     * @param userId Optional user ID to save tokens to database
-     * @returns SharePoint tokens
-     */
-    async exchangeCodeForTokens(code: string, userId?: string): Promise<SharePointTokens> {
-        try {
-            console.log(`Exchanging authorization code for tokens ${userId ? `for user ${userId}` : ''}`);
-
-            const tokenRequest: AuthorizationCodeRequest = {
-                code: code,
-                scopes: SharePointConfig.SCOPES,
-                redirectUri: SharePointConfig.REDIRECT_URI
-            };
-
-            const response = await this.msalClient.acquireTokenByCode(tokenRequest);
-
-            if (!response) {
-                throw new Error('No token response received from Microsoft');
-            }
-
-            // Extract tokens from response
-            const tokens: SharePointTokens = {
-                accessToken: response.accessToken,
-                refreshToken: (response as any).refreshToken || '',
-                expiryDate: response.expiresOn ? response.expiresOn.getTime() : Date.now() + 3600000, // Default 1 hour
-                tokenType: response.tokenType,
-                scope: response.scopes?.join(' ')
-            };
-
-            // Validate we have a refresh token
-            if (!tokens.refreshToken) {
-                console.warn('WARNING: No refresh token received from Microsoft. User may need to re-authenticate.');
-            }
-
-            // Save tokens to database if userId provided
-            if (userId) {
-                await this.saveUserTokens(userId, tokens);
-            }
-
-            console.log(`✓ Successfully exchanged code for tokens ${userId ? `for user ${userId}` : ''}`);
-            return tokens;
-        } catch (error) {
-            console.error('Error exchanging code for tokens:', error);
-            throw new Error(`Failed to exchange authorization code: ${error.message}`);
-        }
-    }
-
-    /**
-     * Refresh an expired access token using refresh token
-     * @param refreshToken The refresh token
-     * @param userId Optional user ID to update stored tokens
-     * @returns New access token
-     */
-    async refreshAccessToken(refreshToken: string, userId?: string): Promise<string> {
-        try {
-            console.log(`Refreshing access token ${userId ? `for user ${userId}` : ''}`);
-
-            const refreshRequest = {
-                refreshToken: refreshToken,
-                scopes: SharePointConfig.SCOPES
-            };
-
-            const response = await this.msalClient.acquireTokenByRefreshToken(refreshRequest);
-
-            if (!response || !response.accessToken) {
-                throw new Error('Failed to refresh access token - no access token in response');
-            }
-
-            // Update stored tokens if userId provided
-            if (userId) {
-                const user = await this.userRepository.findOne({ where: { userId } });
-                if (user && user.sharepointTokens) {
-                    user.sharepointTokens.accessToken = response.accessToken;
-                    user.sharepointTokens.expiryDate = response.expiresOn?.getTime() || Date.now() + 3600000;
-
-                    // Update refresh token if new one provided
-                    if ((response as any).refreshToken) {
-                        user.sharepointTokens.refreshToken = (response as any).refreshToken;
-                    }
-
-                    await this.userRepository.save(user);
-                    console.log(`✓ Updated tokens in database for user ${userId}`);
+                if (!isExpired) {
+                    console.log('✓ Using cached Service Principal access token');
+                    return this.cachedToken.accessToken;
                 }
+
+                console.log('Cached token expired, acquiring new token...');
             }
 
-            return response.accessToken;
-        } catch (error) {
-            console.error('Error refreshing access token:', error);
-            throw new Error(`Failed to refresh access token: ${error.message}`);
-        }
-    }
+            // Acquire new token using client credentials
+            console.log('Acquiring Service Principal access token...');
 
-    /**
-     * Save SharePoint tokens to user record in database
-     * @param userId User ID
-     * @param tokens SharePoint tokens to save
-     */
-    private async saveUserTokens(userId: string, tokens: SharePointTokens): Promise<void> {
-        try {
-            console.log(`Saving SharePoint tokens for user ${userId}`);
-            console.log('Token details:', {
-                hasAccessToken: !!tokens.accessToken,
-                hasRefreshToken: !!tokens.refreshToken,
-                expiryDate: new Date(tokens.expiryDate).toISOString()
+            const response = await this.msalClient.acquireTokenByClientCredential({
+                scopes: [SharePointConfig.SCOPE],
             });
 
-            const user = await this.userRepository.findOne({ where: { userId } });
-            if (!user) {
-                console.error(`User ${userId} not found when saving SharePoint tokens`);
-                throw new Error('User not found');
+            if (!response || !response.accessToken) {
+                throw new Error('Failed to acquire access token - no token in response');
             }
 
-            // Store tokens in user record
-            user.sharepointTokens = {
-                accessToken: tokens.accessToken,
-                refreshToken: tokens.refreshToken,
-                expiryDate: tokens.expiryDate
+            // Cache the token
+            this.cachedToken = {
+                accessToken: response.accessToken,
+                expiryDate: response.expiresOn ? response.expiresOn.getTime() : Date.now() + 3600000, // Default 1 hour
             };
 
-            await this.userRepository.save(user);
-            console.log(`✓ Successfully saved SharePoint tokens for user ${userId}`);
+            console.log('✓ Successfully acquired Service Principal access token');
+            console.log(`Token expires at: ${new Date(this.cachedToken.expiryDate).toISOString()}`);
+
+            return this.cachedToken.accessToken;
         } catch (error) {
-            console.error('Error saving SharePoint tokens:', error);
-            throw new Error(`Failed to save tokens: ${error.message}`);
+            console.error('Error acquiring Service Principal access token:', error);
+            throw new Error(`Failed to acquire access token: ${error.message}`);
         }
     }
 
     /**
-     * Retrieve stored SharePoint tokens for a user
-     * @param userId User ID
-     * @returns User's SharePoint tokens or null if not found
+     * Force refresh the access token (clear cache and get new token)
      */
-    async getUserTokens(userId: string): Promise<SharePointTokens | null> {
-        try {
-            console.log(`Retrieving SharePoint tokens for user ${userId}`);
-
-            const user = await this.userRepository.findOne({ where: { userId } });
-
-            if (!user) {
-                console.log(`User ${userId} not found`);
-                return null;
-            }
-
-            if (!user.sharepointTokens) {
-                console.log(`User ${userId} has no SharePoint tokens`);
-                return null;
-            }
-
-            // Validate token structure
-            if (!user.sharepointTokens.refreshToken) {
-                console.warn(`User ${userId} has SharePoint tokens but missing refresh token`);
-            }
-
-            console.log(`✓ Retrieved SharePoint tokens for user ${userId}`);
-            return user.sharepointTokens as SharePointTokens;
-        } catch (error) {
-            console.error(`Error retrieving SharePoint tokens for user ${userId}:`, error);
-            return null;
-        }
+    async refreshAccessToken(): Promise<string> {
+        console.log('Force refreshing Service Principal access token...');
+        this.cachedToken = null;
+        return await this.getAccessToken();
     }
 
     /**
-     * Check if a user is connected to SharePoint (has valid tokens)
-     * @param userId User ID
-     * @returns True if user has SharePoint tokens with refresh token
+     * Clear cached token
      */
-    async isUserConnected(userId: string): Promise<boolean> {
+    clearCache(): void {
+        console.log('Clearing cached Service Principal token');
+        this.cachedToken = null;
+    }
+
+    /**
+     * Check if service principal is properly configured
+     */
+    async testConnection(): Promise<boolean> {
         try {
-            const tokens = await this.getUserTokens(userId);
-
-            if (!tokens) {
-                console.log(`User ${userId} is not connected to SharePoint (no tokens)`);
-                return false;
-            }
-
-            if (!tokens.refreshToken) {
-                console.log(`User ${userId} has SharePoint tokens but missing refresh token`);
-                return false;
-            }
-
-            console.log(`✓ User ${userId} is connected to SharePoint`);
-            return true;
+            const token = await this.getAccessToken();
+            return !!token;
         } catch (error) {
-            console.error(`Error checking SharePoint connection for user ${userId}:`, error);
+            console.error('Service Principal connection test failed:', error);
             return false;
-        }
-    }
-
-    /**
-     * Get a valid access token for a user, refreshing if expired
-     * @param userId User ID
-     * @returns Valid access token
-     * @throws Error if user not connected or token refresh fails
-     */
-    async getValidAccessToken(userId: string): Promise<string> {
-        const tokens = await this.getUserTokens(userId);
-
-        if (!tokens) {
-            throw new Error('User not connected to SharePoint');
-        }
-
-        // Check if token is expired or about to expire
-        const now = Date.now();
-        const isExpired = now >= (tokens.expiryDate - SharePointConfig.TOKEN_EXPIRY_BUFFER);
-
-        if (isExpired) {
-            console.log(`Access token expired for user ${userId}, refreshing...`);
-            return await this.refreshAccessToken(tokens.refreshToken, userId);
-        }
-
-        return tokens.accessToken;
-    }
-
-    /**
-     * Revoke SharePoint connection for a user (remove tokens)
-     * @param userId User ID
-     */
-    async revokeConnection(userId: string): Promise<void> {
-        try {
-            const user = await this.userRepository.findOne({ where: { userId } });
-
-            if (!user) {
-                throw new Error('User not found');
-            }
-
-            user.sharepointTokens = undefined;
-            await this.userRepository.save(user);
-
-            console.log(`✓ Revoked SharePoint connection for user ${userId}`);
-        } catch (error) {
-            console.error(`Error revoking SharePoint connection for user ${userId}:`, error);
-            throw new Error(`Failed to revoke connection: ${error.message}`);
         }
     }
 }

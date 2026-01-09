@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, Index } from "typeorm";
-import { Contact } from "./Contact";
+import { Oppurtunity } from "./Oppurtunity";
 import { User } from "./User";
 import { Organisation } from "./Organisation";
 import { encryption } from "../common/utils";
@@ -16,7 +16,7 @@ export enum DocumentType {
 }
 
 @Entity('sharepoint_document')
-@Index(['contactId', 'deletedAt'])  // For contact document listing
+@Index(['opportunityId', 'deletedAt'])  // For opportunity document listing
 @Index(['uploadedById', 'deletedAt'])  // For user document listing
 @Index(['organizationId', 'deletedAt'])  // For org document listing
 export class SharePointDocument {
@@ -46,7 +46,7 @@ export class SharePointDocument {
     sharepointFolderPath: string;
 
     @Column({ type: 'varchar', length: 255, nullable: true })
-    customerFolderName: string;
+    opportunityFolderName: string;
 
     @Column({ type: 'text', nullable: true })
     description: string;
@@ -69,15 +69,15 @@ export class SharePointDocument {
 
     // Foreign Keys - Relationships
 
-    @ManyToOne(() => Contact, (contact) => contact.sharepointDocuments, {
+    @ManyToOne(() => Oppurtunity, (opportunity) => opportunity.sharepointDocuments, {
         onUpdate: "CASCADE",
         nullable: false,
     })
-    @JoinColumn({ name: "contactId" })
-    contact: Contact;
+    @JoinColumn({ name: "opportunityId" })
+    opportunity: Oppurtunity;
 
     @Column({ nullable: false })
-    contactId: string;
+    opportunityId: string;
 
     @ManyToOne(() => User, (user) => user.sharepointDocuments, {
         onUpdate: "CASCADE",
@@ -115,6 +115,6 @@ export class SharePointDocument {
         if (this.fileName) this.fileName = encryption(this.fileName);
         if (this.description) this.description = encryption(this.description);
         if (this.customDocumentType) this.customDocumentType = encryption(this.customDocumentType);
-        if (this.customerFolderName) this.customerFolderName = encryption(this.customerFolderName);
+        if (this.opportunityFolderName) this.opportunityFolderName = encryption(this.opportunityFolderName);
     }
 }
