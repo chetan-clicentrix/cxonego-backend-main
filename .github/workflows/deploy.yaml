@@ -3,7 +3,7 @@ name: Optimized CI/CD Pipeline - Production Deployment
 on:
   push:
     branches:
-      - production  
+      - Production  
   workflow_dispatch:  # Allow manual trigger
 
 env:
