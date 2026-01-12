@@ -13,7 +13,6 @@ import { Note } from "./Note";
 import { Organisation } from "./Organisation";
 import { Document } from "./Document";
 import { Case } from "./Case";
-import { SharePointDocument } from "./SharePointDocument";
 
 @Entity()
 export class Contact extends CustomBaseEntity {
@@ -172,8 +171,7 @@ export class Contact extends CustomBaseEntity {
     @OneToMany(() => Case, (caseItem) => caseItem.customer)
     cases: Case[];
 
-    @OneToMany(() => SharePointDocument, (doc) => doc.contact)
-    sharepointDocuments: SharePointDocument[];
+
 
     /**
      * Get a display name suitable for folder creation
