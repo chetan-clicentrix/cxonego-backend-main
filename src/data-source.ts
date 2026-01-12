@@ -13,12 +13,12 @@ const shouldSynchronize =
   process.env.TYPEORM_SYNCHRONIZE === "true" || (isProd && process.env.TYPEORM_SYNCHRONIZE !== "false");
 
 // Set the entity path based on environment
-const entitiesPath = isProd 
+const entitiesPath = isProd
   ? ["build/src/entity/*.js"]  // Production path (compiled JS files)
   : ["src/entity/*.ts", "src/entity/*.js"];  // Development path (TS source files)
 
 // Set migrations path (only in development)
-const migrationsPath = isProd 
+const migrationsPath = isProd
   ? [] // No migrations in production
   : ["src/migration/*.ts", "src/migration/*.js"];
 

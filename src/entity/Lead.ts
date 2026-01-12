@@ -64,7 +64,7 @@ export class Lead extends CustomBaseEntity {
 
   @Column({
     type: "varchar",
-    nullable: true,
+    nullable: false,
   })
   @IsEmail()
   email: string;

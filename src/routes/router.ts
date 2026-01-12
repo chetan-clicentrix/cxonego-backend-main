@@ -29,6 +29,8 @@ import cronRouter from "./cron.routes";
 import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
 import leadRoutingConfigRouter from "./leadRoutingConfig.routes";
+import bankRouter from "./bank.routes";
+import bankDocConfigRouter from "./bankDocumentConfig.routes";
 // import customeToken from "./firebaseToken.routes";
 
 const router = Router({ mergeParams: true });
@@ -59,6 +61,8 @@ router.use("/customPlanRequest", customPlanRequestRouter);
 router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
+router.use("/bank", bankRouter);
+router.use("/bank-config", bankDocConfigRouter);
 
 // Case Management Module
 router.use("/cases", caseRouter);

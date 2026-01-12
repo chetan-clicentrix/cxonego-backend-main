@@ -457,3 +457,10 @@ export enum routingAssignToType {
   USER = "USER",
   ROLE = "ROLE",
 }
+
+export enum ApplicantType {
+  INDIVIDUAL = "Individual",
+  PROPRIETORSHIP = "Proprietorship",
+  PARTNERSHIP = "Partnership",
+  PRIVATE_LIMITED = "Private Limited",
+}

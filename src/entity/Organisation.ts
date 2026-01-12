@@ -16,6 +16,7 @@ import { Technician } from "./Technician";
 import { TicketAssignment } from "./TicketAssignment";
 import { TicketStatusHistory } from "./TicketStatusHistory";
 import { LeadRoutingConfig } from "./LeadRoutingConfig";
+import { Bank } from "./Bank";
 @Entity()
 export class Organisation extends CustomBaseEntity {
   constructor(payload: Organisation) {
@@ -122,4 +123,7 @@ export class Organisation extends CustomBaseEntity {
 
   @OneToMany(() => LeadRoutingConfig, (config) => config.organization)
   leadRoutingConfigs: LeadRoutingConfig[];
+
+  @OneToMany(() => Bank, (bank) => bank.organization)
+  banks: Bank[];
 }
