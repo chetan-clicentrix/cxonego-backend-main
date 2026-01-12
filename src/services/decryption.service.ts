@@ -38,6 +38,8 @@ export const accountDecryption = async (company: Account) => {
   if (company?.address) company.address = decrypt(company.address);
   if (company?.description) company.description = decrypt(company.description);
   if (company?.area) company.area = decrypt(company.area);
+  if (company?.clientCategory) company.clientCategory = decrypt(company.clientCategory);
+  if (company?.segment) company.segment = decrypt(company.segment);
 
   return company;
 };
