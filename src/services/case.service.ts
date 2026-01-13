@@ -30,8 +30,7 @@ class CaseService {
             .select([
                 "case",
                 "customer.contactId",
-                "customer.firstName",
-                "customer.lastName",
+                "customer.fullName",
                 "account.accountId",
                 "account.accountName",
                 "user.userId",
@@ -165,10 +164,7 @@ class CaseService {
                         caseItem?.productName
                             ?.toLowerCase()
                             .includes(String(search).toLowerCase()) ||
-                        caseItem?.customer?.firstName
-                            ?.toLowerCase()
-                            .includes(String(search).toLowerCase()) ||
-                        caseItem?.customer?.lastName
+                        caseItem?.customer?.fullName
                             ?.toLowerCase()
                             .includes(String(search).toLowerCase()) ||
                         caseItem?.assignedTechnician?.firstName

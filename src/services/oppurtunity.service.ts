@@ -309,13 +309,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -356,23 +351,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName
@@ -783,31 +768,21 @@ class opportunityService {
         const oldContact = oldOpportunity[key];
         const updatedContact = updatedOpportunity[key];
         if (!oldContact && updatedContact) {
-          description += `null --> ${decrypt(
-            updatedContact.firstName
-          )} ${decrypt(updatedContact.lastName)}`;
+          description += `null --> ${decrypt(updatedContact.fullName)}`;
         } else if (oldContact && !updatedContact) {
-          description += `${decrypt(oldContact.firstName)} ${decrypt(
-            oldContact.lastName
-          )} --> null`;
+          description += `${decrypt(oldContact.fullName)} --> null`;
         } else if (
           oldContact != updatedContact &&
           updatedOpportunity[key].contactId !== oldOpportunity[key].contactId
         ) {
-          const oldContactName =
-            decrypt(oldOpportunity[key].firstName) +
-            " " +
-            decrypt(oldOpportunity[key].lastName);
-          const updatedContactName =
-            decrypt(updatedOpportunity[key].firstName) +
-            " " +
-            decrypt(updatedOpportunity[key].lastName);
+          const oldContactName = decrypt(oldOpportunity[key].fullName);
+          const updatedContactName = decrypt(updatedOpportunity[key].fullName);
           description += `${key} ${oldContactName} --> ${updatedContactName} `;
         }
       } else if (`${key}` === "company") {
         const oldCompany = oldOpportunity[key];
         const updatedCompany = updatedOpportunity[key];
-        
+
         if (!oldCompany && updatedCompany) {
           description += `null --> ${decrypt(updatedCompany.accountName)}`;
         } else if (oldCompany && !updatedCompany) {
@@ -1129,13 +1104,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -1176,23 +1146,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName
@@ -1461,13 +1421,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -1508,23 +1463,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName
