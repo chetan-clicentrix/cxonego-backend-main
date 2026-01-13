@@ -378,10 +378,7 @@ class IndiaMartService {
     owner: User,
     organization: Organisation
   ): Lead {
-    // Split name into first and last name
-    const nameParts = imLead.SENDER_NAME ? imLead.SENDER_NAME.split(' ') : ['Unknown'];
-    const firstName = nameParts[0] || 'Unknown';
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    const fullName = imLead.SENDER_NAME || 'Unknown';
 
     // Handle phone number format
     let phone = imLead.SENDER_MOBILE || '';
@@ -406,8 +403,7 @@ Address: ${imLead.SENDER_ADDRESS || ''}`;
     // Create a complete Lead instance with all required fields
     const lead = new Lead({
       leadId,
-      firstName,
-      lastName,
+      fullName,
       phone,
       countryCode: countryCode || '+91',
       email: imLead.SENDER_EMAIL || 'unknown@example.com',
