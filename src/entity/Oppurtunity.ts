@@ -1,5 +1,6 @@
 import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from "typeorm";
-import { Currency, encryption, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage } from "../common/utils";
+import { Currency, encryption, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage, ApplicantType } from "../common/utils";
+import { Bank } from "./Bank";
 import { Account } from "./Account";
 import { Activity } from "./Activity";
 import { Contact } from "./Contact";
@@ -9,6 +10,7 @@ import { User } from "./User";
 import { Note } from "./Note";
 import { Organisation } from "./Organisation";
 import { SharePointDocument } from "./SharePointDocument";
+import { encrypt } from "typeorm-encrypted";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -16,6 +18,7 @@ export class Oppurtunity extends CustomBaseEntity {
         super();
         Object.assign(this, payload);
     }
+
 
     @Column({
         primary: true,
@@ -29,6 +32,7 @@ export class Oppurtunity extends CustomBaseEntity {
     })
     title: string;
 
+
     @Column({
         type: "enum",
         enum: Currency,
@@ -37,6 +41,8 @@ export class Oppurtunity extends CustomBaseEntity {
     currency: Currency;
 
     @Column({
+        type: "enum",
+        enum: purchaseTimeFrame,
         type: "enum",
         enum: purchaseTimeFrame,
         // default:purchaseTimeFrame.first_MONTH     
@@ -59,6 +65,7 @@ export class Oppurtunity extends CustomBaseEntity {
     forecastCategory: forecastCategory;
 
     @Column({
+        nullable: false,
         nullable: false,
     })
     estimatedRevenue: string;
@@ -193,6 +200,17 @@ export class Oppurtunity extends CustomBaseEntity {
 
     @OneToMany(() => SharePointDocument, (doc) => doc.opportunity)
     sharepointDocuments: SharePointDocument[];
+
+    @ManyToOne(() => Bank, { nullable: true, eager: true })
+    @JoinColumn({ name: "bankId" })
+    bank: Bank;
+
+    @Column({
+        type: "enum",
+        enum: ApplicantType,
+        nullable: true,
+    })
+    applicantType: ApplicantType;
 
     @BeforeInsert()
     @BeforeUpdate()

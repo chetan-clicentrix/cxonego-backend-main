@@ -18,6 +18,7 @@ import { TicketStatusHistory } from "./TicketStatusHistory";
 import { SharePointDocument } from "./SharePointDocument";
 import { LeadRoutingConfig } from "./LeadRoutingConfig";
 import { Skill } from "./Skill";
+import { Bank } from "./Bank";
 @Entity()
 export class Organisation extends CustomBaseEntity {
   constructor(payload: Organisation) {
@@ -130,4 +131,7 @@ export class Organisation extends CustomBaseEntity {
 
   @OneToMany(() => Skill, (skill) => skill.organization)
   skills: Skill[];
+
+  @OneToMany(() => Bank, (bank) => bank.organization)
+  banks: Bank[];
 }
