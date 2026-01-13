@@ -43,8 +43,6 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({
         type: "enum",
         enum: purchaseTimeFrame,
-        type: "enum",
-        enum: purchaseTimeFrame,
         // default:purchaseTimeFrame.first_MONTH     
     })
     purchaseTimeFrame: purchaseTimeFrame;
@@ -65,7 +63,6 @@ export class Oppurtunity extends CustomBaseEntity {
     forecastCategory: forecastCategory;
 
     @Column({
-        nullable: false,
         nullable: false,
     })
     estimatedRevenue: string;
