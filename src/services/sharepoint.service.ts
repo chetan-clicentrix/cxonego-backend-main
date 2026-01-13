@@ -176,7 +176,6 @@ export class SharePointService {
         fileName: string,
         opportunityId: string,
         uploadSessionId: string,
-        documentUploadId: string,
         userId: string
     ): Promise<SharePointDocument> {
         try {

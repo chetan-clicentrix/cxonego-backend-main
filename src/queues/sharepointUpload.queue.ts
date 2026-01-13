@@ -47,15 +47,15 @@ sharepointUploadQueue.on("waiting", (jobId) => {
     console.log(`Job ${jobId} is waiting`);
 });
 
-sharepointUploadQueue.on("active", (job: any) => {
+sharepointUploadQueue.on("active" as any, (job: any) => {
     console.log(`Job ${job.id} is now active`);
 });
 
-sharepointUploadQueue.on("completed", (job: any) => {
+sharepointUploadQueue.on("completed" as any, (job: any) => {
     console.log(`Job ${job.id} completed successfully`);
 });
 
-sharepointUploadQueue.on("failed", (job: any, error: Error) => {
+sharepointUploadQueue.on("failed" as any, (job: any, error: Error) => {
     console.error(`Job ${job?.id} failed:`, error.message);
 });
 

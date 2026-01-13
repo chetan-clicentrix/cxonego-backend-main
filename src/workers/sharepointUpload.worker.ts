@@ -59,7 +59,6 @@ const sharepointUploadWorker = new Worker(
                 upload.fileName,
                 opportunityId,
                 upload.uploadSessionId,
-                uploadId,
                 userId
             );
 

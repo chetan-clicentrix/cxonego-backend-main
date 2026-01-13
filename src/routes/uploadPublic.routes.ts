@@ -23,7 +23,7 @@ router.post("/:sessionToken/init", initializeUpload);
 
 // Upload chunk (with Multer middleware)
 console.log("Setting up chunk upload route");
-router.post("/:sessionToken/chunk", (req, res, next) => {
+router.post("/:sessionToken/chunk", (req, _res, next) => {
     console.log("Chunk upload route HIT! Session:", req.params.sessionToken);
     next();
 }, chunkUpload.single("file"), uploadChunk);

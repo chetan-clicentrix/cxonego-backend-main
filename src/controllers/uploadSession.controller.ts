@@ -13,7 +13,7 @@ const documentRequirementService = new DocumentRequirementService();
  */
 export const createUploadSession = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { opportunityId } = req.body;
 
         if (!opportunityId) {
@@ -74,7 +74,7 @@ export const createUploadSession = async (req: Request, res: Response) => {
  */
 export const getUploadSessionDetails = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { uploadSessionId } = req.params;
 
         const session = await uploadSessionService.getSession(uploadSessionId, user);
@@ -97,7 +97,7 @@ export const getUploadSessionDetails = async (req: Request, res: Response) => {
  */
 export const getOpportunitySessions = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { opportunityId } = req.params;
 
         const sessions = await uploadSessionService.getSessionsByOpportunity(
@@ -123,7 +123,7 @@ export const getOpportunitySessions = async (req: Request, res: Response) => {
  */
 export const createRequirement = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { uploadSessionId } = req.params;
         const requirementData = req.body;
 
@@ -159,7 +159,7 @@ export const createRequirement = async (req: Request, res: Response) => {
  */
 export const getOpportunityRequirements = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { opportunityId } = req.params;
 
         const requirements = await documentRequirementService.getRequirementsByOpportunity(
@@ -185,7 +185,7 @@ export const getOpportunityRequirements = async (req: Request, res: Response) =>
  */
 export const updateRequirement = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { requirementId } = req.params;
         const updateData = req.body;
 
@@ -216,7 +216,7 @@ export const updateRequirement = async (req: Request, res: Response) => {
  */
 export const deleteRequirement = async (req: Request, res: Response) => {
     try {
-        const user = req.user as userInfo;
+        const user = (req as any).user as userInfo;
         const { requirementId } = req.params;
 
         await AppDataSource.transaction(async (manager) => {
