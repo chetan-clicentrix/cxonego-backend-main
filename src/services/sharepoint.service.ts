@@ -168,6 +168,62 @@ export class SharePointService {
     }
 
     /**
+     * Upload file from temp path (for resumable uploads)
+     * Used by background worker after chunks are assembled
+     */
+    async uploadFromTempFile(
+        tempFilePath: string,
+        fileName: string,
+        opportunityId: string,
+        uploadSessionId: string,
+        documentUploadId: string,
+        userId: string
+    ): Promise<SharePointDocument> {
+        try {
+            // Read file from temp path
+            const fileBuffer = await import("fs/promises").then(fs => fs.readFile(tempFilePath));
+            const fileStats = await import("fs/promises").then(fs => fs.stat(tempFilePath));
+            const mime = await import("mime-types");
+
+            // Get user and opportunity
+            const user = await this.userRepository.findOne({
+                where: { userId },
+                relations: ['organisation']
+            });
+            if (!user) throw new Error("User not found");
+
+            const opportunity = await this.opportunityRepository.findOne({
+                where: { opportunityId }
+            });
+            if (!opportunity) throw new Error("Opportunity not found");
+
+            // Create multer-like file object
+            const file: Express.Multer.File = {
+                buffer: fileBuffer,
+                originalname: fileName,
+                size: fileStats.size,
+                mimetype: mime.lookup(fileName) || "application/octet-stream",
+                fieldname: "file",
+                encoding: "7bit",
+                destination: "",
+                filename: fileName,
+                path: tempFilePath,
+                stream: null as any,
+            };
+
+            // Upload using existing uploadFile method
+            const sharepointDoc = await this.uploadFile(userId, opportunityId, file, {
+                description: `Uploaded via session ${uploadSessionId}`,
+            });
+
+            return sharepointDoc;
+        } catch (error) {
+            console.error("Error uploading from temp file:", error);
+            throw new Error(`Failed to upload from temp file: ${error.message}`);
+        }
+    }
+
+    /**
      * Get documents for a specific opportunity
      */
     async getOpportunityDocuments(

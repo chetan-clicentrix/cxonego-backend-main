@@ -20,6 +20,10 @@ import { authMiddleware } from "./middlewares/firebase.middleware";
 import * as cron from "./common/cron";
 import rateLimit from "express-rate-limit";
 
+// Start SharePoint upload worker
+import "./workers/sharepointUpload.worker";
+console.log("✓ SharePoint upload worker started");
+
 dotenv.config();
 
 morgan.token("host", function (req: express.Request, _res) {
@@ -158,6 +162,8 @@ app.use(
       RegExp("^/api/v1/cron/checkActivity"),
       RegExp("^/api/v1/cron/markUpcomingToActive"),
       RegExp("/api/v1/api-doc"),
+      // Public upload routes - no auth required
+      RegExp("^/api/v1/public/upload"),
       RegExp("/api/v1/api-doc/.*"),
     ],
   })
