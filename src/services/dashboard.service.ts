@@ -448,13 +448,8 @@ class DashboardServices {
           skip = 1;
           searchedData = await leads.filter((lead) => {
             if (
-              (lead.firstName !== null &&
-                lead.firstName
-                  .toString()
-                  .toLowerCase()
-                  .includes(String(search).toLowerCase())) ||
-              (lead.lastName !== null &&
-                lead.lastName
+              (lead.fullName !== null &&
+                lead.fullName
                   .toString()
                   .toLowerCase()
                   .includes(String(search).toLowerCase())) ||
@@ -927,12 +922,8 @@ class DashboardServices {
                 opportunity?.wonLostDescription
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase())) ||
-              (opportunity?.contact?.firstName !== null &&
-                opportunity?.contact?.firstName
-                  ?.toLowerCase()
-                  .includes(String(search).toLowerCase())) ||
-              (opportunity?.contact?.lastName !== null &&
-                opportunity?.contact?.lastName
+              (opportunity?.contact?.fullName !== null &&
+                opportunity?.contact?.fullName
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase())) ||
               (opportunity?.owner?.firstName !== null &&
