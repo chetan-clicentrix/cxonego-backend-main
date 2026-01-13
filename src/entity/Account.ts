@@ -74,6 +74,12 @@ export class Account extends CustomBaseEntity {
     })
     area: string;
 
+    @Column({ default: null })
+    clientCategory: string;
+
+    @Column({ default: null })
+    segment: string;
+
     @OneToMany(() => Lead, Lead => Lead.company)
     leads: Lead[];
 
@@ -149,5 +155,7 @@ export class Account extends CustomBaseEntity {
         if (this.email) this.email = encryption(this.email);
         if (this.countryCode) this.countryCode = encryption(this.countryCode);
         if (this.phone) this.phone = encryption(this.phone);
+        if (this.clientCategory) this.clientCategory = encryption(this.clientCategory);
+        if (this.segment) this.segment = encryption(this.segment);
     }
 }
