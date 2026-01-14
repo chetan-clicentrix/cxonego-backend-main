@@ -35,6 +35,7 @@ import bankDocConfigRouter from "./bankDocumentConfig.routes";
 import skillRouter from "./skill.routes";
 import uploadPublicRouter from "./uploadPublic.routes";
 import uploadSessionRouter from "./uploadSession.routes";
+import documentUploadRouter from "./document.upload.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
@@ -73,6 +74,7 @@ router.use("/bank-config", bankDocConfigRouter);
 console.log("Registering upload routes...");
 router.use("/public/upload", uploadPublicRouter); // Public upload endpoints
 router.use("/upload-session", uploadSessionRouter); // Admin session management
+router.use("/documents", documentUploadRouter); // Get uploaded documents
 console.log("Upload routes registered!");
 
 // Case Management Module

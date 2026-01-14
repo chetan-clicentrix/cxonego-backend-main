@@ -7,6 +7,7 @@ import {
     getOpportunityRequirements,
     updateRequirement,
     deleteRequirement,
+    getOpportunityUploads,
 } from "../controllers/uploadSession.controller";
 import hasPermission from "../middlewares/permission.middleware";
 import { roleNames } from "../common/utils";
@@ -30,5 +31,8 @@ router.post("/:uploadSessionId/requirement", createRequirement);
 router.get("/opportunity/:opportunityId/requirements", getOpportunityRequirements);
 router.put("/requirement/:requirementId", updateRequirement);
 router.delete("/requirement/:requirementId", deleteRequirement);
+
+// Document uploads
+router.get("/uploads/:opportunityId", getOpportunityUploads);
 
 export default router;

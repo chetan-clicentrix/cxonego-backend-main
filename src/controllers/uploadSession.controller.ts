@@ -3,6 +3,7 @@ import UploadSessionService from "../services/uploadSession.service";
 import DocumentRequirementService from "../services/documentRequirement.service";
 import { AppDataSource } from "../data-source";
 import { userInfo } from "../interfaces/types";
+import { DocumentUpload } from "../entity/DocumentUpload";
 
 const uploadSessionService = new UploadSessionService();
 const documentRequirementService = new DocumentRequirementService();
@@ -235,6 +236,49 @@ export const deleteRequirement = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Get all uploaded documents for an opportunity (Admin)
+ * GET /api/upload-session/opportunity/:opportunityId/uploads
+ */
+export const getOpportunityUploads = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user as userInfo;
+        const { opportunityId } = req.params;
+
+        if (!user.organizationId) {
+            return res.status(400).json({
+                success: false,
+                error: "Organization ID is required",
+            });
+        }
+
+        const uploadRepo = AppDataSource.getRepository(DocumentUpload);
+
+        const uploads = await uploadRepo.find({
+            where: {
+                opportunityId,
+                uploadSession: {
+                    organization: { organisationId: user.organizationId },
+                },
+            },
+            relations: ["uploadSession", "requirement", "sharepointDocument"],
+            order: {
+                createdAt: "DESC",
+            },
+        });
+
+        res.json({
+            success: true,
+            data: uploads,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            error: error.message,
+        });
+    }
+};
+
 export default {
     createUploadSession,
     getUploadSessionDetails,
@@ -243,4 +287,5 @@ export default {
     getOpportunityRequirements,
     updateRequirement,
     deleteRequirement,
+    getOpportunityUploads,
 };
