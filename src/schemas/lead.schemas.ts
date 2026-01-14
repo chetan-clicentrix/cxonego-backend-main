@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const LeadSchema = z.object({
-    firstName: z.string(),
-    lastName: z.string(),
+    fullName: z.string(),
     countryCode: z.string().nullable().optional(),
     phone: z.string().optional(),
     title: z.string(),
@@ -17,12 +16,13 @@ export const LeadSchema = z.object({
     rating: z.enum(["Hot", "Warm", "Cold"] as const).nullable().optional(),
     // owner:z.object({}).optional(),
     fullname: z.string().nullable().optional(),
-    mobile: z.string().nullable().optional()
+    mobile: z.string().nullable().optional(),
+    loanType: z.string(),
+    loanAmount: z.string()
 });
 
 export const BulkLeadSchema = z.object({
-    firstName: z.string(),
-    lastName: z.string(),
+    fullName: z.string(),
     countryCode: z.string().nullable().optional(),
     phone: z.string().optional(),
     title: z.string().optional(),
@@ -81,7 +81,9 @@ export const LeadSchemaTypePath = z.object({
     owner: z.string().optional(),
     modifiedBy: z.string().optional(),
     fullname: z.string().optional(),
-    mobile: z.string().optional()
+    mobile: z.string().optional(),
+    loanType: z.string().optional(),
+    loanAmount: z.string().optional()
 })
 export type bulkDeleteSchemaType = z.infer<typeof bulkDeleteSchema>;
 export type bulkCreateType = z.infer<typeof bulkCreate>;

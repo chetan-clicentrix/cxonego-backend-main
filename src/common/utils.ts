@@ -126,10 +126,13 @@ export const MyEncryptionTransformerConfig = {
 };
 
 export enum stage {
-  ANALYSIS = "Analysis",
-  SOLUTIONING = "Solutioning",
-  PROPOSAL = "Proposal",
-  NEGOTIATION = "Negotiation",
+  DOCUMENT_COLLECTION = "Document collection",
+  PROPOSAL_PREPARATION = "Proposal Preparation",
+  LOGIN_DESK = "Login Desk",
+  QUERY = "Query",
+  QUERY_RESOLUTION = "Query Resolution",
+  APPROVED = "Approved",
+  DISBURSED = "Disbursed",
   WON = "Won",
   LOST = "Lost",
 }
@@ -456,6 +459,13 @@ export enum routingAttribute {
 export enum routingAssignToType {
   USER = "USER",
   ROLE = "ROLE",
+}
+
+export enum proficiencyLevel {
+  BEGINNER = "Beginner",
+  INTERMEDIATE = "Intermediate",
+  ADVANCED = "Advanced",
+  EXPERT = "Expert"
 }
 
 export enum ApplicantType {

@@ -188,6 +188,9 @@ class AccountServices {
         if (account.description)
           account.description = decrypt(account.description);
         if (account.area) account.area = decrypt(account.area);
+        if (account.clientCategory)
+          account.clientCategory = decrypt(account.clientCategory);
+        if (account.segment) account.segment = decrypt(account.segment);
         if (account.owner) account.owner = await userDecryption(account.owner);
       });
       let searchedData: Account[] = [];
@@ -251,6 +254,12 @@ class AccountServices {
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             account?.owner?.lastName
+              ?.toLowerCase()
+              .includes(String(search).toLowerCase()) ||
+            account?.clientCategory
+              ?.toLowerCase()
+              .includes(String(search).toLowerCase()) ||
+            account?.segment
               ?.toLowerCase()
               .includes(String(search).toLowerCase())
           ) {
@@ -334,6 +343,9 @@ class AccountServices {
         account.countryCode = decrypt(account.countryCode);
       if (account?.address) account.address = decrypt(account.address);
       if (account?.area) account.area = decrypt(account.area);
+      if (account?.clientCategory)
+        account.clientCategory = decrypt(account.clientCategory);
+      if (account?.segment) account.segment = decrypt(account.segment);
 
       if (account) {
         account.organization = await orgnizationDecryption(
@@ -470,7 +482,7 @@ class AccountServices {
     if (!accountData) {
       return;
     }
-   
+
     if (payload?.socialMediaLink?.[0]?.name) {
       const socialMedia = new SocialMedia();
       const socialMedias: SocialMedia[] = [];
@@ -502,7 +514,7 @@ class AccountServices {
         .getOne();
       if (userData) {
         payload.owner = userData as User;
-      }else{
+      } else {
         throw new ResourceNotFoundError("User not found in this organization.");
       }
     }
@@ -867,8 +879,7 @@ class AccountServices {
         .where("lead.company Like :account", { account: `%${accountId}%` })
         .getMany();
       leads.map((lead) => {
-        if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-        if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+        if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
         if (lead?.phone) lead.phone = decrypt(lead.phone);
         if (lead?.country) lead.country = decrypt(lead.country);
         if (lead?.state) lead.state = decrypt(lead.state);
@@ -886,11 +897,7 @@ class AccountServices {
         skip = 1;
         searchedData = await leads.filter((lead) => {
           if (
-            lead?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            lead?.lastName
+            lead?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase()) ||
@@ -974,8 +981,7 @@ class AccountServices {
         .where("contact.company Like :account", { account: `%${accountId}%` })
         .getMany();
       contacts.map((contact) => {
-        if (contact.firstName) contact.firstName = decrypt(contact.firstName);
-        if (contact.lastName) contact.lastName = decrypt(contact.lastName);
+        if (contact.fullName) contact.fullName = decrypt(contact.fullName);
         if (contact.countryCode)
           contact.countryCode = decrypt(contact.countryCode);
         if (contact.phone) contact.phone = decrypt(contact.phone);
@@ -1000,13 +1006,10 @@ class AccountServices {
         skip = 1;
         searchedData = contacts.filter((contact) => {
           if (
-            contact?.firstName
+            contact?.fullName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.countryCode
-              ?.toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            contact?.lastName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.country
@@ -1190,7 +1193,7 @@ class AccountServices {
   ) {
     const updatedAccount = Object(updatedAccountRecord);
     const oldAccount = Object(oldcompanyRecord);
-    
+
     const auditRepository = transactionEntityManager.getRepository(Audit);
     let description = "";
     const predescription = await auditRepository.findOne({

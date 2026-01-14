@@ -1,73 +1,136 @@
-name: CI/CD Deploy to EC2 with Rsync and PM2
+name: Optimized CI/CD Pipeline - Production Deployment
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch: 
+      - Production  
+  workflow_dispatch:  # Allow manual trigger
 
 env:
   PROJECT_NAME: cxonego-backend-main
+  NODE_VERSION: '18'
+  DEPLOY_PATH: /root/cxonego/cxonego-backend-main
 
 jobs:
-  deploy:
+  build-and-deploy:
+    name: Build on GitHub & Deploy to Server
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: 🧾 Checkout Code
-      uses: actions/checkout@v3
+   
+      - name: 🧾 Checkout Code
+        uses: actions/checkout@v4
 
-    - name: 🔧 Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: 🔧 Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
 
-    - name: ♻️ Cache NPM Dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+      # ============================================
+      # STEP 3: Cache Dependencies for Faster Builds
+      # ============================================
+      - name: ♻️ Cache Yarn Dependencies
+        id: cache-yarn-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .yarn/cache
+            ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
 
-    - name: 📦 Install Dependencies
-      run: npm install
 
-    - name: 🏗️ Build Project
-      run: npm run build
+      - name: 📦 Install Dependencies
+        if: steps.cache-yarn-deps.outputs.cache-hit != 'true'
+        run: yarn install --frozen-lockfile --prefer-offline
 
-    - name: 📂 List Build Output
-      run: ls -la
+   
+      - name: 🏗️ Build TypeScript Project
+        run: |
+          echo "Building project..."
+          yarn run build
+          echo "Build completed successfully!"
 
-    - name: 🔄 Rsync Build to EC2
-      uses: Burnett01/rsync-deployments@5.2.1
-      with:
-        switches: -avz --delete --exclude='.env' --exclude='node_modules' --exclude='.git'
-        path:  ./ # Adjust this to your actual build output directory
-        remote_path: /home/ubuntu/${{ env.PROJECT_NAME }}
-        remote_host: ${{ secrets.HOST }}
-        remote_user: ubuntu
-        remote_key: ${{ secrets.SSH }}
+      - name: 📂 Verify Build Output
+        run: |
+          echo "Checking build directory..."
+          ls -lah build/
+          echo "Build size:"
+          du -sh build/
 
-    - name: 📄 Copy ecosystem.config.js to EC2
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.HOST }}
-        username: ubuntu
-        key: ${{ secrets.SSH }}
-        source: "ecosystem.config.js"
-        target: "/home/ubuntu/${{ env.PROJECT_NAME }}/"
+     
+      - name: 📦 Create Deployment Package
+        run: |
+          echo "Creating deployment package..."
+          mkdir -p deploy-package
+          
+          # Copy only necessary files
+          cp -r build deploy-package/
+          cp package.json deploy-package/
+          cp yarn.lock deploy-package/
+          cp ecosystem.config.js deploy-package/
+          
+          # Copy .env.example if exists (not .env for security)
+          [ -f .env.example ] && cp .env.example deploy-package/ || true
+          
+          echo "Deployment package created!"
+          ls -lah deploy-package/
 
-    - name: ⚙️ Set .env and Restart PM2 on EC2
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.HOST }}
-        username: ubuntu
-        key: ${{ secrets.SSH }}
-        script: |
-          # Load NVM to get access to the right environment
-          export NVM_DIR="/home/ubuntu/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          cd /home/ubuntu/${{ env.PROJECT_NAME }}
-          pm2 reload ${{ env.PROJECT_NAME }} || pm2 start ecosystem.config.js --env production --name ${{ env.PROJECT_NAME }}
+
+    
+      - name: 📥 Install Production Dependencies
+        run: |
+          cd deploy-package
+          yarn install --frozen-lockfile --production --prefer-offline
+          echo "Production dependencies installed!"
+
+      # ============================================
+      # Deploy to Server via Rsync
+      # ============================================
+      - name: 🚀 Deploy to Production Server
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avzr --delete --exclude='.env' --exclude='.git' --exclude='*.log'
+          path: deploy-package/
+          remote_path: ${{ env.DEPLOY_PATH }}
+          remote_host: ${{ secrets.HOST }}
+          remote_user: ${{ secrets.USERNAME }}
+          remote_password: ${{ secrets.PASSWORD }}
+
+      # ============================================
+      #  Restart Application with PM2
+      # ============================================
+      - name: ⚙️ Restart Application with PM2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            set -e  # Exit on error
+            
+            echo "🔍 Navigating to project directory..."
+            cd ${{ env.DEPLOY_PATH }}
+            
+            echo "📋 Checking PM2 status..."
+            pm2 describe ${{ env.PROJECT_NAME }} > /dev/null 2>&1
+            APP_EXISTS=$?
+            
+            if [ $APP_EXISTS -eq 0 ]; then
+              echo "🔄 Application exists, performing graceful reload..."
+              pm2 reload ${{ env.PROJECT_NAME }} --update-env
+            else
+              echo "🆕 Starting new application..."
+              pm2 start ecosystem.config.js --env production
+            fi
+            
+            echo "💾 Saving PM2 process list..."
+            pm2 save --force
+            
+            echo "📊 Current PM2 status:"
+            pm2 list
+            
+            echo "✅ Deployment completed successfully!"

@@ -9,6 +9,8 @@ import { Lead } from "./Lead";
 import { User } from "./User";
 import { Note } from "./Note";
 import { Organisation } from "./Organisation";
+import { SharePointDocument } from "./SharePointDocument";
+import { encrypt } from "typeorm-encrypted";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -16,6 +18,7 @@ export class Oppurtunity extends CustomBaseEntity {
         super();
         Object.assign(this, payload);
     }
+
 
     @Column({
         primary: true,
@@ -28,6 +31,7 @@ export class Oppurtunity extends CustomBaseEntity {
         nullable: false,
     })
     title: string;
+
 
     @Column({
         type: "enum",
@@ -108,7 +112,7 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({
         type: "enum",
         enum: stage,
-        default: stage.ANALYSIS
+        default: stage.DOCUMENT_COLLECTION
     })
     stage: stage;
 
@@ -190,6 +194,9 @@ export class Oppurtunity extends CustomBaseEntity {
     })
     @JoinColumn({ name: "organizationId" })
     organization: Organisation;
+
+    @OneToMany(() => SharePointDocument, (doc) => doc.opportunity)
+    sharepointDocuments: SharePointDocument[];
 
     @ManyToOne(() => Bank, { nullable: true, eager: true })
     @JoinColumn({ name: "bankId" })

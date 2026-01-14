@@ -16,6 +16,8 @@ import { Subscription } from "../entity/Subscription";
 import { CustomPlanRequest } from "../entity/CustomPlanRequest";
 import { Document } from "../entity/Document";
 import { LeadRoutingConfig } from "../entity/LeadRoutingConfig";
+import { Skill } from "../entity/Skill";
+import { SharePointDocument } from "../entity/SharePointDocument";
 
 export const accountDecryption = async (company: Account) => {
   if (company?.accountName) company.accountName = decrypt(company.accountName);
@@ -37,13 +39,14 @@ export const accountDecryption = async (company: Account) => {
   if (company?.address) company.address = decrypt(company.address);
   if (company?.description) company.description = decrypt(company.description);
   if (company?.area) company.area = decrypt(company.area);
+  if (company?.clientCategory) company.clientCategory = decrypt(company.clientCategory);
+  if (company?.segment) company.segment = decrypt(company.segment);
 
   return company;
 };
 
 export const leadDecryption = async (lead: Lead) => {
-  if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-  if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+  if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
   if (lead?.phone) lead.phone = decrypt(lead.phone);
   if (lead?.country) lead.country = decrypt(lead.country);
   if (lead?.state) lead.state = decrypt(lead.state);
@@ -54,13 +57,14 @@ export const leadDecryption = async (lead: Lead) => {
   if (lead?.description) lead.description = decrypt(lead.description);
   if (lead?.price) lead.price = decrypt(lead.price);
   if (lead?.countryCode) lead.countryCode = decrypt(lead.countryCode);
+  if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
+  if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
 
   return lead;
 };
 
 export const contactDecryption = async (contact: Contact) => {
-  if (contact?.firstName) contact.firstName = decrypt(contact.firstName);
-  if (contact?.lastName) contact.lastName = decrypt(contact.lastName);
+  if (contact?.fullName) contact.fullName = decrypt(contact.fullName);
   if (contact?.countryCode) contact.countryCode = decrypt(contact.countryCode);
   if (contact?.phone) contact.phone = decrypt(contact.phone);
   if (contact?.area) contact.area = decrypt(contact.area);
@@ -80,8 +84,7 @@ export const contactDecryption = async (contact: Contact) => {
 export const multipleleadsDecryption = async (leads: Array<Lead>) => {
   const leadsArray: Array<Lead> = [];
   for (let lead of leads) {
-    if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-    if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+    if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
     if (lead?.phone) lead.phone = decrypt(lead.phone);
     if (lead?.country) lead.country = decrypt(lead.country);
     if (lead?.state) lead.state = decrypt(lead.state);
@@ -90,6 +93,8 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
     if (lead?.title) lead.title = decrypt(lead.title);
     if (lead?.leadSource) lead.leadSource = decrypt(lead.leadSource);
     if (lead?.description) lead.description = decrypt(lead.description);
+    if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
+    if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
     leadsArray.push(lead);
   }
 
@@ -97,8 +102,7 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
 };
 
 export const contactDecryptionFilter = async (contact: ContactSchemaType) => {
-  if (contact?.firstName) contact.firstName = decrypt(contact.firstName);
-  if (contact?.lastName) contact.lastName = decrypt(contact.lastName);
+  if (contact?.fullName) contact.fullName = decrypt(contact.fullName);
   if (contact?.countryCode) contact.countryCode = decrypt(contact.countryCode);
   if (contact?.phone) contact.phone = decrypt(contact.phone);
   if (contact?.area) contact.area = decrypt(contact.area);
@@ -304,6 +308,32 @@ export const multipleDocumentsDecryption = async (documents: Array<Document>) =>
   const documentsArray: Array<Document> = [];
   for (let document of documents) {
     document = await documentDecryption(document);
+    documentsArray.push(document);
+  }
+  return documentsArray;
+};
+
+export const skillDecryption = async (skill: Skill) => {
+  if (skill?.name) skill.name = decrypt(skill.name);
+  if (skill?.category) skill.category = decrypt(skill.category);
+  if (skill?.certificationName) skill.certificationName = decrypt(skill.certificationName);
+  return skill;
+};
+
+// SharePoint Document Decryption
+export const sharepointDocumentDecryption = async (document: SharePointDocument): Promise<SharePointDocument> => {
+  if (document?.fileName) document.fileName = decrypt(document.fileName);
+  if (document?.description) document.description = decrypt(document.description);
+  if (document?.customDocumentType) document.customDocumentType = decrypt(document.customDocumentType);
+  return document;
+};
+
+export const multipleSharepointDocumentsDecryption = async (documents: Array<SharePointDocument>): Promise<Array<SharePointDocument>> => {
+  if (!documents || documents.length === 0) return documents;
+
+  const documentsArray: Array<SharePointDocument> = [];
+  for (let document of documents) {
+    document = await sharepointDocumentDecryption(document);
     documentsArray.push(document);
   }
   return documentsArray;

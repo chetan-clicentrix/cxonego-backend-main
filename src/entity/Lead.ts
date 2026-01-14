@@ -36,13 +36,7 @@ export class Lead extends CustomBaseEntity {
     type: "varchar",
     nullable: false,
   })
-  firstName: string;
-
-  @Column({
-    type: "varchar",
-    nullable: false,
-  })
-  lastName: string;
+  fullName: string;
 
   @Column({
     type: "varchar",
@@ -64,7 +58,7 @@ export class Lead extends CustomBaseEntity {
 
   @Column({
     type: "varchar",
-    nullable: false,
+    nullable: true,
   })
   @IsEmail()
   email: string;
@@ -176,11 +170,22 @@ export class Lead extends CustomBaseEntity {
   @Column({ nullable: true })
   leadType: string;
 
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  loanType: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  loanAmount: string;
+
   @BeforeInsert()
   @BeforeUpdate()
   encrypt() {
-    if (this.firstName) this.firstName = encryption(this.firstName);
-    if (this.lastName) this.lastName = encryption(this.lastName);
+    if (this.fullName) this.fullName = encryption(this.fullName);
     if (this.countryCode) this.countryCode = encryption(this.countryCode);
     if (this.phone) this.phone = encryption(this.phone);
     if (this.country) this.country = encryption(this.country);
@@ -190,6 +195,8 @@ export class Lead extends CustomBaseEntity {
     if (this.city) this.city = encryption(this.city);
     if (this.description) this.description = encryption(this.description);
     if (this.price) this.price = encryption(this.price);
+    if (this.loanType) this.loanType = encryption(this.loanType);
+    if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
   }
 
   @AfterInsert()
