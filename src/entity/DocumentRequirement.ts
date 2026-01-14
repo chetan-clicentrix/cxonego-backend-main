@@ -22,7 +22,7 @@ export enum DocumentType {
 }
 
 @Entity()
-@Index(["opportunityId", "documentType"], { unique: true })
+@Index(["opportunityId", "documentName"], { unique: true })
 export class DocumentRequirement extends CustomBaseEntity {
     constructor(payload: DocumentRequirement) {
         super();

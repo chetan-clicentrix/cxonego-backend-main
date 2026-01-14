@@ -198,6 +198,9 @@ export class Oppurtunity extends CustomBaseEntity {
     @OneToMany(() => SharePointDocument, (doc) => doc.opportunity)
     sharepointDocuments: SharePointDocument[];
 
+    @Column({ nullable: true })
+    bankId: string;
+
     @ManyToOne(() => Bank, { nullable: true, eager: true })
     @JoinColumn({ name: "bankId" })
     bank: Bank;
