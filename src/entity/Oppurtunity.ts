@@ -112,7 +112,7 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({
         type: "enum",
         enum: stage,
-        default: stage.ANALYSIS
+        default: stage.DOCUMENT_COLLECTION
     })
     stage: stage;
 
