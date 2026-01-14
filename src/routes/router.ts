@@ -30,7 +30,11 @@ import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
 import sharepointRouter from "./sharepoint.routes";
 import leadRoutingConfigRouter from "./leadRoutingConfig.routes";
+import bankRouter from "./bank.routes";
+import bankDocConfigRouter from "./bankDocumentConfig.routes";
 import skillRouter from "./skill.routes";
+import uploadPublicRouter from "./uploadPublic.routes";
+import uploadSessionRouter from "./uploadSession.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
@@ -62,6 +66,14 @@ router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
 router.use("/sharepoint", sharepointRouter)
 router.use("/skills", skillRouter);
+router.use("/bank", bankRouter);
+router.use("/bank-config", bankDocConfigRouter);
+
+// Document Upload Module
+console.log("Registering upload routes...");
+router.use("/public/upload", uploadPublicRouter); // Public upload endpoints
+router.use("/upload-session", uploadSessionRouter); // Admin session management
+console.log("Upload routes registered!");
 
 // Case Management Module
 router.use("/cases", caseRouter);
