@@ -221,24 +221,32 @@ class CaseService {
     }
 
     // Generate unique case number
-    async generateCaseNumber(organizationId: string): Promise<string> {
-        const year = new Date().getFullYear();
+    async getCaseNumber(date: Date): Promise<string> {
+        const month = String(
+            date.getMonth() + 1 >= 10
+                ? date.getMonth() + 1
+                : "0" + (date.getMonth() + 1)
+        );
 
+        const year = String(date.getFullYear().toString().slice(-2));
         const lastCase = await AppDataSource.getRepository(Case)
             .createQueryBuilder("case")
             .withDeleted()
-            .where("case.organizationId = :organizationId", { organizationId })
-            .andWhere("YEAR(case.createdAt) = :year", { year })
+            .select()
             .orderBy("case.createdAt", "DESC")
             .getOne();
 
-        let caseNo = 0;
+        let caseNo = "00";
         if (lastCase && lastCase.caseNumber) {
-            const lastNumber = lastCase.caseNumber.split("-")[2];
-            caseNo = parseInt(lastNumber);
+            const yearFromRecord = String(lastCase.caseNumber.slice(3, 5));
+            const caseIdFromRecord = String(lastCase.caseNumber.substring(5));
+
+            if (year === yearFromRecord) {
+                caseNo = caseIdFromRecord;
+            }
         }
 
-        const caseNumber = `CASE-${year}-${String(caseNo + 1).padStart(4, "0")}`;
+        const caseNumber = "C" + month + year + "0" + (Number(caseNo) + 1).toString();
         return caseNumber;
     }
 
@@ -249,7 +257,9 @@ class CaseService {
         transactionEntityManager: EntityManager
     ) {
         // Generate case number
-        payload.caseNumber = await this.generateCaseNumber(user.organizationId!);
+        const generatedCaseNumber = await this.getCaseNumber(new Date());
+        payload.caseNumber = generatedCaseNumber;
+        payload.caseId = generatedCaseNumber;
 
         // Set created by user
         const userRepo = transactionEntityManager.getRepository(User);
@@ -296,10 +306,6 @@ class CaseService {
         if (!payload.status) {
             payload.status = ticketStatus.NEW;
         }
-
-        // Generate UUID for caseId
-        const { v4: uuidv4 } = require('uuid');
-        payload.caseId = uuidv4();
 
         const caseInstance = new Case(payload);
         const caseObj = await transactionEntityManager.save(caseInstance);
