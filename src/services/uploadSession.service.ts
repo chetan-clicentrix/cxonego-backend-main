@@ -181,6 +181,37 @@ class UploadSessionService {
             { ipAddress, userAgent }
         );
     }
+
+    /**
+     * Delete upload session (Admin)
+     */
+    async deleteSession(
+        uploadSessionId: string,
+        user: userInfo,
+        transactionEntityManager: EntityManager
+    ): Promise<void> {
+        if (!user.organizationId) {
+            throw new ValidationFailedError("Organization ID is required");
+        }
+
+        const sessionRepo = transactionEntityManager.getRepository(UploadSession);
+
+        // Verify session exists and belongs to user's organization
+        const session = await sessionRepo.findOne({
+            where: {
+                uploadSessionId,
+                organization: { organisationId: user.organizationId },
+            },
+        });
+
+        if (!session) {
+            throw new ResourceNotFoundError("Upload session not found");
+        }
+
+        // Delete session (cascade will handle related records)
+        await sessionRepo.remove(session);
+    }
 }
 
 export default UploadSessionService;
+

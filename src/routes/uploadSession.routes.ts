@@ -8,6 +8,7 @@ import {
     updateRequirement,
     deleteRequirement,
     getOpportunityUploads,
+    deleteUploadSession,
 } from "../controllers/uploadSession.controller";
 import hasPermission from "../middlewares/permission.middleware";
 import { roleNames } from "../common/utils";
@@ -25,6 +26,7 @@ router.use(hasPermission([roleNames.ADMIN, roleNames.SALESMANAGER]));
 router.post("/", createUploadSession);
 router.get("/:uploadSessionId", getUploadSessionDetails);
 router.get("/opportunity/:opportunityId", getOpportunitySessions);
+router.delete("/:uploadSessionId", deleteUploadSession);
 
 // Requirement management
 router.post("/:uploadSessionId/requirement", createRequirement);
