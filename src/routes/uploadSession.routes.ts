@@ -15,9 +15,7 @@ import { roleNames } from "../common/utils";
 
 const router = Router();
 
-/**
- * Admin upload session routes (authentication required)
- */
+
 
 // Apply authentication middleware to all routes
 router.use(hasPermission([roleNames.ADMIN, roleNames.SALESMANAGER]));
