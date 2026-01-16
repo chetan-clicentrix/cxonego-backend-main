@@ -11,6 +11,7 @@ import { Note } from "./Note";
 import { Organisation } from "./Organisation";
 import { SharePointDocument } from "./SharePointDocument";
 import { encrypt } from "typeorm-encrypted";
+import { ActivityPlan } from "./ActivityPlan";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -197,6 +198,9 @@ export class Oppurtunity extends CustomBaseEntity {
 
     @OneToMany(() => SharePointDocument, (doc) => doc.opportunity)
     sharepointDocuments: SharePointDocument[];
+
+    @OneToMany(() => ActivityPlan, (plan) => plan.opportunity)
+    activityPlans: ActivityPlan[];
 
     @ManyToOne(() => Bank, { nullable: true, eager: true })
     @JoinColumn({ name: "bankId" })

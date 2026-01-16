@@ -36,6 +36,9 @@ import skillRouter from "./skill.routes";
 import uploadPublicRouter from "./uploadPublic.routes";
 import uploadSessionRouter from "./uploadSession.routes";
 
+import activityPlanRouter from "./activityPlan.routes";
+import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
+
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
 router.use("/leadAssignment", leadAssignmentRouter)
@@ -51,6 +54,8 @@ router.use("/services", servicesRouter);
 router.use("/opportunity", oppurtunityRouter);
 router.use("/moodimage", moodRouter);
 router.use("/activity", activityRouter);
+router.use("/activity-plan", activityPlanRouter);
+router.use("/activity-plan-templates", activityPlanTemplateRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/audit", auditRouter);
 router.use("/calender", calenderRouter);
