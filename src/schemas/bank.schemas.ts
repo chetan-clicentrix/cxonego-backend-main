@@ -15,15 +15,15 @@ export const BankDocumentConfigSchema = z.object({
 });
 
 export const CloneConfigSchema = z.object({
-    sourceBankId: z.string().uuid(),
+    sourceBankId: z.string(),
     sourceApplicantType: z.nativeEnum(ApplicantType),
-    targetBankId: z.string().uuid(),
+    targetBankId: z.string(),
     targetApplicantType: z.nativeEnum(ApplicantType)
 });
 
 export const BulkCloneConfigSchema = z.object({
-    sourceBankId: z.string().uuid(),
-    targetBankId: z.string().uuid(),
+    sourceBankId: z.string(),
+    targetBankId: z.string(),
     applicantTypes: z.array(z.nativeEnum(ApplicantType)).min(1)
 });
 

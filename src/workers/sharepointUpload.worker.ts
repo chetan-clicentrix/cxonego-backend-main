@@ -113,6 +113,7 @@ sharepointUploadWorker.on("failed", (job, error) => {
 
 sharepointUploadWorker.on("error", (error) => {
     console.error("Worker error:", error);
+   
 });
 
 export default sharepointUploadWorker;

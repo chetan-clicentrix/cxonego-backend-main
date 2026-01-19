@@ -135,9 +135,7 @@ export const uploadChunk = async (req: Request, res: Response) => {
             });
         }
 
-        // TODO: Re-enable hash verification in production
-        // Temporarily disabled for testing
-        /*
+
         // Verify chunk hash
         const actualHash = await chunkUploadService.calculateFileHash(req.file.path);
         if (actualHash !== chunkHash) {
@@ -150,8 +148,7 @@ export const uploadChunk = async (req: Request, res: Response) => {
                 error: "Chunk hash mismatch - file may be corrupted",
             });
         }
-        */
-        console.log("Hash verification skipped for testing");
+
 
         // Save chunk record
         const result = await AppDataSource.transaction(async (manager) => {
