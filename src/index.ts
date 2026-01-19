@@ -126,7 +126,7 @@ app.options('*', (req, res) => {
 });
 
 // body-parser configuration - IMPORTANT: Skip multipart/form-data (handled by multer)
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   if (req.is('multipart/form-data')) {
     // Skip body-parser for multipart requests (multer will handle them)
     return next();
