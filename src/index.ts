@@ -67,6 +67,8 @@ const allowedOrigins = [
   'https://cxonego.clicentrix.com',
   'https://api.clicentrix.com',
   'https://admin.clicentrix.com',
+
+  '',
   undefined // This will match requests without an origin header
 ].filter(Boolean) as (string | undefined)[];
 
@@ -93,11 +95,14 @@ app.use(cors({
 }));
 
 // Add security headers
-app.use((_req, res, next) => {
+// Add security headers
+app.use((req, res, next) => {
   // Add Access-Control-Allow-Origin header to every response
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
@@ -120,9 +125,18 @@ app.options('*', (req, res) => {
   res.status(204).end();
 });
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-app.use(bodyParser.json({ type: "application/json" }));
+// body-parser configuration - IMPORTANT: Skip multipart/form-data (handled by multer)
+app.use((req, res, next) => {
+  if (req.is('multipart/form-data')) {
+    // Skip body-parser for multipart requests (multer will handle them)
+    return next();
+  }
+  next();
+});
+
+app.use(bodyParser.urlencoded({ extended: false, limit: '50mb' }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.json({ type: "application/json", limit: '50mb' }));
 
 app.use(
   authMiddleware().unless({

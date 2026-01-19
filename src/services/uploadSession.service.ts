@@ -6,6 +6,8 @@ import { EntityManager } from "typeorm";
 import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import * as crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
+import { DocumentRequirement } from "../entity/DocumentRequirement";
+import { DocumentUpload, UploadStatus } from "../entity/DocumentUpload";
 
 class UploadSessionService {
     /**
@@ -210,6 +212,59 @@ class UploadSessionService {
 
         // Delete session (cascade will handle related records)
         await sessionRepo.remove(session);
+    }
+
+    /**
+     * Check if all required documents are uploaded and complete session
+     */
+    async checkAutoCompletion(
+        uploadSessionId: string,
+        opportunityId: string,
+        organizationId: string
+    ): Promise<boolean> {
+        const requirementRepo = AppDataSource.getRepository(DocumentRequirement);
+        const uploadRepo = AppDataSource.getRepository(DocumentUpload);
+
+        // Get all mandatory requirements
+        const requirements = await requirementRepo.find({
+            where: {
+                opportunityId,
+                opportunity: {
+                    organization: { organisationId: organizationId },
+                },
+                isRequired: true
+            }
+        });
+
+        if (requirements.length === 0) {
+            return false;
+        }
+
+        // Get all valid uploads (uploaded or processing or completed)
+        const uploads = await uploadRepo.find({
+            where: {
+                uploadSessionId
+            }
+        });
+
+        const validUploads = uploads.filter(u =>
+            u.uploadStatus === UploadStatus.PROCESSING ||
+            u.uploadStatus === UploadStatus.COMPLETED
+        );
+
+        const uploadedRequirementIds = validUploads.map(u => u.requirementId);
+
+        // Check if every mandatory requirement has an upload
+        const allUploaded = requirements.every(req =>
+            uploadedRequirementIds.includes(req.requirementId)
+        );
+
+        if (allUploaded) {
+            await this.completeSession(uploadSessionId, AppDataSource.manager);
+            return true;
+        }
+
+        return false;
     }
 }
 
