@@ -25,31 +25,59 @@ class DocumentRequirementService {
         const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
         const requirementRepo = transactionEntityManager.getRepository(DocumentRequirement);
 
-        // Get opportunity with bank details
+        // Get opportunity with bank details (eager loading should handle this)
         const opportunity = await opportunityRepo.findOne({
             where: {
                 opportunityId,
                 organization: { organisationId: user.organizationId },
             },
+            relations: ["bank"], // Explicitly load bank relation
         });
 
         if (!opportunity) {
             throw new ResourceNotFoundError("Opportunity not found");
         }
 
+        console.log("Opportunity details:", {
+            opportunityId: opportunity.opportunityId,
+            bankId: opportunity.bankId,
+            bank: opportunity.bank,
+            applicantType: opportunity.applicantType,
+        });
+
         // Check if bank and applicant type are set
-        if (!opportunity.bank || !opportunity.applicantType) {
+        if (!opportunity.bankId || !opportunity.applicantType) {
             throw new ValidationFailedError(
                 "Opportunity must have bank and applicant type configured"
             );
         }
 
+        // Check if requirements already exist for this opportunity
+        const existingRequirements = await requirementRepo.find({
+            where: { opportunityId: opportunityId },
+        });
+
+        if (existingRequirements.length > 0) {
+            console.log(
+                `Requirements already exist for opportunity ${opportunityId}. Skipping creation.`
+            );
+            return existingRequirements;
+        }
+
         // Fetch document list from BankDocumentConfig
+        console.log("Fetching documents for:", {
+            bankId: opportunity.bankId,
+            applicantType: opportunity.applicantType,
+            organizationId: user.organizationId,
+        });
+
         const documentNames = await this.bankDocService.getDocumentsByBankAndType(
-            opportunity.bank.bankId,
+            opportunity.bankId, // Use bankId directly instead of opportunity.bank.bankId
             opportunity.applicantType,
             user.organizationId
         );
+
+        console.log("Found documents:", documentNames);
 
         if (!documentNames || documentNames.length === 0) {
             throw new ValidationFailedError(
