@@ -48,11 +48,15 @@ export class ActivityPlanTemplate extends CustomBaseEntity {
     encrypt() {
         if (this.name) this.name = encryption(this.name);
         if (this.description) this.description = encryption(this.description);
+        if (this.category) this.category = encryption(this.category);
+        if (this.segment) this.segment = encryption(this.segment);
     }
 
     @AfterLoad()
     decrypt() {
         if (this.name) this.name = decrypt(this.name);
         if (this.description) this.description = decrypt(this.description);
+        if (this.category) this.category = decrypt(this.category);
+        if (this.segment) this.segment = decrypt(this.segment);
     }
 }

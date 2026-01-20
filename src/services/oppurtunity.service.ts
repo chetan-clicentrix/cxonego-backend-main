@@ -13,6 +13,7 @@ import {
   purchaseTimeFrame,
   roleNames,
   statusType,
+  stage,
 } from "../common/utils";
 import { Lead } from "../entity/Lead";
 import { Role } from "../entity/Role";
@@ -545,6 +546,11 @@ class opportunityService {
         throw new ResourceNotFoundError("Contact not found");
       }
       if (contact) payload.contact = contact;
+    }
+
+    // Auto-mark as Won when stage is Disbursed
+    if (payload.stage === stage.DISBURSED) {
+      payload.stage = stage.WON;
     }
 
     const opportunityEntity = new Oppurtunity(payload);
