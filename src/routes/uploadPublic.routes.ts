@@ -27,7 +27,7 @@ router.post("/:sessionToken/chunk",
     (err: any, _req: any, res: any, next: any) => {
         // Multer error handler
         if (err) {
-            console.error("❌ Multer error:", err);
+            console.error(" Multer error:", err);
             return res.status(400).json({
                 success: false,
                 error: err.message || "File upload failed",
