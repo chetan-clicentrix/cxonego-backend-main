@@ -123,7 +123,7 @@ const emailNotificationWorker = new Worker(
 
                 await job.updateProgress(100);
 
-                console.log(`✅ Email sent successfully: ${job.id}`);
+                console.log(` Email sent successfully: ${job.id}`);
                 return { success: true, messageId: result.messageId };
 
             } else if (job.name === 'send-template-email') {
@@ -196,14 +196,14 @@ const emailNotificationWorker = new Worker(
 
                 await job.updateProgress(100);
 
-                console.log(`✅ Template email sent successfully: ${job.id}`);
+                console.log(` Template email sent successfully: ${job.id}`);
                 return { success: true, messageId: result.messageId };
             }
 
             throw new Error(`Unknown job type: ${job.name}`);
 
         } catch (error: any) {
-            console.error(`❌ Email job ${job.id} failed:`, error.message);
+            console.error(` Email job ${job.id} failed:`, error.message);
 
             // Log failure
             if (job.name === 'send-email') {
@@ -246,11 +246,11 @@ emailNotificationWorker.on('completed', (job) => {
 });
 
 emailNotificationWorker.on('failed', (job, error) => {
-    console.error(`❌ Email worker failed job ${job?.id}:`, error.message);
+    console.error(` Email worker failed job ${job?.id}:`, error.message);
 });
 
 emailNotificationWorker.on('error', (error) => {
-    console.error('❌ Email worker error:', error);
+    console.error(' Email worker error:', error);
 });
 
 console.log('✓ Email notification worker started');

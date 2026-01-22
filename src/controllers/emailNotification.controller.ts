@@ -242,10 +242,15 @@ export class EmailNotificationController {
             const query = templateListQuerySchema.parse(req.query);
             const organizationId = (req as any).user.organization?.organisationId;
 
+            console.log('🔍 GET Templates - organizationId:', organizationId);
+            console.log('🔍 GET Templates - query filters:', query);
+
             const { templates, total } = await this.templateService.getTemplates({
                 ...query,
                 organizationId
             });
+
+            console.log('🔍 GET Templates - Result count:', total);
 
             res.status(200).json({
                 success: true,

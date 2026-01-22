@@ -51,7 +51,8 @@ export class EmailTemplateService {
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.templateRepository.createQueryBuilder('template')
-            .leftJoinAndSelect('template.createdBy', 'user');
+            .leftJoinAndSelect('template.createdBy', 'user')
+            .where('template.deletedAt IS NULL'); // Explicitly exclude soft-deleted templates
 
         if (filters.entityType) {
             queryBuilder.andWhere('template.entityType = :entityType', { entityType: filters.entityType });
@@ -65,9 +66,20 @@ export class EmailTemplateService {
             queryBuilder.andWhere('template.isActive = :isActive', { isActive: filters.isActive });
         }
 
+        // Include templates for this organization OR global templates (organizationId IS NULL)
         if (filters.organizationId) {
-            queryBuilder.andWhere('template.organizationId = :organizationId', { organizationId: filters.organizationId });
+            console.log('🔍 Filtering by organizationId:', filters.organizationId);
+            queryBuilder.andWhere(
+                '(template.organizationId = :organizationId OR template.organizationId IS NULL)',
+                { organizationId: filters.organizationId }
+            );
+        } else {
+            console.log('🔍 No organizationId - showing only global templates');
+            // If no organizationId provided, only show global templates
+            queryBuilder.andWhere('template.organizationId IS NULL');
         }
+
+        console.log('🔍 SQL Query:', queryBuilder.getSql());
 
         queryBuilder
             .orderBy('template.createdAt', 'DESC')
@@ -75,6 +87,15 @@ export class EmailTemplateService {
             .take(limit);
 
         const [templates, total] = await queryBuilder.getManyAndCount();
+
+        console.log('🔍 Templates found:', total);
+        if (total > 0) {
+            console.log('🔍 First template:', {
+                templateId: templates[0].templateId,
+                templateCode: templates[0].templateCode,
+                organizationId: templates[0].organizationId
+            });
+        }
 
         return { templates, total };
     }
