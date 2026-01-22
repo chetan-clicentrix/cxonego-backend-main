@@ -24,6 +24,10 @@ import rateLimit from "express-rate-limit";
 import "./workers/sharepointUpload.worker";
 console.log("✓ SharePoint upload worker started");
 
+// Start Email notification worker
+import "./workers/emailNotification.worker";
+console.log("✓ Email notification worker started");
+
 dotenv.config();
 
 morgan.token("host", function (req: express.Request, _res) {
