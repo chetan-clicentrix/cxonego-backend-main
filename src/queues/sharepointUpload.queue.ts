@@ -10,7 +10,7 @@ const connection = new Redis({
 
 // SharePoint upload queue
 export const sharepointUploadQueue = new Queue("sharepoint-upload", {
-    connection,
+    connection: connection as any,
     defaultJobOptions: {
         attempts: 5,
         backoff: {
