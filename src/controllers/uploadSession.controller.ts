@@ -3,6 +3,7 @@ import UploadSessionService from "../services/uploadSession.service";
 import DocumentRequirementService from "../services/documentRequirement.service";
 import { AppDataSource } from "../data-source";
 import { userInfo } from "../interfaces/types";
+import { DocumentUpload } from "../entity/DocumentUpload";
 
 const uploadSessionService = new UploadSessionService();
 const documentRequirementService = new DocumentRequirementService();
@@ -167,9 +168,26 @@ export const getOpportunityRequirements = async (req: Request, res: Response) =>
             user
         );
 
+        console.log("showing you a cuurent requrements",requirements);
+
+        // Return only essential fields to reduce response size
+        const cleanRequirements = requirements.map(req => ({
+            requirementId: req.requirementId,
+            opportunityId: req.opportunityId,
+            documentName: req.documentName,
+            documentType: req.documentType,
+            description: req.description,
+            isRequired: req.isRequired,
+            allowedFileTypes: req.allowedFileTypes,
+            maxFileSize: req.maxFileSize,
+            displayOrder: req.displayOrder,
+            createdAt: req.createdAt,
+            updatedAt: req.updatedAt,
+        }));
+
         res.json({
             success: true,
-            data: requirements,
+            data: cleanRequirements,
         });
     } catch (error: any) {
         res.status(400).json({
@@ -235,6 +253,74 @@ export const deleteRequirement = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Get all uploaded documents for an opportunity (Admin)
+ * GET /api/upload-session/opportunity/:opportunityId/uploads
+ */
+export const getOpportunityUploads = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user as userInfo;
+        const { opportunityId } = req.params;
+
+        if (!user.organizationId) {
+            return res.status(400).json({
+                success: false,
+                error: "Organization ID is required",
+            });
+        }
+
+        const uploadRepo = AppDataSource.getRepository(DocumentUpload);
+
+        const uploads = await uploadRepo.find({
+            where: {
+                opportunityId,
+                uploadSession: {
+                    organization: { organisationId: user.organizationId },
+                },
+            },
+            relations: ["uploadSession", "requirement", "sharepointDocument"],
+            order: {
+                createdAt: "DESC",
+            },
+        });
+
+        res.json({
+            success: true,
+            data: uploads,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Delete upload session (Admin)
+ * DELETE /api/upload-session/:uploadSessionId
+ */
+export const deleteUploadSession = async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user as userInfo;
+        const { uploadSessionId } = req.params;
+
+        await AppDataSource.transaction(async (manager) => {
+            await uploadSessionService.deleteSession(uploadSessionId, user, manager);
+        });
+
+        res.json({
+            success: true,
+            message: "Upload session deleted successfully",
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            error: error.message,
+        });
+    }
+};
+
 export default {
     createUploadSession,
     getUploadSessionDetails,
@@ -243,4 +329,6 @@ export default {
     getOpportunityRequirements,
     updateRequirement,
     deleteRequirement,
+    getOpportunityUploads,
+    deleteUploadSession,
 };

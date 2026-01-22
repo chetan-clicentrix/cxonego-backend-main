@@ -3,8 +3,8 @@ import UploadSessionService from "../services/uploadSession.service";
 import DocumentRequirementService from "../services/documentRequirement.service";
 import ChunkUploadService from "../services/chunkUpload.service";
 import { AppDataSource } from "../data-source";
+import { DocumentUpload } from "../entity/DocumentUpload";
 import { queueSharePointUpload } from "../queues/sharepointUpload.queue";
-import * as path from "path";
 
 const uploadSessionService = new UploadSessionService();
 const documentRequirementService = new DocumentRequirementService();
@@ -27,6 +27,22 @@ export const getUploadSession = async (req: Request, res: Response) => {
             { organizationId: session.organization.organisationId } as any
         );
 
+        // Get existing uploads for this session
+        const uploadRepo = AppDataSource.getRepository(DocumentUpload);
+        const uploads = await uploadRepo.find({
+            where: {
+                uploadSessionId: session.uploadSessionId
+            }
+        });
+
+        // Map uploads by requirementId for easy lookup
+        const uploadsMap = new Map();
+        uploads.forEach(upload => {
+            if (upload.requirementId) {
+                uploadsMap.set(upload.requirementId, upload);
+            }
+        });
+
         // Track metadata
         const ipAddress = req.ip || req.socket.remoteAddress || "";
         const userAgent = req.get("user-agent") || "";
@@ -40,16 +56,29 @@ export const getUploadSession = async (req: Request, res: Response) => {
                 opportunityId: session.opportunityId,
                 expiresAt: session.expiresAt,
                 status: session.status,
-                requirements: requirements.map((req) => ({
-                    requirementId: req.requirementId,
-                    documentName: req.documentName,
-                    documentType: req.documentType,
-                    description: req.description,
-                    isRequired: req.isRequired,
-                    allowedFileTypes: req.allowedFileTypes,
-                    maxFileSize: req.maxFileSize,
-                    displayOrder: req.displayOrder,
-                })),
+                requirements: requirements.map((req) => {
+                    const upload = uploadsMap.get(req.requirementId);
+                    return {
+                        requirementId: req.requirementId,
+                        documentName: req.documentName,
+                        documentType: req.documentType,
+                        description: req.description,
+                        isRequired: req.isRequired,
+                        allowedFileTypes: req.allowedFileTypes,
+                        maxFileSize: req.maxFileSize,
+                        displayOrder: req.displayOrder,
+                        upload: upload ? {
+                            uploadId: upload.uploadId,
+                            fileName: upload.fileName,
+                            fileSize: upload.fileSize,
+                            fileType: upload.fileType,
+                            status: upload.uploadStatus,
+                            uploadedChunks: upload.uploadedChunks,
+                            totalChunks: upload.totalChunks,
+                            createdAt: upload.createdAt
+                        } : null
+                    };
+                }),
             },
         });
     } catch (error: any) {
@@ -67,7 +96,16 @@ export const getUploadSession = async (req: Request, res: Response) => {
 export const initializeUpload = async (req: Request, res: Response) => {
     try {
         const { sessionToken } = req.params;
-        const { fileName, fileSize, fileType, totalChunks, requirementId } = req.body;
+        let { fileName, fileSize, fileType, totalChunks, requirementId } = req.body;
+
+        // If totalChunks is not provided, calculate it based on file size
+        if (!totalChunks && fileSize) {
+            const chunkSize = parseInt(process.env.UPLOAD_CHUNK_SIZE || "2097152");
+            totalChunks = Math.ceil(fileSize / chunkSize);
+            if (totalChunks === 0) totalChunks = 1; // Ensure at least 1 chunk
+        } else if (!totalChunks) {
+            totalChunks = 1; // Default to 1 if neither totalChunks nor fileSize provided
+        }
 
         // Validate session
         const session = await uploadSessionService.validateSession(sessionToken);
@@ -82,6 +120,7 @@ export const initializeUpload = async (req: Request, res: Response) => {
         }
 
         // Initialize upload
+
         const upload = await AppDataSource.transaction(async (manager) => {
             return await chunkUploadService.initializeUpload(
                 session.uploadSessionId,
@@ -117,15 +156,12 @@ export const initializeUpload = async (req: Request, res: Response) => {
  * POST /api/public/upload/:sessionToken/chunk
  */
 export const uploadChunk = async (req: Request, res: Response) => {
-    console.log("uploadChunk controller CALLED!");
-    console.log("Request body:", req.body);
-    console.log("Request file:", req.file);
     try {
         const { sessionToken } = req.params;
         const { uploadId, chunkIndex, chunkHash } = req.body;
 
         // Validate session
-        await uploadSessionService.validateSession(sessionToken);
+        const session = await uploadSessionService.validateSession(sessionToken);
 
         // Validate file was uploaded
         if (!req.file) {
@@ -135,12 +171,10 @@ export const uploadChunk = async (req: Request, res: Response) => {
             });
         }
 
-        // TODO: Re-enable hash verification in production
-        // Temporarily disabled for testing
-        /*
-        // Verify chunk hash
+
+        // Verify chunk hash if provided
         const actualHash = await chunkUploadService.calculateFileHash(req.file.path);
-        if (actualHash !== chunkHash) {
+        if (chunkHash && actualHash !== chunkHash) {
             // Delete invalid chunk
             const fs = await import("fs/promises");
             await fs.unlink(req.file.path);
@@ -150,15 +184,15 @@ export const uploadChunk = async (req: Request, res: Response) => {
                 error: "Chunk hash mismatch - file may be corrupted",
             });
         }
-        */
-        console.log("Hash verification skipped for testing");
+
+        const finalHash = chunkHash || actualHash;
 
         // Save chunk record
         const result = await AppDataSource.transaction(async (manager) => {
             return await chunkUploadService.saveChunkRecord(
                 uploadId,
                 parseInt(chunkIndex),
-                chunkHash,
+                finalHash,
                 req.file!.size,
                 req.file!.path,
                 manager
@@ -175,6 +209,18 @@ export const uploadChunk = async (req: Request, res: Response) => {
                 // Queue SharePoint upload
                 await queueSharePointUpload(uploadId);
             });
+
+            // Check if all requirements are uploaded and auto-complete session
+            // Note: validateSession might not load organization if not eager, but getUploadSession relies on it so assuming it's eager or loaded.
+            // If session.organization is undefined, we might need to fetch it or pass just ID if available on session object (usually it's a relation).
+            // Let's safe access it.
+            if (session.organization) {
+                await uploadSessionService.checkAutoCompletion(
+                    session.uploadSessionId,
+                    session.opportunityId,
+                    session.organization.organisationId
+                );
+            }
         }
 
         res.json({

@@ -99,7 +99,7 @@ redis-cli ping
 ### Test 1: Create Upload Session (Admin)
 
 ```bash
-curl -X POST http://localhost:8081/api/v1/upload-session \
+curl -X POST http://localhost:8000/api/v1/upload-session \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -129,7 +129,7 @@ curl -X POST http://localhost:8081/api/v1/upload-session \
 ### Test 2: Get Session Details (Public - No Auth)
 
 ```bash
-curl http://localhost:8081/api/public/upload/SESSION_TOKEN_HERE
+curl http://localhost:8000/api/public/upload/SESSION_TOKEN_HERE
 ```
 
 **Expected Response:**

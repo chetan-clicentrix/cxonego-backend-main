@@ -202,6 +202,9 @@ export class Oppurtunity extends CustomBaseEntity {
     @OneToMany(() => ActivityPlan, (plan) => plan.opportunity)
     activityPlans: ActivityPlan[];
 
+    @Column({ nullable: true })
+    bankId: string;
+
     @ManyToOne(() => Bank, { nullable: true, eager: true })
     @JoinColumn({ name: "bankId" })
     bank: Bank;
