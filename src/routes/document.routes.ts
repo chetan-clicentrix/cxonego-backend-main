@@ -118,19 +118,19 @@ router.get("/google/connection", documentController.checkGoogleConnection.bind(d
 router.get("/debug/connection", async (req, res) => {
     try {
         const userId = req.query.userId as string;
-        
+
         if (!userId) {
             return res.status(400).json({ error: "userId query parameter is required" });
         }
-        
+
         // Try to find the user
         const userRepo = AppDataSource.getRepository(User);
         const user = await userRepo.findOne({ where: { userId } });
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found", userId });
         }
-        
+
         // Return debug info
         return res.status(200).json({
             userId,
@@ -191,7 +191,7 @@ router.get("/debug/connection", async (req, res) => {
  */
 router.post(
     "/upload/:contactId",
-    upload.single('file'),
+    upload.single('file') as any,
     documentController.uploadDocument.bind(documentController)
 );
 
@@ -352,22 +352,22 @@ router.get("*connection*", (req, res, next) => {
     console.log(`Path: ${req.path}`);
     console.log(`Query: ${JSON.stringify(req.query)}`);
     console.log(`Method: ${req.method}`);
-    
+
     // If this is a known path, let the actual handler deal with it
     if (
-        req.path === '/google/connection' || 
-        req.path === '/auth/google/connection' || 
+        req.path === '/google/connection' ||
+        req.path === '/auth/google/connection' ||
         req.path === '/debug/connection'
     ) {
         return next();
     }
-    
+
     // For any other path with "connection" in it, provide helpful info
     return res.status(200).json({
         message: "Connection check debug helper",
         receivedPath: req.path,
         recommendedPaths: [
-            "/api/v1/document/google/connection", 
+            "/api/v1/document/google/connection",
             "/api/v1/document/auth/google/connection",
             "/api/v1/document/debug/connection"
         ],

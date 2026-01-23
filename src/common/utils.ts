@@ -474,3 +474,17 @@ export enum ApplicantType {
   PARTNERSHIP = "Partnership",
   PRIVATE_LIMITED = "Private Limited",
 }
+
+export enum ActivityPlanStatus {
+  ACTIVE = "Active",
+  COMPLETED = "Completed",
+  ABANDONED = "Abandoned",
+}
+
+export enum ActivityPlanActionStatus {
+  PENDING = "Pending",
+  IN_PROGRESS = "In Progress",
+  COMPLETED = "Completed",
+  OVERDUE = "Overdue",
+  SKIPPED = "Skipped",
+}
