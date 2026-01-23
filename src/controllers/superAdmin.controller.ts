@@ -61,58 +61,6 @@ class SuperAdminController {
     }
   }
 
-  async verifyCaptcha(request: Request, response: Response) {
-    try {
-      console.log("Received captcha verification request from:", request.ip);
-      
-      // Validate request
-      if (!request.body || !request.body.token) {
-        return makeResponse(
-          response, 
-          400, 
-          false, 
-          "Missing captcha token in request body", 
-          null
-        );
-      }
-      
-      const result = await superAdminService.verifyCaptcha(request);
-      
-      if (result) {
-        return makeResponse(
-          response, 
-          200, 
-          true, 
-          "Captcha verification successful", 
-          { verified: true }
-        );
-      } else {
-        return makeResponse(
-          response,
-          400,
-          false,
-          "Captcha verification failed. Please try again.",
-          { verified: false }
-        );
-      }
-    } catch (error) {
-      console.error("Error in captcha verification controller:", error);
-      
-      // Handle specific error types
-      if (error.message && error.message.includes("secret key not found")) {
-        return makeResponse(
-          response,
-          500,
-          false,
-          "Server configuration error. Please contact support.",
-          null
-        );
-      }
-      
-      errorHandler(response, error);
-    }
-  }
-
   async disableUser(request: Request, response: Response) {
     try {
       const result = await superAdminService.disableUser(

@@ -53,16 +53,6 @@ app.use(
   )
 );
 
-// IMPORTANT: Special route for captcha verification - must come BEFORE general CORS
-// This ensures the captcha endpoint gets its own CORS rules applied first
-app.options('/api/v1/superAdmin/verifyCaptcha', cors());  // Enable preflight for the captcha endpoint
-app.use('/api/v1/superAdmin/verifyCaptcha', cors({
-  origin: true, // Allow the request's origin
-  methods: ['POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -171,7 +161,6 @@ app.use(
       RegExp("/api/v1/organization/create-organization"),
       RegExp("/api/v1/plan/getAllPlans"),
       RegExp("^/api/v1/customPlanRequest"),
-      RegExp("^/api/v1/superAdmin/verifyCaptcha"),
       RegExp("/api/v1/subscription/update-payment-status"),
       RegExp("^/api/v1/audit/subscription"),
       RegExp("^/api/v1/cron/expiryReminder"),
