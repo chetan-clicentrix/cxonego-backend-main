@@ -201,7 +201,7 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({ nullable: true })
     bankId: string;
 
-    @ManyToOne(() => Bank, { nullable: true, eager: true })
+    @ManyToOne(() => Bank, { nullable: true, eager: true, onDelete: "SET NULL" })
     @JoinColumn({ name: "bankId" })
     bank: Bank;
 

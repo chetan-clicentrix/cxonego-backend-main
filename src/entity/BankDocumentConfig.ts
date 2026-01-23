@@ -27,6 +27,7 @@ export class BankDocumentConfig extends CustomBaseEntity {
     @ManyToOne(() => Bank, (bank) => bank.documentConfigs, {
         cascade: true,
         onUpdate: "CASCADE",
+        onDelete: "CASCADE",
         nullable: false,
         eager: true
     })

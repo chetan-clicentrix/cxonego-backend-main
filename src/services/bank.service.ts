@@ -13,24 +13,6 @@ class BankService {
         const bankRepo = AppDataSource.getRepository(Bank);
         const banks = await bankRepo.find({
             where: {
-                organization: { organisationId: userInfo.organizationId },
-                isActive: true
-            },
-            order: {
-                name: "ASC"
-            }
-        });
-        return banks;
-    }
-
-    async getAllBanksIncludingInactive(userInfo: userInfo) {
-        if (!userInfo.organizationId) {
-            throw new ValidationFailedError("Organization ID is required");
-        }
-
-        const bankRepo = AppDataSource.getRepository(Bank);
-        const banks = await bankRepo.find({
-            where: {
                 organization: { organisationId: userInfo.organizationId }
             },
             order: {
@@ -186,18 +168,17 @@ class BankService {
             where: {
                 bankId: id,
                 organization: { organisationId: user.organizationId }
-            }
+            },
+            relations: ["documentConfigs"]
         });
 
         if (!bank) {
             throw new ResourceNotFoundError("Bank not found");
         }
 
-        // Soft delete by setting isActive to false
-        bank.isActive = false;
-        bank.modifiedBy = user.userId;
-
-        const result = await bankRepo.save(bank);
+        // Hard delete - permanently remove from database
+        // TypeORM will cascade delete related BankDocumentConfig records
+        const result = await bankRepo.remove(bank);
         return result;
     }
 }
