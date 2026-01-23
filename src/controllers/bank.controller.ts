@@ -10,10 +10,7 @@ const bankService = new BankService();
 class BankController {
     async getAllBanks(request: CustomRequest, response: Response) {
         try {
-            const includeInactive = request.query.includeInactive === "true";
-            const banks = includeInactive
-                ? await bankService.getAllBanksIncludingInactive(request.user)
-                : await bankService.getAllBanks(request.user);
+            const banks = await bankService.getAllBanks(request.user);
             return makeResponse(response, 200, true, "All banks", banks);
         } catch (error: any) {
             errorHandler(response, error.message);

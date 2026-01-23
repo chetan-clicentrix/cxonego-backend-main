@@ -33,11 +33,6 @@ export class Bank extends CustomBaseEntity {
     })
     code: string;
 
-    @Column({
-        default: true,
-    })
-    isActive: boolean;
-
     @ManyToOne(() => Organisation, (organisation) => organisation.banks, {
         cascade: true,
         onUpdate: "CASCADE",
@@ -80,7 +75,4 @@ export class Bank extends CustomBaseEntity {
  *         code:
  *           type: string
  *           description: Code of the bank
- *         isActive:
- *           type: boolean
- *           description: Status of the bank
  */
