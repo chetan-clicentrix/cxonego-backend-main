@@ -23,7 +23,7 @@ router.post("/:sessionToken/init", initializeUpload);
 
 // Upload chunk (with Multer middleware)
 router.post("/:sessionToken/chunk",
-    chunkUpload.single("file"),
+    chunkUpload.single("file") as any,
     (err: any, _req: any, res: any, next: any) => {
         // Multer error handler
         if (err) {

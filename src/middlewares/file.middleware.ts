@@ -6,9 +6,9 @@ const setupMemoryStorageUpload = () => {
     const upload = multer({
         storage: multer.memoryStorage(),
         limits: { fileSize: 8 * 1024 * 1024 },
-    }).single('file'); 
+    }).single('file');
     return (req: Request, res: any, next: any) => {
-        upload(req, res, (err: any) => {
+        upload(req as any, res, (err: any) => {
             if (err instanceof MulterError) {
                 if (err.code === 'LIMIT_FILE_SIZE') {
                     return res.status(400).json({ error: 'File size exceeds the limit.' });

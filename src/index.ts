@@ -40,7 +40,7 @@ app.use(cookieParser());
 
 const specs = swaggerJSDoc(options);
 
-app.use("/api/v1/api-doc", swaggerUi.serve, swaggerUi.setup(specs));
+app.use("/api/v1/api-doc", swaggerUi.serve as any, swaggerUi.setup(specs) as any);
 
 app.use(
   morgan(

@@ -61,7 +61,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  */
 router.post(
     "/upload/:opportunityId",
-    upload.single("file"),
+    upload.single("file") as any,
     sharepointController.uploadDocument.bind(sharepointController)
 );
 
