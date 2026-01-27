@@ -6,7 +6,6 @@ function buildDevLogger() {
   const logFormat = printf(({ level, message, timestamp, stack, metadata }: any) => {
     return `${timestamp} ${level}: ${stack || message} ${JSON.stringify(
       metadata?.metadata || {}
-        (metadata as any)?.metadata || {}
     )}`;
   });
 
@@ -16,7 +15,6 @@ function buildDevLogger() {
       timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
       metadata({ fillExcept: ["message", "level", "timestamp", "label"] }),
       errors({ stack: true }),
-      metadata({ fillExcept: ["message", "level", "timestamp", "label"] }),
       logFormat
     ),
     transports: [new transports.Console()],
