@@ -5,7 +5,8 @@ const { timestamp, combine, printf, errors, json, metadata, colorize, splat } =
 function buildDevLogger() {
   const logFormat = printf(({ level, message, timestamp, stack, metadata }: any) => {
     return `${timestamp} ${level}: ${stack || message} ${JSON.stringify(
-      (metadata as any)?.metadata || {}
+      metadata?.metadata || {}
+        (metadata as any)?.metadata || {}
     )}`;
   });
 
