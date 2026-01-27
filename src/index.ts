@@ -24,6 +24,10 @@ import rateLimit from "express-rate-limit";
 import "./workers/sharepointUpload.worker";
 console.log("✓ SharePoint upload worker started");
 
+// Start Email notification worker
+import "./workers/emailNotification.worker";
+console.log("✓ Email notification worker started");
+
 dotenv.config();
 
 morgan.token("host", function (req: express.Request, _res) {
@@ -36,7 +40,7 @@ app.use(cookieParser());
 
 const specs = swaggerJSDoc(options);
 
-(app as any).use("/api/v1/api-doc", swaggerUi.serve, swaggerUi.setup(specs));
+app.use("/api/v1/api-doc", swaggerUi.serve as any, swaggerUi.setup(specs) as any);
 
 app.use(
   morgan(

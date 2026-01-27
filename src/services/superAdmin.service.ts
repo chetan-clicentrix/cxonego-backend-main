@@ -103,7 +103,7 @@ class SuperAdminService {
       const params = new URLSearchParams();
       params.append('secret', secretKey);
       params.append('response', token);
-      params.append('remoteip', request.ip || ""); // Add remote IP for better verification
+      params.append('remoteip', request.ip || 'unknown'); // Add remote IP for better verification
 
       console.log("Making request to Google reCAPTCHA API...");
       console.log("Request URL: https://www.google.com/recaptcha/api/siteverify");

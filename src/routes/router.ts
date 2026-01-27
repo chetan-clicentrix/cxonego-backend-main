@@ -36,6 +36,7 @@ import skillRouter from "./skill.routes";
 import uploadPublicRouter from "./uploadPublic.routes";
 import uploadSessionRouter from "./uploadSession.routes";
 import documentUploadRouter from "./document.upload.routes";
+import emailNotificationRouter from "./emailNotification.routes";
 
 import activityPlanRouter from "./activityPlan.routes";
 import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
@@ -74,6 +75,11 @@ router.use("/sharepoint", sharepointRouter)
 router.use("/skills", skillRouter);
 router.use("/bank", bankRouter);
 router.use("/bank-config", bankDocConfigRouter);
+
+// Email Notification Module
+console.log("Registering email notification routes...");
+router.use("/email-notification", emailNotificationRouter);
+console.log("✓ Email notification routes registered!");
 
 // Document Upload Module
 console.log("Registering upload routes...");
