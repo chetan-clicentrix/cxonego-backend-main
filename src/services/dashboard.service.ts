@@ -1,7 +1,7 @@
 import { AppDataSource } from "../data-source";
 import { Lead } from "../entity/Lead";
 import { Contact } from "../entity/Contact";
-import { decrypt, encryption, roleNames, statusType } from "../common/utils";
+import { decrypt, encryption, roleNames, statusType, stage as stageEnum } from "../common/utils";
 import {
   accountDecryption,
   activityDecryption,
@@ -412,7 +412,7 @@ class DashboardServices {
 
       // Calculate lead qualification rate, based on closed leads, qualified leads are converted to closed automatically.
       const qualifiedLeadsCount = leads.reduce((count, lead) => {
-        if (lead.status === statusType.CLOSED) {
+        if (lead.status === statusType.QUALIFIED || lead.status === statusType.CLOSED) {
           return count + 1;
         }
         return count;
@@ -516,18 +516,19 @@ class DashboardServices {
         if (searchedData.length === 0 && skip === 0) {
           searchedData = leads;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,
         };
 
         const datapagination = {
-          total_no_of_leads: searchedData.length,
+          total_no_of_leads: totalCount,
           lead_percentage_status: countsData,
           lead_count_status: catcountsData,
           leads_with_status_new: newLeadsCount,
@@ -600,7 +601,7 @@ class DashboardServices {
     page: number | undefined,
     limit: number | undefined,
     search: string | undefined,
-    stage: string | undefined,
+    stageFilter: string | undefined,
     revenueRange: RevenueRangeParamsType,
     wonReason: string[],
     lostReason: string[],
@@ -650,9 +651,9 @@ class DashboardServices {
         });
       }
 
-      if (stage) {
+      if (stageFilter) {
         opportunityRepo.andWhere("oppurtunity.stage LIKE :state", {
-          state: `%${stage}%`,
+          state: `%${stageFilter}%`,
         });
       }
 
@@ -703,12 +704,15 @@ class DashboardServices {
 
       //chart percentage count
       const allCategories = [
-        "Analysis",
-        "Solutioning",
-        "Proposal",
-        "Negotiation",
-        "Won",
-        "Lost",
+        stageEnum.DOCUMENT_COLLECTION,
+        stageEnum.PROPOSAL_PREPARATION,
+        stageEnum.LOGIN_DESK,
+        stageEnum.QUERY,
+        stageEnum.QUERY_RESOLUTION,
+        stageEnum.APPROVED,
+        stageEnum.DISBURSED,
+        stageEnum.WON,
+        stageEnum.LOST,
       ];
       const countsMap = new Map<string, number>();
       allCategories.forEach((category) => {
@@ -842,12 +846,12 @@ class DashboardServices {
         page != undefined ||
         limit != undefined ||
         search != undefined ||
-        stage != undefined ||
-        stage != ""
+        stageFilter != undefined ||
+        stageFilter != ""
       ) {
-        if (stage !== undefined && stage != "") {
+        if (stageFilter !== undefined && stageFilter != "") {
           opportunities = opportunities.filter(
-            (opportunity) => opportunity.stage === stage
+            (opportunity) => opportunity.stage === stageFilter
           );
         }
         let searchedData: Oppurtunity[] = [];
@@ -969,12 +973,13 @@ class DashboardServices {
         if (searchedData.length === 0 && skip === 0) {
           searchedData = opportunities;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
 
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,
@@ -1356,12 +1361,13 @@ class DashboardServices {
         if (searchedData.length === 0 && skip === 0) {
           searchedData = activities;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
 
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,
