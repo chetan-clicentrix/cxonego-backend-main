@@ -97,7 +97,7 @@ const sharepointUploadWorker = new Worker(
         }
     },
     {
-        connection,
+        connection: connection as any,
         concurrency: 5, // Process 5 uploads concurrently
     }
 );
@@ -113,7 +113,7 @@ sharepointUploadWorker.on("failed", (job, error) => {
 
 sharepointUploadWorker.on("error", (error) => {
     console.error("Worker error:", error);
-   
+
 });
 
 export default sharepointUploadWorker;

@@ -13,6 +13,7 @@ import {
   purchaseTimeFrame,
   roleNames,
   statusType,
+  stage,
 } from "../common/utils";
 import { Lead } from "../entity/Lead";
 import { Role } from "../entity/Role";
@@ -28,11 +29,13 @@ import {
   userDecryption,
 } from "./decryption.service";
 import { User } from "../entity/User";
+import { ActivityPlanService } from "./activityPlan.service";
 import { Audit } from "../entity/Audit";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
 
 class opportunityService {
+  private activityPlanService = new ActivityPlanService();
   async getAllOppurtunities(userInfo: userInfo) {
     const oppurtunities = await AppDataSource.getRepository(Oppurtunity)
       .createQueryBuilder("opportunity")
@@ -450,6 +453,9 @@ class opportunityService {
       opportunityId: await this.getOpportunityId(new Date()),
     } as Oppurtunity);
     const opportunity = await opportunityInstance.save();
+
+    // Auto-assign activity plans based on category/segment
+    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user);
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(
       transactionEntityManager,
@@ -540,6 +546,11 @@ class opportunityService {
         throw new ResourceNotFoundError("Contact not found");
       }
       if (contact) payload.contact = contact;
+    }
+
+    // Auto-mark as Won when stage is Disbursed
+    if (payload.stage === stage.DISBURSED) {
+      payload.stage = stage.WON;
     }
 
     const opportunityEntity = new Oppurtunity(payload);

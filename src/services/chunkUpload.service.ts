@@ -200,7 +200,7 @@ class ChunkUploadService {
         // Wait for write to complete
         await new Promise<void>((resolve, reject) => {
             writeStream.on("finish", () => resolve());
-            writeStream.on("error", reject);
+            writeStream.on("error", (err) => reject(err));
         });
 
         // Calculate final file checksum
