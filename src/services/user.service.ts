@@ -4,7 +4,8 @@ import { User } from "../entity/User";
 import { Role } from "../entity/Role";
 import { roleNames, subscriptionStatus } from "../common/utils";
 import { EntityManager, In, UpdateResult } from "typeorm";
-import EmailManager from "./email-manager.service";
+import { EmailNotificationService } from "./emailNotification.service";
+import { EmailType } from "../entity/SentEmailLog";
 import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import { encryption } from "../common/utils";
 import { InviteUserType } from "../schemas/comman.schemas";
@@ -532,10 +533,14 @@ class UserServices {
     const subject =
       "Join Us on CXOneGo – Revolutionize Your Customer Relationship Management!";
 
+    // Initialize email service
+    const emailService = new EmailNotificationService();
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
     if (invites.length > 0) {
       for (let invite of invites) {
 
-        const inviteLink = `http://localhost:5173/sign-up?email=${encodeURIComponent(
+        const inviteLink = `${frontendUrl}/sign-up?email=${encodeURIComponent(
           invite.email
         )}&company=${encodeURIComponent(invite.company)}&role=${encodeURIComponent(
           invite.role
@@ -562,9 +567,7 @@ class UserServices {
           } on CXOneGo. Please click on the button below to accept the invitation.
                 
                 <br> <br> 
-                <a href="http://localhost:5173/sign-up?email=${invite?.email
-          }&company=${invite?.company}&role=${invite?.role
-          }&organizationId=${invite?.organizationId}"><Button>Accept</Button></a>
+                <a href="${inviteLink}"><Button>Accept</Button></a>
         <br>
         Once you click on Accept Link, you will be prompted to register yourself, first go through registration steps then you will be able to login with your credentials.
                 <br> <br> 
@@ -577,12 +580,22 @@ class UserServices {
                 </html>             
                 `;
 
-        // const emailManager = new EmailManager();
-        // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="https://cxonego-frontend.vercel.app/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="http://localhost:5173/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        //    =useable= await emailManager.sendEmail([invite?.email],subject,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} - we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue; <br><br> <a href="https://stage.d2zp02j1k6pdkx.amplifyapp.com/sign-up?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        // await emailManager.sendEmail([invite?.email], subject, htmlTemplate);
-       
+        // Send invitation email using Microsoft Email Service
+        try {
+          const emailResult = await emailService.sendEmail({
+            to: invite.email,
+            subject: subject,
+            bodyHtml: htmlTemplate,
+            emailType: EmailType.CUSTOM,
+            sentById: hostUserId,
+            organizationId: invite.organizationId
+          });
+          console.log(`✓ Email queued successfully: Job ID ${emailResult.jobId}`);
+        } catch (emailError: any) {
+          console.error(`Failed to queue invitation email for ${invite.email}:`, emailError.message);
+          // Continue with user invitation even if email fails
+        }
+
 
         const duplicateEntry =
           adminUserInstance.invitedUsers === null
