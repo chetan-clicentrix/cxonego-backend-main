@@ -60,4 +60,17 @@ export class ActivityPlanTemplateController {
             res.status(500).send(buildResponse(null, "Failed to delete template", error.message));
         }
     }
+
+    async cloneActions(req: Request, res: Response) {
+        try {
+            const { templateId } = req.params;
+            const { sourceTemplateId } = req.body;
+            // @ts-ignore
+            const user = req.user;
+            const template = await templateService.cloneActions(templateId, sourceTemplateId, user);
+            res.status(200).send(buildResponse(template, "Actions cloned successfully"));
+        } catch (error) {
+            res.status(500).send(buildResponse(null, "Failed to clone actions", error.message));
+        }
+    }
 }

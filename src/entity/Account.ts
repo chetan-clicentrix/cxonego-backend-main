@@ -38,10 +38,10 @@ export class Account extends CustomBaseEntity {
     @Column({ nullable: false })
     country: string;
 
-    @Column({ nullable: false })
+    @Column({ nullable: false, default: "Maharashtra" })
     state: string;
 
-    @Column({ nullable: false })
+    @Column({ nullable: false, default: "Pune" })
     city: string;
 
     @Column({ default: null })

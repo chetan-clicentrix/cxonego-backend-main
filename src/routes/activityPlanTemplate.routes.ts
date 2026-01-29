@@ -10,5 +10,6 @@ router.get("/", authMiddleware(), controller.getAllTemplates);
 router.get("/:templateId", authMiddleware(), controller.getTemplateById);
 router.put("/:templateId", authMiddleware(), controller.updateTemplate);
 router.delete("/:templateId", authMiddleware(), controller.deleteTemplate);
+router.post("/:templateId/clone-actions", authMiddleware(), controller.cloneActions);
 
 export default router;
