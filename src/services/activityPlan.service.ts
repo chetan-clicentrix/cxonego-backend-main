@@ -20,7 +20,7 @@ export class ActivityPlanService {
         if (!opportunity) throw new Error("Opportunity not found");
 
         const plan = new ActivityPlan({
-            name: "Standard Loan Assessment Plan",
+            name: "Retail-FTU Lead   Plan",
             opportunity: opportunity,
             organization: opportunity.organization,
             status: ActivityPlanStatus.ACTIVE,
@@ -36,59 +36,83 @@ export class ActivityPlanService {
         const actionsConfig = [
             {
                 sequence: 1,
-                stageName: "Initial Contact",
+                stageName: "Document collection",
                 actionName: "1st Call to Customer",
-                description: "Understanding requirement & nature of business, taking appointment. TAT: 2 Hrs",
-                tatHours: 2,
+                description: "First call should be go within 2 hours of lead allocation",
+                tatHours: 0,
                 tatDays: 0
             },
             {
                 sequence: 2,
-                stageName: "Initial Contact",
-                actionName: "Update Response",
-                description: "Update feedback of customer call. TAT: 1 Day",
+                stageName: "Document collection",
+                actionName: "2nd Call / Site Visit",
+                description: "Visit client place. MANDATORY: Upload Google Geotagged Photo.",
                 tatHours: 0,
                 tatDays: 1
             },
             {
                 sequence: 3,
-                stageName: "Follow Up",
-                actionName: "2nd Call / Visit",
-                description: "Follow up for document collection & visit to client place. Upload Google Photo. TAT: 1 Day",
+                stageName: "Document collection",
+                actionName: "Document Collection",
+                description: "Share pending list with client via Mail/WhatsApp.",
+                tatHours: 3,
+                tatDays: 0
+            },
+            {
+                sequence: 4,
+                stageName: "Document collection",
+                actionName: "Collect Pending Documents",
+                description: "Verify Asset Location and Original Documents",
                 tatHours: 0,
                 tatDays: 1
             },
             {
-                sequence: 4,
-                stageName: "Document Collection",
-                actionName: "Share Document Checklist",
-                description: "Share pending list with client via Mail/WhatsApp.",
-                tatHours: 0,
-                tatDays: 0 // Immediate
-            },
-            {
                 sequence: 5,
-                stageName: "Document Collection",
-                actionName: "Collect Pending Documents",
-                description: "Verify Asset Location, Contact person, Original documents.",
+                stageName: "Proposal Preparation",
+                actionName: "Prepare proposal",
+                description: "Create Proposals for banks.",
                 tatHours: 0,
                 tatDays: 1
             },
             {
                 sequence: 6,
                 stageName: "Login Desk",
-                actionName: "Verify Documents",
-                description: "Login desk verification of all received documents.",
+                actionName: "Login Desk",
+                description: "Login desk to verify all received documents against checklist.",
                 tatHours: 0,
                 tatDays: 1
             },
             {
                 sequence: 7,
-                stageName: "Analysis",
-                actionName: "CAM Preparation",
-                description: "Prepare Credit Assessment Memo based on borrower type (FTU, FTB, RC, RB, RA).",
+                stageName: "Query",
+                actionName: "Query Understanding",
+                description: "If there are query Understand those queries.",
                 tatHours: 0,
-                tatDays: 2
+                tatDays: 1
+            },
+            {
+                sequence: 8,
+                stageName: "Query Resolution",
+                actionName: "Query resolution.",
+                description: "Query Resolution with client collect final documents and re-login.",
+                tatHours: 0,
+                tatDays: 1
+            },
+            {
+                sequence: 9,
+                stageName: "Approved",
+                actionName: "Get Approval from bank",
+                description: "when the loan is approved complete this activity",
+                tatHours: 0,
+                tatDays: 1
+            },
+            {
+                sequence: 10,
+                stageName: "Disbursed",
+                actionName: "Get all docuuments and Disbure money",
+                description: null,
+                tatHours: 0,
+                tatDays: 1
             }
         ];
 
@@ -101,9 +125,6 @@ export class ActivityPlanService {
             if (config.tatHours > 0) dueDate.setHours(dueDate.getHours() + config.tatHours);
             if (config.tatDays > 0) dueDate.setDate(dueDate.getDate() + config.tatDays);
 
-            // Update previousDueDate for the next action to start AFTER this one? 
-            // Or does TAT start from plan creation? 
-            // Usually sequential: Start of Action 2 = End of Action 1.
             previousDueDate = dueDate;
 
             return new ActivityPlanAction({
@@ -114,7 +135,7 @@ export class ActivityPlanService {
                 description: config.description,
                 tat: config.tatDays > 0 ? `${config.tatDays} Day(s)` : `${config.tatHours} Hour(s)`,
                 dueDate: dueDate,
-                status: config.sequence === 1 ? ActivityPlanActionStatus.PENDING : ActivityPlanActionStatus.PENDING, // All pending initially
+                status: ActivityPlanActionStatus.PENDING,
                 actionId: undefined,
                 assignedTo: null,
                 completedAt: null,
@@ -291,14 +312,22 @@ export class ActivityPlanService {
         }
     }
 
-    async updateActionStatus(actionId: string, status: ActivityPlanActionStatus, remarks: string, user: any) {
+    async updateActionStatus(actionId: string, status: ActivityPlanActionStatus, remarks: string, user: any, comments?: string) {
         const action = await this.actionRepository.findOne({ where: { actionId }, relations: ["plan"] });
         if (!action) throw new Error("Action not found");
 
         action.status = status;
         if (status === ActivityPlanActionStatus.COMPLETED) {
+            if (!comments || comments.trim() === '') {
+                throw new Error("Comment is mandatory for completing an activity");
+            }
             action.completedAt = new Date();
+            action.comments = comments;
+        } else {
+            // Logic for "uncomplete" or other status changes
+            action.completedAt = null as any;
         }
+
         if (remarks) action.remarks = remarks;
         action.modifiedBy = user.userId;
 
@@ -384,5 +413,39 @@ export class ActivityPlanService {
         }
 
         return await this.actionRepository.findOne({ where: { actionId } });
+    }
+
+    async createAction(planId: string, actionData: any, user: any) {
+        const plan = await this.planRepository.findOne({ where: { planId } });
+        if (!plan) throw new Error("Plan not found");
+
+        const action = new ActivityPlanAction({
+            ...actionData,
+            plan,
+            status: actionData.status || ActivityPlanActionStatus.PENDING,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            modifiedBy: user.userId
+        } as any);
+
+        return await this.actionRepository.save(action);
+    }
+
+    async updateAction(actionId: string, actionData: any, user: any) {
+        const action = await this.actionRepository.findOne({ where: { actionId } });
+        if (!action) throw new Error("Action not found");
+
+        Object.assign(action, actionData);
+        action.updatedAt = new Date();
+        action.modifiedBy = user.userId;
+
+        return await this.actionRepository.save(action);
+    }
+
+    async deleteAction(actionId: string) {
+        const action = await this.actionRepository.findOne({ where: { actionId } });
+        if (!action) throw new Error("Action not found");
+
+        return await this.actionRepository.remove(action);
     }
 }

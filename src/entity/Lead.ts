@@ -89,12 +89,14 @@ export class Lead extends CustomBaseEntity {
   country: string;
 
   @Column({
+    default: "Maharashtra",
     nullable: false,
   })
   state: string;
 
   @Column({
     type: "varchar",
+    default: "Pune",
     nullable: false,
   })
   city: string;

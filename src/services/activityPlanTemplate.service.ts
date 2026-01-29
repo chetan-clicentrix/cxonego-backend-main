@@ -100,4 +100,47 @@ export class ActivityPlanTemplateService {
 
         return await this.templateRepository.softRemove(template);
     }
+
+    async cloneActions(targetTemplateId: string, sourceTemplateId: string, user: any) {
+        const [targetTemplate, sourceTemplate] = await Promise.all([
+            this.getTemplateById(targetTemplateId),
+            this.getTemplateById(sourceTemplateId)
+        ]);
+
+        if (!targetTemplate) throw new Error("Target template not found");
+        if (!sourceTemplate) throw new Error("Source template not found");
+
+        const targetActions = targetTemplate.actions || [];
+        const sourceActions = sourceTemplate.actions || [];
+
+        const existingActionKeys = new Set(
+            targetActions.map(a => `${a.stageName.toLowerCase()}|${a.actionName.toLowerCase()}`)
+        );
+
+        const newActionsToClone = sourceActions.filter(sa => {
+            const key = `${sa.stageName.toLowerCase()}|${sa.actionName.toLowerCase()}`;
+            return !existingActionKeys.has(key);
+        });
+
+        if (newActionsToClone.length === 0) {
+            return targetTemplate;
+        }
+
+        const maxSequence = targetActions.reduce((max, a) => Math.max(max, a.sequence), 0);
+
+        const actionsToSave = newActionsToClone.map((action, index) => this.templateActionRepository.create({
+            template: targetTemplate,
+            sequence: maxSequence + index + 1,
+            stageName: action.stageName,
+            actionName: action.actionName,
+            description: action.description,
+            tatDays: action.tatDays || 0,
+            tatHours: action.tatHours || 0,
+            modifiedBy: user.userId
+        }));
+
+        await this.templateActionRepository.save(actionsToSave);
+
+        return await this.getTemplateById(targetTemplateId);
+    }
 }
