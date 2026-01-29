@@ -168,6 +168,7 @@ app.use(
       RegExp("^/api/v1/cron/sendMonthlyReport"),
       RegExp("^/api/v1/cron/checkActivity"),
       RegExp("^/api/v1/cron/markUpcomingToActive"),
+      RegExp("^/api/v1/cron/checkOverdueActivityPlans"),
       RegExp("/api/v1/api-doc"),
       // Public upload routes - no auth required
       RegExp("^/api/v1/public/upload"),
