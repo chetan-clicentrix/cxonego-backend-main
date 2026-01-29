@@ -288,18 +288,7 @@
   resolved "https://registry.yarnpkg.com/@aws-sdk/core/-/core-3.973.0.tgz#fa079ab27086192a79e5b86768abf3100c89159b"
   integrity sha512-qy3Fmt8z4PRInM3ZqJmHihQ2tfCdj/MzbGaZpuHjYjgl1/Gcar4Pyp/zzHXh9hGEb61WNbWgsJcDUhnGIiX1TA==
   dependencies:
-    "@aws-sdk/types" "^3.973.0"
-    "@aws-sdk/xml-builder" "^3.972.1"
-    "@smithy/core" "^3.21.0"
-    "@smithy/node-config-provider" "^4.3.8"
-    "@smithy/property-provider" "^4.2.8"
-    "@smithy/protocol-http" "^5.3.8"
-    "@smithy/signature-v4" "^5.3.8"
-    "@smithy/smithy-client" "^4.10.11"
     "@smithy/types" "^4.12.0"
-    "@smithy/util-base64" "^4.3.0"
-    "@smithy/util-middleware" "^4.2.8"
-    "@smithy/util-utf8" "^4.2.0"
     tslib "^2.6.2"
 
 "@aws-sdk/crc64-nvme@3.972.0":
@@ -744,6 +733,7 @@
     "@aws-sdk/types" "^3.973.0"
     "@smithy/node-config-provider" "^4.3.8"
     "@smithy/types" "^4.12.0"
+    fast-xml-parser "5.2.5"
     tslib "^2.6.2"
 
 "@aws-sdk/xml-builder@3.972.0":

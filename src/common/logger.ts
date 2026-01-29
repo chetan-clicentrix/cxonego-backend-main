@@ -15,7 +15,6 @@ function buildDevLogger() {
       timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
       metadata({ fillExcept: ["message", "level", "timestamp", "label"] }),
       errors({ stack: true }),
-      metadata({ fillExcept: ["message", "level", "timestamp", "label"] }),
       logFormat
     ),
     transports: [new transports.Console()],
