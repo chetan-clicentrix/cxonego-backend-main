@@ -2,14 +2,14 @@ import { Response } from "express";
 import CalenderServices from "../services/calender.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 import { DateRangeParamsType, RangeDateType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
 const calenderServices = new CalenderServices();
 
 class CalenderController {
-  async getAllAppointments(request: CustomRequest, response: Response) {
+  async getAllAppointments(request: AuthenticatedRequest, response: Response) {
     try {
       const appointments = await calenderServices.getAllAppointments(
         request.user
@@ -25,7 +25,7 @@ class CalenderController {
       errorHandler(response, error.message);
     }
   }
-  async createCalender(request: CustomRequest, response: Response) {
+  async createCalender(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const participentEmailId = request.body.participentEmailId;
@@ -61,7 +61,7 @@ class CalenderController {
     }
   }
 
-  async updateCalender(request: CustomRequest, response: Response) {
+  async updateCalender(request: AuthenticatedRequest, response: Response) {
     try {
       const appointmentId = request.params.appointmentId;
       const participentEmailId = request.body.participentEmailId;
@@ -99,7 +99,7 @@ class CalenderController {
     }
   }
 
-  async deleteCalender(request: CustomRequest, response: Response) {
+  async deleteCalender(request: AuthenticatedRequest, response: Response) {
     try {
       const appointmentId = request.params.appointmentId;
 
@@ -134,7 +134,7 @@ class CalenderController {
     }
   }
 
-  async getAppointments(request: CustomRequest, response: Response) {
+  async getAppointments(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const role: Role[] = request.user.role;
@@ -174,7 +174,7 @@ class CalenderController {
     }
   }
 
-  async getAppointmentById(request: CustomRequest, response: Response) {
+  async getAppointmentById(request: AuthenticatedRequest, response: Response) {
     try {
       const appointmentId = request.params.appointmentId;
       const userId = request.user.userId;
@@ -213,7 +213,7 @@ class CalenderController {
     }
   }
 
-  async getAllUserDataByOrgId(request: CustomRequest, response: Response) {
+  async getAllUserDataByOrgId(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
 

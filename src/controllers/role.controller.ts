@@ -1,12 +1,12 @@
 import { Response } from "express";
 import { errorHandler } from "../common/errors";
 import { makeResponse } from "../common/utils";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import RoleServices from "../services/role.service";
 
 const roleService = new RoleServices();
 class RoleController{
-    async getRoles(_request:CustomRequest,response:Response){
+    async getRoles(_request:AuthenticatedRequest,response:Response){
         try{            
             const roles=await roleService.getRoles();
             if(!roles){
@@ -17,7 +17,7 @@ class RoleController{
             errorHandler(response,error);
         }
     }
-    async createRole(request:CustomRequest,response:Response){
+    async createRole(request:AuthenticatedRequest,response:Response){
         try{
             const role=await roleService.createRole(request.body);
             
@@ -29,7 +29,7 @@ class RoleController{
             errorHandler(response,error);
         }
     }
-    async updateRole(request:CustomRequest,response:Response){
+    async updateRole(request:AuthenticatedRequest,response:Response){
         try{
             const roleId = Number(request.params.roleId);
             const role=await roleService.updateRole(roleId,request.body);
@@ -42,7 +42,7 @@ class RoleController{
         }
     }
 
-    async deleteRole(request:CustomRequest,response:Response){
+    async deleteRole(request:AuthenticatedRequest,response:Response){
         try{
             const roleId = Number(request.params.roleId);
             const role=await roleService.deleteRole(roleId);

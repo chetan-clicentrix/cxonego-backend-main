@@ -2,13 +2,13 @@ import { Response } from "express";
 import { makeResponse } from "../common/utils";
 import BankService from "../services/bank.service";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 
 const bankService = new BankService();
 
 class BankController {
-    async getAllBanks(request: CustomRequest, response: Response) {
+    async getAllBanks(request: AuthenticatedRequest, response: Response) {
         try {
             const banks = await bankService.getAllBanks(request.user);
             return makeResponse(response, 200, true, "All banks", banks);
@@ -17,7 +17,7 @@ class BankController {
         }
     }
 
-    async getBank(request: CustomRequest, response: Response) {
+    async getBank(request: AuthenticatedRequest, response: Response) {
         try {
             if (!request.params.bankId) {
                 return makeResponse(response, 400, false, "Bank ID is required", null);
@@ -35,7 +35,7 @@ class BankController {
         }
     }
 
-    async createBank(request: CustomRequest, response: Response) {
+    async createBank(request: AuthenticatedRequest, response: Response) {
         try {
             const bank = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
@@ -64,7 +64,7 @@ class BankController {
         }
     }
 
-    async updateBank(request: CustomRequest, response: Response) {
+    async updateBank(request: AuthenticatedRequest, response: Response) {
         try {
             const { bankId } = request.params;
             const bank = await AppDataSource.transaction(
@@ -95,7 +95,7 @@ class BankController {
         }
     }
 
-    async deleteBank(request: CustomRequest, response: Response) {
+    async deleteBank(request: AuthenticatedRequest, response: Response) {
         try {
             const { bankId } = request.params;
             const bank = await AppDataSource.transaction(

@@ -3,11 +3,11 @@ import SubscriptionService from "../services/subscription.service";
 import { AppDataSource } from "../data-source";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 
 const subscriptionService = new SubscriptionService();
 class SubscriptionController {
-  async createSuscription(request: CustomRequest, response: Response) {
+  async createSuscription(request: AuthenticatedRequest, response: Response) {
     try {
       const subscription = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -39,7 +39,7 @@ class SubscriptionController {
     }
   }
 
-  verifySubscription = async (request: CustomRequest, response: Response) => {
+  verifySubscription = async (request: AuthenticatedRequest, response: Response) => {
     try {
       const subscription = await subscriptionService.verifySubscription(
         request.body,
@@ -60,7 +60,7 @@ class SubscriptionController {
     }
   };
 
-  createSubscriptionByAdmin = async (request: CustomRequest, response: Response) => {
+  createSubscriptionByAdmin = async (request: AuthenticatedRequest, response: Response) => {
     try {
       const subscription = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -214,7 +214,7 @@ class SubscriptionController {
     }
   };
 
-  cancelSubscription = async (request: CustomRequest, response: Response) => {
+  cancelSubscription = async (request: AuthenticatedRequest, response: Response) => {
     try {
       const subscription = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -237,7 +237,7 @@ class SubscriptionController {
     }
   };
 
-  deleteSubscription = async (request: CustomRequest, response: Response) => {
+  deleteSubscription = async (request: AuthenticatedRequest, response: Response) => {
     try {
       const subscription = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -270,7 +270,7 @@ class SubscriptionController {
   };
 
   bulkDeleteSubscriptions = async (
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) => {
     try {

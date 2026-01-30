@@ -1,6 +1,6 @@
 import { Response } from "express";
 import NoteServices from "../services/note.service";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { makeResponse, decrypt } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { AppDataSource } from "../data-source";
@@ -10,7 +10,7 @@ import { log } from "console";
 
 const noteServices = new NoteServices();
 class NoteController {
-  async getAllNotesData(request: CustomRequest, response: Response) {
+  async getAllNotesData(request: AuthenticatedRequest, response: Response) {
     try {
       const notes = await noteServices.getAllNotesData(request.user);
       return makeResponse(
@@ -25,7 +25,7 @@ class NoteController {
     }
   }
 
-  async createNote(request: CustomRequest, response: Response) {
+  async createNote(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     if (!request.body)
       return makeResponse(
@@ -86,7 +86,7 @@ class NoteController {
     }
   }
 
-  async getAllNotes(request: CustomRequest, response: Response) {
+  async getAllNotes(request: AuthenticatedRequest, response: Response) {
     try {
       let page: number | undefined = Number(request.query.page) || undefined;
       let limit: number | undefined = Number(request.query.limit) || undefined;
@@ -126,7 +126,7 @@ class NoteController {
     }
   }
 
-  async getNoteByNoteId(request: CustomRequest, response: Response) {
+  async getNoteByNoteId(request: AuthenticatedRequest, response: Response) {
     try {
       const noteId: string = request.params.noteId;
       if (!noteId) {
@@ -152,7 +152,7 @@ class NoteController {
     }
   }
 
-  async getNoteByaccountId(request: CustomRequest, response: Response) {
+  async getNoteByaccountId(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId;
       if (!accountId) {
@@ -204,7 +204,7 @@ class NoteController {
     }
   }
 
-  async getNoteBycontactId(request: CustomRequest, response: Response) {
+  async getNoteBycontactId(request: AuthenticatedRequest, response: Response) {
     try {
       const contactId: string = request.params.contactId;
       if (!contactId) {
@@ -257,7 +257,7 @@ class NoteController {
     }
   }
 
-  async getNoteByleadId(request: CustomRequest, response: Response) {
+  async getNoteByleadId(request: AuthenticatedRequest, response: Response) {
     try {
       const leadId: string = request.params.leadId;
       if (!leadId) {
@@ -304,7 +304,7 @@ class NoteController {
     }
   }
 
-  async getNoteByOpportunityId(request: CustomRequest, response: Response) {
+  async getNoteByOpportunityId(request: AuthenticatedRequest, response: Response) {
     try {
       const opportunityId: string = request.params.opportunityId;
       if (!opportunityId) {
@@ -357,7 +357,7 @@ class NoteController {
     }
   }
 
-  async updateNote(request: CustomRequest, response: Response) {
+  async updateNote(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const noteId: string = request.params.noteId as string;
@@ -424,7 +424,7 @@ class NoteController {
     }
   }
 
-  async bulkDeleteNote(request: CustomRequest, response: Response) {
+  async bulkDeleteNote(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const email = request.user.email;
@@ -454,7 +454,7 @@ class NoteController {
     }
   }
 
-  async getNoteByActivityId(request: CustomRequest, response: Response) {
+  async getNoteByActivityId(request: AuthenticatedRequest, response: Response) {
     try {
       const activityId: string = request.params.activityId;
       if (!activityId) {

@@ -3,13 +3,13 @@ import TechnicianService from "../services/technician.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { Technician } from "../entity/Technician";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 
 const _technicianService = new TechnicianService();
 
 class TechnicianController {
-    async getAllTechnicians(request: CustomRequest, response: Response) {
+    async getAllTechnicians(request: AuthenticatedRequest, response: Response) {
         try {
             const technicians = await _technicianService.getAllTechnicians(
                 request.user
@@ -20,7 +20,7 @@ class TechnicianController {
         }
     }
 
-    async getTechnicians(request: CustomRequest, response: Response) {
+    async getTechnicians(request: AuthenticatedRequest, response: Response) {
         try {
             let page = Number(request.query.page);
             let limit = Number(request.query.limit);
@@ -87,7 +87,7 @@ class TechnicianController {
         }
     }
 
-    async createTechnician(request: CustomRequest, response: Response) {
+    async createTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technician = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
@@ -122,7 +122,7 @@ class TechnicianController {
         }
     }
 
-    async updateTechnician(request: CustomRequest, response: Response) {
+    async updateTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             const payload: Technician = request.body;
@@ -180,7 +180,7 @@ class TechnicianController {
         }
     }
 
-    async deleteTechnician(request: CustomRequest, response: Response) {
+    async deleteTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             const technician = await AppDataSource.transaction(
@@ -210,7 +210,7 @@ class TechnicianController {
         }
     }
 
-    async partiallyUpdateTechnician(request: CustomRequest, response: Response) {
+    async partiallyUpdateTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             if (!technicianId) {
@@ -259,7 +259,7 @@ class TechnicianController {
         }
     }
 
-    async updateAvailability(request: CustomRequest, response: Response) {
+    async updateAvailability(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             const { availability } = request.body;
@@ -319,7 +319,7 @@ class TechnicianController {
         }
     }
 
-    async getAvailableTechnicians(request: CustomRequest, response: Response) {
+    async getAvailableTechnicians(request: AuthenticatedRequest, response: Response) {
         try {
             const organizationId: string | null = request.user.organizationId;
             const specialization: string | undefined = request.query
@@ -343,7 +343,7 @@ class TechnicianController {
     }
 
     async getTechniciansBySpecialization(
-        request: CustomRequest,
+        request: AuthenticatedRequest,
         response: Response
     ) {
         try {
