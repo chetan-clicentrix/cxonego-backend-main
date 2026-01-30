@@ -57,6 +57,9 @@ export class ActivityPlanAction extends CustomBaseEntity {
     @Column({ type: "text", nullable: true })
     remarks: string;
 
+    @Column({ type: "text", nullable: true })
+    comments: string;
+
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
@@ -64,6 +67,7 @@ export class ActivityPlanAction extends CustomBaseEntity {
         if (this.stageName) this.stageName = encryption(this.stageName);
         if (this.description) this.description = encryption(this.description);
         if (this.remarks) this.remarks = encryption(this.remarks);
+        if (this.comments) this.comments = encryption(this.comments);
     }
 
     @AfterLoad()
@@ -72,5 +76,6 @@ export class ActivityPlanAction extends CustomBaseEntity {
         if (this.stageName) this.stageName = decrypt(this.stageName);
         if (this.description) this.description = decrypt(this.description);
         if (this.remarks) this.remarks = decrypt(this.remarks);
+        if (this.comments) this.comments = decrypt(this.comments);
     }
 }

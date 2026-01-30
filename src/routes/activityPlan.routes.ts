@@ -29,4 +29,22 @@ router.post(
     activityPlanController.applyTemplate
 );
 
+router.post(
+    "/plan/:planId/action",
+    authMiddleware(),
+    activityPlanController.createAction
+);
+
+router.put(
+    "/action/:actionId",
+    authMiddleware(),
+    activityPlanController.updateAction
+);
+
+router.delete(
+    "/action/:actionId",
+    authMiddleware(),
+    activityPlanController.deleteAction
+);
+
 export default router;

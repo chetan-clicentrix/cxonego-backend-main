@@ -58,11 +58,13 @@ export class Contact extends CustomBaseEntity {
     area: string;
 
     @Column({
+        default: "Pune",
         nullable: true
     })
     city: string;
 
     @Column({
+        default: "Maharashtra",
         nullable: true
     })
     state: string;
