@@ -148,11 +148,11 @@ export class SentEmailLog {
     @Column({ nullable: true })
     templateId: string;
 
-    @ManyToOne(() => User, { nullable: false, onUpdate: 'CASCADE', eager: true })
+    @ManyToOne(() => User, { nullable: true, onUpdate: 'CASCADE', eager: true })
     @JoinColumn({ name: 'sentById' })
     sentBy: User;
 
-    @Column({ nullable: false })
+    @Column({ nullable: true })
     sentById: string;
 
     @ManyToOne(() => Organisation, { nullable: true, onUpdate: 'CASCADE' })

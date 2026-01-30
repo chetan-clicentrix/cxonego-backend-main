@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import AccountServices from "../services/account.service";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { makeResponse, decrypt } from "../common/utils";
 import { accountSchemaType } from "../schemas/company.schema";
 import { errorHandler } from "../common/errors";
@@ -13,16 +13,16 @@ import { User } from "../entity/User";
 
 const accountServices = new AccountServices();
 class AccountController {
-  async getAllAccounts(request: CustomRequest, response: Response) {
+  async getAllAccounts(request: AuthenticatedRequest, response: Response) {
     try {
-        const userInfo = request.user;
+      const userInfo = request.user;
       const accounts = await accountServices.getAllAccounts(userInfo);
       return makeResponse(response, 200, true, "All accounts", accounts);
     } catch (error) {
       errorHandler(response, error.message);
     }
   }
-  async getAccounts(request: CustomRequest, response: Response) {
+  async getAccounts(request: AuthenticatedRequest, response: Response) {
     try {
       const search: string | undefined = request.query.search as
         | string
@@ -84,7 +84,7 @@ class AccountController {
       errorHandler(response, error.message);
     }
   }
-  async getAccount(request: CustomRequest, response: Response) {
+  async getAccount(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId as string;
       if (!accountId)
@@ -110,7 +110,7 @@ class AccountController {
       errorHandler(response, error.message);
     }
   }
-  async createAccount(request: CustomRequest, response: Response) {
+  async createAccount(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const { userId, auth_time, organizationId } = request.user;
@@ -177,7 +177,7 @@ class AccountController {
     }
   }
 
-  async updateAccount(request: CustomRequest, response: Response) {
+  async updateAccount(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const accountId: string = request.params.accountId as string;
@@ -253,7 +253,7 @@ class AccountController {
     }
   }
 
-  async deleteAccount(request: CustomRequest, response: Response) {
+  async deleteAccount(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId as string;
       if (!accountId)
@@ -292,7 +292,7 @@ class AccountController {
     }
   }
 
-  async partiallyUpdateAccount(request: CustomRequest, response: Response) {
+  async partiallyUpdateAccount(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId as string;
       if (!accountId)
@@ -330,7 +330,7 @@ class AccountController {
       return errorHandler(response, error.message);
     }
   }
-  async leadsByAccountId(request: CustomRequest, response: Response) {
+  async leadsByAccountId(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId as string;
       const search: string | undefined = request.query.search as
@@ -374,7 +374,7 @@ class AccountController {
     }
   }
 
-  async contactByAccountId(request: CustomRequest, response: Response) {
+  async contactByAccountId(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId as string;
       const search: string | undefined = request.query.search as
@@ -417,7 +417,7 @@ class AccountController {
     }
   }
 
-  async UploadAccountExcel(request: CustomRequest, response: Response) {
+  async UploadAccountExcel(request: AuthenticatedRequest, response: Response) {
     try {
       const file = request.file;
 
@@ -472,7 +472,7 @@ class AccountController {
     }
   }
 
-  async bulkDeleteAccount(request: CustomRequest, response: Response) {
+  async bulkDeleteAccount(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const auth_time = request.user.auth_time;
@@ -504,7 +504,7 @@ class AccountController {
     }
   }
 
-  async getAccountsByOrgnizationId(request: CustomRequest, response: Response) {
+  async getAccountsByOrgnizationId(request: AuthenticatedRequest, response: Response) {
     try {
       const organizationId: string | null = request.user.organizationId;
       const account = await accountServices.getAccountsByOrgnizationId(

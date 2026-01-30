@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { AppDataSource } from "../data-source";
@@ -9,7 +9,7 @@ class LeadAssignmentController {
   /**
    * Get all lead assignments for the user's organization
    */
-  async getAllLeadAssignments(req: CustomRequest, res: Response, next: NextFunction) {
+  async getAllLeadAssignments(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const page = Number(req.query.page) || 1;
       const limit = Number(req.query.limit) || 10;
@@ -36,7 +36,7 @@ class LeadAssignmentController {
   /**
    * Get a specific lead assignment
    */
-  async getLeadAssignment(request: CustomRequest, response: Response) {
+  async getLeadAssignment(request: AuthenticatedRequest, response: Response) {
     try {
       const leadType = request.params.leadType;
       
@@ -67,7 +67,7 @@ class LeadAssignmentController {
   /**
    * Create a new lead assignment
    */
-  async createLeadAssignment(request: CustomRequest, response: Response) {
+  async createLeadAssignment(request: AuthenticatedRequest, response: Response) {
     try {
       const leadAssignment = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -94,7 +94,7 @@ class LeadAssignmentController {
   /**
    * Update an existing lead assignment
    */
-  async updateLeadAssignment(request: CustomRequest, response: Response) {
+  async updateLeadAssignment(request: AuthenticatedRequest, response: Response) {
     try {
       const leadType = request.params.leadType;
       
@@ -124,7 +124,7 @@ class LeadAssignmentController {
   /**
    * Delete a lead assignment
    */
-  async deleteLeadAssignment(request: CustomRequest, response: Response) {
+  async deleteLeadAssignment(request: AuthenticatedRequest, response: Response) {
     try {
       const leadType = request.params.leadType;
       

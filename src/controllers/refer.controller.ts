@@ -2,12 +2,12 @@ import { Response } from "express";
 import ReferServices from "../services/refer.service";
 import { decrypt, makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 const referServices = new ReferServices();
 
 class ReferController {
-  async getAllReferalls(request: CustomRequest, response: Response) {
+  async getAllReferalls(request: AuthenticatedRequest, response: Response) {
     try {
       const referalls = await referServices.getAllReferalls(request.user);
       return makeResponse(
@@ -21,7 +21,7 @@ class ReferController {
       return errorHandler(response, error);
     }
   }
-  async createRefer(request: CustomRequest, response: Response) {
+  async createRefer(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const refer = await AppDataSource.transaction(
@@ -79,7 +79,7 @@ class ReferController {
     }
   }
 
-  async updateRefer(request: CustomRequest, response: Response) {
+  async updateRefer(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const referId = request.params.referId;
@@ -140,7 +140,7 @@ class ReferController {
     }
   }
 
-  async deleteRefer(request: CustomRequest, response: Response) {
+  async deleteRefer(request: AuthenticatedRequest, response: Response) {
     try {
       const referId = request.params.referId;
 
@@ -175,7 +175,7 @@ class ReferController {
     }
   }
 
-  async getRefer(request: CustomRequest, response: Response) {
+  async getRefer(request: AuthenticatedRequest, response: Response) {
     try {
       const referId = request.params.referId;
       const refer = await AppDataSource.transaction(
@@ -210,7 +210,7 @@ class ReferController {
     }
   }
 
-  async getAllRefer(request: CustomRequest, response: Response) {
+  async getAllRefer(request: AuthenticatedRequest, response: Response) {
     try {
       let page = Number(request.query.page);
       let limit = Number(request.query.limit);
@@ -262,7 +262,7 @@ class ReferController {
     }
   }
 
-  async bulkDeleteRefer(request: CustomRequest, response: Response) {
+  async bulkDeleteRefer(request: AuthenticatedRequest, response: Response) {
     try {
       const referIds = request.body.referIds;
       const refer = await AppDataSource.transaction(

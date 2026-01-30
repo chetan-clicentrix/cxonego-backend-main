@@ -85,7 +85,7 @@ app.use(cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
 }));
 
 // Add security headers
@@ -95,7 +95,7 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   res.header('Access-Control-Allow-Origin', origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept, x-api-key');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
@@ -112,7 +112,7 @@ app.options('*', (req, res) => {
   // Set CORS headers
   res.header('Access-Control-Allow-Origin', origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
   res.header('Access-Control-Allow-Credentials', 'true');
 
   // Respond with 204 No Content
@@ -173,6 +173,8 @@ app.use(
       // Public upload routes - no auth required
       RegExp("^/api/v1/public/upload"),
       RegExp("/api/v1/api-doc/.*"),
+      // API routes - use API key auth instead of Firebase
+      RegExp("^/api/v1/api/"),
     ],
   })
 );

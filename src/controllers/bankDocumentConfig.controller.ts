@@ -2,13 +2,13 @@ import { Response } from "express";
 import { makeResponse } from "../common/utils";
 import BankDocumentConfigService from "../services/bankDocumentConfig.service";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 
 const bankDocConfigService = new BankDocumentConfigService();
 
 class BankDocumentConfigController {
-    async getAllConfigs(request: CustomRequest, response: Response) {
+    async getAllConfigs(request: AuthenticatedRequest, response: Response) {
         try {
             const configs = await bankDocConfigService.getAllConfigs(request.user);
             return makeResponse(response, 200, true, "All bank document configurations", configs);
@@ -17,7 +17,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async getConfigsByBank(request: CustomRequest, response: Response) {
+    async getConfigsByBank(request: AuthenticatedRequest, response: Response) {
         try {
             const { bankId } = request.params;
             const configs = await bankDocConfigService.getConfigsByBank(bankId, request.user);
@@ -27,7 +27,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async getDocuments(request: CustomRequest, response: Response) {
+    async getDocuments(request: AuthenticatedRequest, response: Response) {
         try {
             const { bankId, applicantType } = request.query;
 
@@ -53,7 +53,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async getConfig(request: CustomRequest, response: Response) {
+    async getConfig(request: AuthenticatedRequest, response: Response) {
         try {
             if (!request.params.configId) {
                 return makeResponse(response, 400, false, "Configuration ID is required", null);
@@ -71,7 +71,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async createConfig(request: CustomRequest, response: Response) {
+    async createConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const config = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
@@ -100,7 +100,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async updateConfig(request: CustomRequest, response: Response) {
+    async updateConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
             const config = await AppDataSource.transaction(
@@ -131,7 +131,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async deleteConfig(request: CustomRequest, response: Response) {
+    async deleteConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
             const config = await AppDataSource.transaction(
@@ -161,7 +161,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async cloneConfig(request: CustomRequest, response: Response) {
+    async cloneConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { sourceBankId, sourceApplicantType, targetBankId, targetApplicantType } = request.body;
 
@@ -201,7 +201,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async bulkClone(request: CustomRequest, response: Response) {
+    async bulkClone(request: AuthenticatedRequest, response: Response) {
         try {
             const { sourceBankId, targetBankId, applicantTypes } = request.body;
 
@@ -239,7 +239,7 @@ class BankDocumentConfigController {
             errorHandler(response, error.message);
         }
     }
-    async addDocuments(request: CustomRequest, response: Response) {
+    async addDocuments(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
             const { documents } = request.body;
@@ -267,7 +267,7 @@ class BankDocumentConfigController {
         }
     }
 
-    async removeDocuments(request: CustomRequest, response: Response) {
+    async removeDocuments(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
             const { documents } = request.body;

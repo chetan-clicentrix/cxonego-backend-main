@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { makeResponse, decrypt } from "../common/utils";
 import LeadService from "../services/lead.service";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
@@ -17,7 +17,7 @@ class LeadController {
    * @return {Promise<number | Response<any, Record<string, any>>>} the created lead or a response with an error
    */
 
-  async getAllLeads(request: CustomRequest, response: Response) {
+  async getAllLeads(request: AuthenticatedRequest, response: Response) {
     try {
       const leads = await leadService.getAllLeads(request.user);
       return makeResponse(response, 200, true, "All leads", leads);
@@ -26,7 +26,7 @@ class LeadController {
     }
   }
 
-  async createLead(request: CustomRequest, response: Response) {
+  async createLead(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const lead = await AppDataSource.transaction(
@@ -86,7 +86,7 @@ class LeadController {
    * @param {Response} response - the response object
    * @return {Promise<number | Response<any, Record<string, any>>>} the created lead or a response with an error
    */
-  async getLeads(request: CustomRequest, response: Response) {
+  async getLeads(request: AuthenticatedRequest, response: Response) {
     try {
       let page: number | undefined = Number(request.query.page) || undefined;
       let limit: number | undefined = Number(request.query.limit) || undefined;
@@ -151,7 +151,7 @@ class LeadController {
    * @param {Response} response - the response object
    * @return {Promise<number | Response<any, Record<string, any>>>} the created lead or a response with an error
    */
-  async updateLead(request: CustomRequest, response: Response) {
+  async updateLead(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const lead = await AppDataSource.transaction(
@@ -231,7 +231,7 @@ class LeadController {
    * @param {Response} response - the response object
    * @return {Promise<number | Response<any, Record<string, any>>>} the created lead or a response with an error
    */
-  async deleteLead(request: CustomRequest, response: Response) {
+  async deleteLead(request: AuthenticatedRequest, response: Response) {
     try {
       const lead = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -267,7 +267,7 @@ class LeadController {
    * @param {Response} response - the response object
    * @return {Promise<number>} the created lead or a response with an error
    */
-  async uploadLeadUsingExcel(request: CustomRequest, response: Response) {
+  async uploadLeadUsingExcel(request: AuthenticatedRequest, response: Response) {
     try {
       const file = request.file;
       if (!file) {
@@ -310,7 +310,7 @@ class LeadController {
     }
   }
 
-  async bulkDeleteLead(request: CustomRequest, response: Response) {
+  async bulkDeleteLead(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const email = request.user.email;
@@ -343,7 +343,7 @@ class LeadController {
     }
   }
 
-  async getLeadsByContactId(request: CustomRequest, response: Response) {
+  async getLeadsByContactId(request: AuthenticatedRequest, response: Response) {
     try {
       let page: number | undefined = Number(request.query.page) || undefined;
       let limit: number | undefined = Number(request.query.limit) || undefined;
@@ -403,7 +403,7 @@ class LeadController {
     }
   }
 
-  async getLeadsByAccountId(request: CustomRequest, response: Response) {
+  async getLeadsByAccountId(request: AuthenticatedRequest, response: Response) {
     try {
       let page: number | undefined = Number(request.query.page) || undefined;
       let limit: number | undefined = Number(request.query.limit) || undefined;
@@ -463,7 +463,7 @@ class LeadController {
     }
   }
 
-  async assignLeadsByTitle(request: CustomRequest, response: Response) {
+  async assignLeadsByTitle(request: AuthenticatedRequest, response: Response) {
     try {
       const leadTitle: string = request.params.leadTitle;
       const { userId } = request.body;

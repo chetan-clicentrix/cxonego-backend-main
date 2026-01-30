@@ -42,6 +42,8 @@ import notificationRouter from "./notification.routes";
 
 import activityPlanRouter from "./activityPlan.routes";
 import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
+import apiKeyRouter from "./apiKey.routes";
+import apiLeadRouter from "./api.lead.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
@@ -77,6 +79,12 @@ router.use("/sharepoint", sharepointRouter)
 router.use("/skills", skillRouter);
 router.use("/bank", bankRouter);
 router.use("/bank-config", bankDocConfigRouter);
+
+// API Key Management (for automation tools like n8n)
+router.use("/api-keys", apiKeyRouter);
+
+// API endpoints for automation (uses API key auth instead of Firebase)
+router.use("/api/lead", apiLeadRouter);
 
 // Email Notification Module
 console.log("Registering email notification routes...");

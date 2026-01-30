@@ -3,13 +3,13 @@ import TicketAssignmentService from "../services/ticketAssignment.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { TicketAssignment } from "../entity/TicketAssignment";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 
 const _assignmentService = new TicketAssignmentService();
 
 class TicketAssignmentController {
-    async getAssignments(request: CustomRequest, response: Response) {
+    async getAssignments(request: AuthenticatedRequest, response: Response) {
         try {
             let page = Number(request.query.page);
             let limit = Number(request.query.limit);
@@ -85,7 +85,7 @@ class TicketAssignmentController {
         }
     }
 
-    async createAssignment(request: CustomRequest, response: Response) {
+    async createAssignment(request: AuthenticatedRequest, response: Response) {
         try {
             const assignment = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
@@ -120,7 +120,7 @@ class TicketAssignmentController {
         }
     }
 
-    async acceptAssignment(request: CustomRequest, response: Response) {
+    async acceptAssignment(request: AuthenticatedRequest, response: Response) {
         try {
             const assignmentId: string = request.params.assignmentId;
 
@@ -156,7 +156,7 @@ class TicketAssignmentController {
         }
     }
 
-    async rejectAssignment(request: CustomRequest, response: Response) {
+    async rejectAssignment(request: AuthenticatedRequest, response: Response) {
         try {
             const assignmentId: string = request.params.assignmentId;
             const { rejectionReason } = request.body;
@@ -194,7 +194,7 @@ class TicketAssignmentController {
         }
     }
 
-    async completeAssignment(request: CustomRequest, response: Response) {
+    async completeAssignment(request: AuthenticatedRequest, response: Response) {
         try {
             const assignmentId: string = request.params.assignmentId;
             const { notes } = request.body;
@@ -256,7 +256,7 @@ class TicketAssignmentController {
         }
     }
 
-    async getAssignmentsByTechnician(request: CustomRequest, response: Response) {
+    async getAssignmentsByTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             let page = Number(request.query.page) || 1;
@@ -323,7 +323,7 @@ class TicketAssignmentController {
         }
     }
 
-    async startAssignment(request: CustomRequest, response: Response) {
+    async startAssignment(request: AuthenticatedRequest, response: Response) {
         try {
             const assignmentId: string = request.params.assignmentId;
 

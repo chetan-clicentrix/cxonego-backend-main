@@ -3,26 +3,22 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  
   "scripts": {
     "start": "nodemon src/index.ts",
     "dev": "nodemon src/index.ts",
     "typeorm": "typeorm-ts-node-esm -d ./src/data-source.ts",
     "build": "tsc --noEmitOnError",
     "prepare": "husky",
-    
     "migration:generate": "typeorm-ts-node-esm migration:generate -d ./src/data-source.ts",
     "migration:create": "typeorm-ts-node-esm migration:create",
     "migration:run": "typeorm-ts-node-esm migration:run -d ./src/data-source.ts",
     "migration:revert": "typeorm-ts-node-esm migration:revert -d ./src/data-source.ts",
     "migration:show": "typeorm-ts-node-esm migration:show -d ./src/data-source.ts"
   },
-
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.775.0",
-    "@aws-sdk/client-ses": "^3.775.0",
     "@aws-sdk/s3-request-presigner": "^3.775.0",
     "@azure/msal-node": "^3.8.4",
     "@microsoft/microsoft-graph-client": "^3.0.7",

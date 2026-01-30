@@ -1,6 +1,6 @@
 import { Response } from "express";
 import SkillService from "../services/skill.service";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { AppDataSource } from "../data-source";
@@ -9,7 +9,7 @@ import { AddSkillSchema, UpdateSkillSchema, SkillSearchSchema, BulkDeleteSkillSc
 const skillService = new SkillService();
 
 class SkillController {
-    async getAllSkills(request: CustomRequest, response: Response) {
+    async getAllSkills(request: AuthenticatedRequest, response: Response) {
         try {
             const validation = SkillSearchSchema.safeParse(request.query);
 
@@ -24,7 +24,7 @@ class SkillController {
         }
     }
 
-    async getSkillById(request: CustomRequest, response: Response) {
+    async getSkillById(request: AuthenticatedRequest, response: Response) {
         try {
             const { skillId } = request.params;
             const skill = await skillService.getSkillById(skillId, request.user);
@@ -34,7 +34,7 @@ class SkillController {
         }
     }
 
-    async createSkill(request: CustomRequest, response: Response) {
+    async createSkill(request: AuthenticatedRequest, response: Response) {
         try {
             const validation = AddSkillSchema.safeParse(request.body);
             if (!validation.success) {
@@ -51,7 +51,7 @@ class SkillController {
         }
     }
 
-    async updateSkill(request: CustomRequest, response: Response) {
+    async updateSkill(request: AuthenticatedRequest, response: Response) {
         try {
             const { skillId } = request.params;
             const validation = UpdateSkillSchema.safeParse(request.body);
@@ -69,7 +69,7 @@ class SkillController {
         }
     }
 
-    async deleteSkill(request: CustomRequest, response: Response) {
+    async deleteSkill(request: AuthenticatedRequest, response: Response) {
         try {
             const { skillId } = request.params;
             await AppDataSource.transaction(async (transactionEntityManager) => {
@@ -82,7 +82,7 @@ class SkillController {
         }
     }
 
-    async bulkDeleteSkills(request: CustomRequest, response: Response) {
+    async bulkDeleteSkills(request: AuthenticatedRequest, response: Response) {
         try {
             const validation = BulkDeleteSkillSchema.safeParse(request.body);
             if (!validation.success) {

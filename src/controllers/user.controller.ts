@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import UserServices from "../services/user.service";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { profileSchemaType, UserSchema } from "../schemas/user.schemas";
 import { errorHandler } from "../common/errors";
 import { makeResponse, decrypt } from "../common/utils";
@@ -15,7 +15,7 @@ class UserController {
   //The Math.random() function in JavaScript returns a floating-point,
   //pseudo-random number in the range from 0 (inclusive) to 1 (exclusive).
 
-  async updateProfile(request: CustomRequest, response: Response) {
+  async updateProfile(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const userProfile: User = request.body;
@@ -90,7 +90,7 @@ class UserController {
       errorHandler(response, errorMessage);
     }
   }
-  async getUserById(request: CustomRequest, response: Response) {
+  async getUserById(request: AuthenticatedRequest, response: Response) {
     try {
       const userId: string = request.params.userId;
       if (!userId) {
@@ -131,7 +131,7 @@ class UserController {
       return errorHandler(response, error.message);
     }
   }
-  async updateSertUser(request: CustomRequest, response: Response) {
+  async updateSertUser(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const userProfile: User = request.body;
@@ -195,7 +195,7 @@ class UserController {
     }
   }
 
-  async addUserRole(request: CustomRequest, response: Response) {
+  async addUserRole(request: AuthenticatedRequest, response: Response) {
     try {
       const roleName: Array<string> = request.body.role;
       const userId: string = request.body.userId;
@@ -232,7 +232,7 @@ class UserController {
       return errorHandler(response, error.message);
     }
   }
-  async deleteUserRole(request: CustomRequest, response: Response) {
+  async deleteUserRole(request: AuthenticatedRequest, response: Response) {
     try {
       const roleName: string = request.body.role;
       const userId: string = request.body.userId;
@@ -263,7 +263,7 @@ class UserController {
       return errorHandler(response, error.message);
     }
   }
-  async inviteUser(request: CustomRequest, response: Response) {
+  async inviteUser(request: AuthenticatedRequest, response: Response) {
     try {
       const invites: InviteUserType[] = request.body
         .invites as InviteUserType[];
@@ -286,7 +286,7 @@ class UserController {
     }
   }
 
-  async partiallyUpadateUser(request: CustomRequest, response: Response) {
+  async partiallyUpadateUser(request: AuthenticatedRequest, response: Response) {
     try {
       const userId: string = request.params.userId as string;
 
@@ -334,7 +334,7 @@ class UserController {
   }
 
   async getAllUserDataOrgnizationWise(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -371,7 +371,7 @@ class UserController {
     }
   }
 
-  async addUserDetails(request: CustomRequest, response: Response) {
+  async addUserDetails(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const userProfile: User = request.body;
@@ -418,7 +418,7 @@ class UserController {
     }
   }
 
-  async getUsersSubscriptions(request: CustomRequest, response: Response) {
+  async getUsersSubscriptions(request: AuthenticatedRequest, response: Response) {
     try {
       const result = await userservices.getUsersSubscriptions(request);
       return makeResponse(
@@ -433,7 +433,7 @@ class UserController {
     }
   }
 
-  async updateUserRole(request: CustomRequest, response: Response) {
+  async updateUserRole(request: AuthenticatedRequest, response: Response) {
     try {
       const result = await userservices.updateUserRole(request);
       return makeResponse(
@@ -448,7 +448,7 @@ class UserController {
     }
   }
 
-  async updateUserProfile(request: CustomRequest, response: Response) {
+  async updateUserProfile(request: AuthenticatedRequest, response: Response) {
     try {
       const result = await AppDataSource.transaction(
         async (transactionEntityManager) => {

@@ -2,13 +2,13 @@ import { Response } from "express";
 import OrganizationServices from "../services/organization.service";
 import { makeResponse, decrypt } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 import { Role } from "../entity/Role";
 const organizationServices = new OrganizationServices();
 
 class OrganizationController {
-  async createOrganization(request: CustomRequest, response: Response) {
+  async createOrganization(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const organization = await AppDataSource.transaction(
@@ -66,7 +66,7 @@ class OrganizationController {
     }
   }
 
-  async getOrganizationById(request: CustomRequest, response: Response) {
+  async getOrganizationById(request: AuthenticatedRequest, response: Response) {
     try {
       const organizationId = request.params.organizationId;
       const organization = await AppDataSource.transaction(
@@ -101,7 +101,7 @@ class OrganizationController {
     }
   }
 
-  async getAllOrganization(request: CustomRequest, response: Response) {
+  async getAllOrganization(request: AuthenticatedRequest, response: Response) {
     try {
       const data = await organizationServices.getAllOrganization(
         request
@@ -129,7 +129,7 @@ class OrganizationController {
     }
   }
 
-  async updateOrganization(request: CustomRequest, response: Response) {
+  async updateOrganization(request: AuthenticatedRequest, response: Response) {
     try {
       const organizationId = request.params.organizationId;
       console.log("organizationId : ", organizationId);
@@ -168,7 +168,7 @@ class OrganizationController {
   }
 
   async updateOrganizationPartially(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -208,7 +208,7 @@ class OrganizationController {
     }
   }
 
-  async deleteOrganization(request: CustomRequest, response: Response) {
+  async deleteOrganization(request: AuthenticatedRequest, response: Response) {
     try {
       const organization = await AppDataSource.transaction(
         async (transactionEntityManager) => {

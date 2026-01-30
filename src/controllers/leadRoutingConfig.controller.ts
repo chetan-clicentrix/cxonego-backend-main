@@ -2,13 +2,13 @@ import { Response } from "express";
 import { makeResponse, decrypt } from "../common/utils";
 import LeadRoutingConfigService from "../services/leadRoutingConfig.service";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 
 const leadRoutingConfigService = new LeadRoutingConfigService();
 
 class LeadRoutingController {
-    async getAllConfigs(request: CustomRequest, response: Response) {
+    async getAllConfigs(request: AuthenticatedRequest, response: Response) {
         try {
             const configs = await leadRoutingConfigService.getAllConfigs(request.user);
             return makeResponse(response, 200, true, "All lead routing configs", configs);
@@ -17,7 +17,7 @@ class LeadRoutingController {
         }
     }
 
-    async getConfig(request: CustomRequest, response: Response) {
+    async getConfig(request: AuthenticatedRequest, response: Response) {
         try {
             if (!request.params.id) {
                 return makeResponse(response, 400, false, "Lead routing config id is required", null);
@@ -38,7 +38,7 @@ class LeadRoutingController {
         }
     }
 
-    async createConfig(request: CustomRequest, response: Response) {
+    async createConfig(request: AuthenticatedRequest, response: Response) {
         const copiedObject = { ...request.body };
         try {
             const config = await AppDataSource.transaction(
@@ -92,7 +92,7 @@ class LeadRoutingController {
         }
     }
 
-    async updateConfig(request: CustomRequest, response: Response) {
+    async updateConfig(request: AuthenticatedRequest, response: Response) {
         const copiedObject = { ...request.body };
         try {
             const { id } = request.params;
@@ -148,7 +148,7 @@ class LeadRoutingController {
         }
     }
 
-    async deleteConfig(request: CustomRequest, response: Response) {
+    async deleteConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { id } = request.params;
             const config = await AppDataSource.transaction(

@@ -2,7 +2,7 @@ import {Response} from "express";
 import DashboardServices from "../services/dashboard.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { DateRangeParamsType, RangeDateType, RevenueRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
 const dashboardServices = new DashboardServices();
@@ -10,7 +10,7 @@ const dashboardServices = new DashboardServices();
 class DashboardController{
    
 
-    async getAllLeadStatusCounts(_request:CustomRequest,response:Response){
+    async getAllLeadStatusCounts(_request:AuthenticatedRequest,response:Response){
         try{    
             const  countsObjcet = await dashboardServices.getAllLeadStatusCounts();
             if(!countsObjcet){
@@ -22,7 +22,7 @@ class DashboardController{
         }
     }
 
-    async getAllLeadStatusPercentage(_request:CustomRequest,response:Response){
+    async getAllLeadStatusPercentage(_request:AuthenticatedRequest,response:Response){
         try{    
             const  percentageObjcet = await dashboardServices.getAllLeadStatusPercentage();
             if(!percentageObjcet){
@@ -34,7 +34,7 @@ class DashboardController{
         }
     }
 
-    async qualifiedLeadRate(_request:CustomRequest,response:Response){
+    async qualifiedLeadRate(_request:AuthenticatedRequest,response:Response){
         try{    
             const  percentageObjcet = await dashboardServices.qualifiedLeadRate();
             if(!percentageObjcet){
@@ -46,7 +46,7 @@ class DashboardController{
         }
     }
 
-    async getAvgAndEstPrice(_request:CustomRequest,response:Response){
+    async getAvgAndEstPrice(_request:AuthenticatedRequest,response:Response){
         try{    
             const  avgAndEstPrice = await dashboardServices.getAvgAndEstPrice();
             if(!avgAndEstPrice){
@@ -58,7 +58,7 @@ class DashboardController{
         }
     }
 
-    async getLeadsData(request:CustomRequest,response:Response){
+    async getLeadsData(request:AuthenticatedRequest,response:Response){
         try{    
             const type:string = request.body.type;
             const date:string = request.body.date;
@@ -72,7 +72,7 @@ class DashboardController{
         }
     }
 
-    async getLeadsDashboardData(request:CustomRequest,response:Response){
+    async getLeadsDashboardData(request:AuthenticatedRequest,response:Response){
         try{    
             const country:string[]=request.body.country as string[];
             const state:string=request.body.state as string;
@@ -103,7 +103,7 @@ class DashboardController{
     }
 
     
-    async getOpportunityDashboardData(request:CustomRequest,response:Response){
+    async getOpportunityDashboardData(request:AuthenticatedRequest,response:Response){
         try{                          
             const currency:string=request.query.currency as string;
             const source:string[]=request.body.leadSource as string[];
@@ -132,7 +132,7 @@ class DashboardController{
         }
     }    
 
-    async getActivityDashboardData(request:CustomRequest,response:Response){
+    async getActivityDashboardData(request:AuthenticatedRequest,response:Response){
         try{                
             const activityStatus:string[]=request.body.activityStatus as string[];
             const activityPriority:string[]=request.body.activityPriority as string[];

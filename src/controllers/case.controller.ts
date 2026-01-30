@@ -3,7 +3,7 @@ import CaseService from "../services/case.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { Case } from "../entity/Case";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
@@ -11,7 +11,7 @@ import { Role } from "../entity/Role";
 const _caseService = new CaseService();
 
 class CaseController {
-    async getAllCases(request: CustomRequest, response: Response) {
+    async getAllCases(request: AuthenticatedRequest, response: Response) {
         try {
             const cases = await _caseService.getAllCases(request.user);
             return makeResponse(response, 200, true, "All cases", cases);
@@ -20,7 +20,7 @@ class CaseController {
         }
     }
 
-    async getCases(request: CustomRequest, response: Response) {
+    async getCases(request: AuthenticatedRequest, response: Response) {
         try {
             let page = Number(request.query.page);
             let limit = Number(request.query.limit);
@@ -90,7 +90,7 @@ class CaseController {
         }
     }
 
-    async createCase(request: CustomRequest, response: Response) {
+    async createCase(request: AuthenticatedRequest, response: Response) {
         try {
 
             const caseItem = await AppDataSource.transaction(
@@ -120,7 +120,7 @@ class CaseController {
         }
     }
 
-    async updateCase(request: CustomRequest, response: Response) {
+    async updateCase(request: AuthenticatedRequest, response: Response) {
         try {
             const caseId: string = request.params.caseId;
             const payload: Case = request.body;
@@ -166,7 +166,7 @@ class CaseController {
         }
     }
 
-    async deleteCase(request: CustomRequest, response: Response) {
+    async deleteCase(request: AuthenticatedRequest, response: Response) {
         try {
             const caseId: string = request.params.caseId;
             const caseItem = await AppDataSource.transaction(
@@ -196,7 +196,7 @@ class CaseController {
         }
     }
 
-    async bulkDeleteCase(request: CustomRequest, response: Response) {
+    async bulkDeleteCase(request: AuthenticatedRequest, response: Response) {
         try {
             const userId = request.user.userId;
             const payload = request.body.caseIds;
@@ -237,7 +237,7 @@ class CaseController {
         }
     }
 
-    async partiallyUpdateCase(request: CustomRequest, response: Response) {
+    async partiallyUpdateCase(request: AuthenticatedRequest, response: Response) {
         try {
             const caseId: string = request.params.caseId;
             if (!caseId) {
@@ -268,7 +268,7 @@ class CaseController {
         }
     }
 
-    async assignTechnician(request: CustomRequest, response: Response) {
+    async assignTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const caseId: string = request.params.caseId;
             const { technicianId, assignmentNotes } = request.body;
@@ -308,7 +308,7 @@ class CaseController {
         }
     }
 
-    async updateCaseStatus(request: CustomRequest, response: Response) {
+    async updateCaseStatus(request: AuthenticatedRequest, response: Response) {
         try {
             const caseId: string = request.params.caseId;
             const { status, reason, notes } = request.body;
@@ -349,7 +349,7 @@ class CaseController {
         }
     }
 
-    async getCasesByCustomer(request: CustomRequest, response: Response) {
+    async getCasesByCustomer(request: AuthenticatedRequest, response: Response) {
         try {
             const customerId: string = request.params.customerId;
             let page = Number(request.query.page) || 1;
@@ -375,7 +375,7 @@ class CaseController {
         }
     }
 
-    async getCasesByTechnician(request: CustomRequest, response: Response) {
+    async getCasesByTechnician(request: AuthenticatedRequest, response: Response) {
         try {
             const technicianId: string = request.params.technicianId;
             let page = Number(request.query.page) || 1;

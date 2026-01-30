@@ -26,7 +26,7 @@ export interface EmailSendData {
     opportunityId?: string;
     contactId?: string;
     uploadSessionId?: string;
-    sentById: string;
+    sentById?: string; // Optional - if not provided, will be set to null
     organizationId?: string;
 }
 
@@ -76,7 +76,7 @@ export class EmailNotificationService {
                 opportunityId: emailData.opportunityId,
                 contactId: emailData.contactId,
                 uploadSessionId: emailData.uploadSessionId,
-                sentById: emailData.sentById,
+                sentById: emailData.sentById || null, // Use null if not provided
                 organizationId: emailData.organizationId
             });
 
