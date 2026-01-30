@@ -37,6 +37,8 @@ import uploadPublicRouter from "./uploadPublic.routes";
 import uploadSessionRouter from "./uploadSession.routes";
 import documentUploadRouter from "./document.upload.routes";
 import emailNotificationRouter from "./emailNotification.routes";
+import notificationRouter from "./notification.routes";
+
 
 import activityPlanRouter from "./activityPlan.routes";
 import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
@@ -80,6 +82,12 @@ router.use("/bank-config", bankDocConfigRouter);
 console.log("Registering email notification routes...");
 router.use("/email-notification", emailNotificationRouter);
 console.log("✓ Email notification routes registered!");
+
+// In-App Notification Module
+console.log("Registering notification routes...");
+router.use("/notifications", notificationRouter);
+console.log("✓ Notification routes registered!");
+
 
 // Document Upload Module
 console.log("Registering upload routes...");

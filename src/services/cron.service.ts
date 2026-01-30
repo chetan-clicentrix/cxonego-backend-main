@@ -107,13 +107,14 @@ class CronService {
       where: { subscription_status: subscriptionStatus.SUBSCRIPTION_UPCOMING },
     });
 
-    for(const subscription of subscriptions) {
-      if(subscription.subscription_status === subscriptionStatus.SUBSCRIPTION_UPCOMING) {
+    for (const subscription of subscriptions) {
+      if (subscription.subscription_status === subscriptionStatus.SUBSCRIPTION_UPCOMING) {
         subscription.subscription_status = subscriptionStatus.SUBSCRIPTION_ACTIVE;
         await subscriptionRepository.save(subscription);
       }
     }
   }
+
 }
 
 export default CronService;

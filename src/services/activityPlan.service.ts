@@ -148,17 +148,25 @@ export class ActivityPlanService {
         });
 
         await this.actionRepository.save(actionsToSave);
-        const planWithActions = await this.planRepository.findOne({ where: { planId: savedPlan.planId }, relations: ["actions"] });
+        const planWithActions = await this.planRepository.findOne({
+            where: { planId: savedPlan.planId },
+            relations: ["actions", "actions.assignedTo"]
+        });
+
         if (planWithActions && planWithActions.actions) {
             planWithActions.actions.sort((a, b) => a.sequence - b.sequence);
         }
+
+        // Trigger overdue check immediately
+        await this.checkAndNotifyOverdueActions(savedPlan.planId);
+
         return planWithActions;
     }
 
     async getPlansByOpportunity(opportunityId: string) {
         const plans = await this.planRepository.find({
             where: { opportunity: { opportunityId } } as any,
-            relations: ["actions"],
+            relations: ["actions", "actions.assignedTo"],
             order: {
                 createdAt: "DESC"
             }
@@ -170,6 +178,11 @@ export class ActivityPlanService {
                 plan.actions.sort((a, b) => a.sequence - b.sequence);
             }
         });
+
+        // Check for overdue actions and send notifications
+        for (const plan of plans) {
+            await this.checkAndNotifyOverdueActions(plan.planId);
+        }
 
         return plans;
     }
@@ -232,16 +245,24 @@ export class ActivityPlanService {
         });
 
         await this.actionRepository.save(actionsToSave);
-        const planWithActions = await this.planRepository.findOne({ where: { planId: savedPlan.planId }, relations: ["actions"] });
+        const planWithActions = await this.planRepository.findOne({
+            where: { planId: savedPlan.planId },
+            relations: ["actions", "actions.assignedTo"]
+        });
+
         if (planWithActions && planWithActions.actions) {
             planWithActions.actions.sort((a, b) => a.sequence - b.sequence);
         }
+
+        // Trigger overdue check immediately
+        await this.checkAndNotifyOverdueActions(savedPlan.planId);
+
         return planWithActions;
     }
 
     async autoAssignPlanToOpportunity(opportunity: Oppurtunity, user: any) {
         try {
-            console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] 🔍 Starting auto-assignment for opportunity:', opportunity.opportunityId);
+            console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udd0d Starting auto-assignment for opportunity:', opportunity.opportunityId);
 
             // Fetch Account to get Category and Segment
             const account = await AppDataSource.getRepository(Account).findOne({
@@ -249,12 +270,12 @@ export class ActivityPlanService {
             });
 
             if (!account) {
-                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ⚠️ No account found for opportunity');
+                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u26a0\ufe0f No account found for opportunity');
                 return;
             }
 
             if (!account.clientCategory || !account.segment) {
-                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ⚠️ Account missing clientCategory or segment:', {
+                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u26a0\ufe0f Account missing clientCategory or segment:', {
                     accountId: account.accountId,
                     hasCategory: !!account.clientCategory,
                     hasSegment: !!account.segment
@@ -262,7 +283,7 @@ export class ActivityPlanService {
                 return;
             }
 
-            console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ✓ Account found:', {
+            console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u2713 Account found:', {
                 accountId: account.accountId,
                 clientCategory: account.clientCategory,
                 segment: account.segment
@@ -291,10 +312,10 @@ export class ActivityPlanService {
                 ]
             });
 
-            console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✓ Found ${templates.length} matching template(s)`);
+            console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2713 Found ${templates.length} matching template(s)`);
 
             if (templates.length === 0) {
-                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ⚠️ No matching templates found for:', {
+                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u26a0\ufe0f No matching templates found for:', {
                     category: account.clientCategory,
                     segment: account.segment,
                     organizationId: opportunity.organization?.organisationId
@@ -302,12 +323,12 @@ export class ActivityPlanService {
             }
 
             for (const template of templates) {
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] 📋 Applying template: ${template.name} (${template.templateId})`);
+                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udccb Applying template: ${template.name} (${template.templateId})`);
                 await this.applyTemplate(opportunity.opportunityId, template.templateId, user);
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✅ Template applied successfully`);
+                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2705 Template applied successfully`);
             }
         } catch (error) {
-            console.error('[ACTIVITY_PLAN_AUTO_ASSIGN] ❌ Error in autoAssignPlanToOpportunity:', error);
+            console.error('[ACTIVITY_PLAN_AUTO_ASSIGN] \u274c Error in autoAssignPlanToOpportunity:', error);
             // Don't throw - we don't want to block opportunity creation if template assignment fails
         }
     }
@@ -348,10 +369,10 @@ export class ActivityPlanService {
                 const oppId = planWithActions.opportunity?.opportunityId || (planWithActions as any).opportunityId || (action.plan as any).opportunityId;
 
                 if (!oppId) {
-                    console.error('[ACTIVITY_PLAN] ❌ Could not find opportunity ID for plan:', planWithActions.planId);
+                    console.error('[ACTIVITY_PLAN] \u274c Could not find opportunity ID for plan:', planWithActions.planId);
                 }
 
-                console.log(`[ACTIVITY_PLAN] 🎯 Action "${status}" status received for stage: ${decryptedStageName}`);
+                console.log(`[ACTIVITY_PLAN] \ud83c\udfaf Action "${status}" status received for stage: ${decryptedStageName}`);
 
                 // 1. Find the first pending/in-progress task across the WHOLE plan to determine active stage
                 const nextPendingAction = planWithActions.actions
@@ -376,14 +397,14 @@ export class ActivityPlanService {
                 }
 
                 if (targetCRMStage) {
-                    console.log(`[ACTIVITY_PLAN] 🚀 Updating opportunity "${oppId}" stage to "${targetCRMStage}" based on next activity: "${nextPendingAction?.actionName || 'Finalized'}"`);
+                    console.log(`[ACTIVITY_PLAN] \ud83d\ude80 Updating opportunity "${oppId}" stage to "${targetCRMStage}" based on next activity: "${nextPendingAction?.actionName || 'Finalized'}"`);
                     try {
                         const updateRes = await this.opportunityRepository.update(oppId, {
                             stage: targetCRMStage as any
                         });
-                        console.log(`[ACTIVITY_PLAN] ✅ Stage update result:`, updateRes);
+                        console.log(`[ACTIVITY_PLAN] \u2705 Stage update result:`, updateRes);
                     } catch (err) {
-                        console.error(`[ACTIVITY_PLAN] ❌ Failed to update opportunity stage:`, err);
+                        console.error(`[ACTIVITY_PLAN] \u274c Failed to update opportunity stage:`, err);
                     }
                 }
 
@@ -404,12 +425,17 @@ export class ActivityPlanService {
                             const dueStr = dayjs(nextAction.dueDate).format('DD MMM, hh:mm A');
                             const body = `Proposal: ${decrypt(planWithActions.opportunity.title)}\nStage: ${nextAction.stageName}\nDue: ${dueStr}`;
 
-                            console.log(`[ACTIVITY_PLAN] 🔔 Sending reminder for next action to user: ${owner.userId}`);
+                            console.log(`[ACTIVITY_PLAN] \ud83d\udd14 Sending reminder for next action to user: ${owner.userId}`);
                             await sendMulticastNotifications(tokens, title, dueStr, body);
                         }
                     }
                 }
             }
+        }
+
+        // Check for overdue actions in this plan after status update
+        if (action.plan) {
+            await this.checkAndNotifyOverdueActions(action.plan.planId);
         }
 
         return await this.actionRepository.findOne({ where: { actionId } });
@@ -428,7 +454,8 @@ export class ActivityPlanService {
             modifiedBy: user.userId
         } as any);
 
-        return await this.actionRepository.save(action);
+        const savedAction = await this.actionRepository.save(action);
+        return await this.actionRepository.findOne({ where: { actionId: savedAction.actionId } });
     }
 
     async updateAction(actionId: string, actionData: any, user: any) {
@@ -439,7 +466,8 @@ export class ActivityPlanService {
         action.updatedAt = new Date();
         action.modifiedBy = user.userId;
 
-        return await this.actionRepository.save(action);
+        await this.actionRepository.save(action);
+        return await this.actionRepository.findOne({ where: { actionId } });
     }
 
     async deleteAction(actionId: string) {
@@ -447,5 +475,174 @@ export class ActivityPlanService {
         if (!action) throw new Error("Action not found");
 
         return await this.actionRepository.remove(action);
+    }
+
+    // Helper method to check and notify overdue actions for a specific plan
+    async checkAndNotifyOverdueActions(planId: string) {
+        try {
+            const { notificationService } = await import("./notification.service");
+            const { ActivityPlanActionStatus } = await import("../common/utils");
+
+            const plan = await this.planRepository.findOne({
+                where: { planId },
+                relations: ["actions", "actions.assignedTo", "opportunity", "opportunity.owner"]
+            });
+
+            if (!plan || !plan.actions) return;
+
+            const currentDate = new Date();
+
+            for (const action of plan.actions) {
+                // Check if action is overdue
+                if (
+                    (action.status === ActivityPlanActionStatus.PENDING ||
+                        action.status === ActivityPlanActionStatus.IN_PROGRESS) &&
+                    action.dueDate &&
+                    new Date(action.dueDate) < currentDate
+                ) {
+                    // Determine recipient
+                    const recipientUserId = action.assignedTo?.userId ||
+                        (plan.opportunity as any)?.owner?.userId ||
+                        (plan.opportunity as any)?.ownerId;
+
+                    if (!recipientUserId) continue;
+
+                    // Check if we already sent a notification today
+                    const { Notification } = await import("../entity/Notification");
+                    const notificationRepository = AppDataSource.getRepository(Notification);
+
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const existingNotification = await notificationRepository
+                        .createQueryBuilder("notification")
+                        .where("notification.userId = :userId", { userId: recipientUserId })
+                        .andWhere("notification.entityId = :entityId", { entityId: action.actionId })
+                        .andWhere("notification.type = :type", { type: "activity" })
+                        .andWhere("notification.createdAt >= :today", { today })
+                        .getOne();
+
+                    if (existingNotification) continue;
+
+                    // Calculate how overdue
+                    const daysOverdue = Math.floor(
+                        (currentDate.getTime() - new Date(action.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+                    );
+
+                    const overdueText = daysOverdue === 0
+                        ? "today"
+                        : daysOverdue === 1
+                            ? "1 day ago"
+                            : `${daysOverdue} days ago`;
+
+                    // Get opportunity title
+                    let opportunityTitle = "Unknown Opportunity";
+                    if (plan.opportunity) {
+                        opportunityTitle = decrypt(plan.opportunity.title);
+                    }
+
+                    // Create notification
+                    await notificationService.createNotification({
+                        userId: recipientUserId,
+                        title: `Overdue: ${action.actionName}`,
+                        message: `Activity "${action.actionName}" for ${opportunityTitle} was due ${overdueText}. Please complete this action.`,
+                        type: "activity",
+                        entityId: action.actionId,
+                        entityType: "activity_plan_action",
+                        actionUrl: `/opportunity/${(plan.opportunity as any)?.opportunityId}`,
+                        icon: "clock-circle",
+                    });
+
+                    console.log(`[OVERDUE_NOTIFICATION] ✅ Sent for action: ${action.actionName}`);
+                }
+            }
+        } catch (error) {
+            console.error('[OVERDUE_NOTIFICATION] \u274c Error checking overdue actions:', error);
+        }
+    }
+
+    // Method to check all overdue actions for a specific user across all plans
+    async checkAllOverdueActionsForUser(userId: string) {
+        try {
+            const { notificationService } = await import("./notification.service");
+            const { ActivityPlanActionStatus } = await import("../common/utils");
+            const { ActivityPlanAction } = await import("../entity/ActivityPlanAction");
+
+            const currentDate = new Date();
+
+            // Find overdue actions for this user
+            const overdueActions = await this.actionRepository
+                .createQueryBuilder("action")
+                .leftJoinAndSelect("action.plan", "plan")
+                .leftJoinAndSelect("plan.opportunity", "opportunity")
+                .leftJoinAndSelect("opportunity.owner", "owner")
+                .leftJoinAndSelect("action.assignedTo", "assignedTo")
+                .where("action.status IN (:...statuses)", {
+                    statuses: [ActivityPlanActionStatus.PENDING, ActivityPlanActionStatus.IN_PROGRESS]
+                })
+                .andWhere("action.dueDate < :currentDate", { currentDate })
+                .andWhere(
+                    "(assignedTo.userId = :userId OR (assignedTo.userId IS NULL AND (owner.userId = :userId OR opportunity.ownerId = :userId)))",
+                    { userId }
+                )
+                .getMany();
+
+            if (overdueActions.length === 0) return;
+
+            for (const action of overdueActions) {
+                // Determine recipient
+                const recipientUserId = userId;
+
+                // Check if we already sent a notification today
+                const { Notification } = await import("../entity/Notification");
+                const notificationRepository = AppDataSource.getRepository(Notification);
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const existingNotification = await notificationRepository
+                    .createQueryBuilder("notification")
+                    .where("notification.userId = :userId", { userId: recipientUserId })
+                    .andWhere("notification.entityId = :entityId", { entityId: action.actionId })
+                    .andWhere("notification.type = :type", { type: "activity" })
+                    .andWhere("notification.createdAt >= :today", { today })
+                    .getOne();
+
+                if (existingNotification) continue;
+
+                // Calculate how overdue
+                const daysOverdue = Math.floor(
+                    (currentDate.getTime() - new Date(action.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+                );
+
+                const overdueText = daysOverdue === 0
+                    ? "today"
+                    : daysOverdue === 1
+                        ? "1 day ago"
+                        : `${daysOverdue} days ago`;
+
+                // Get opportunity title
+                let opportunityTitle = "Unknown Opportunity";
+                if (action.plan?.opportunity) {
+                    opportunityTitle = decrypt(action.plan.opportunity.title);
+                }
+
+                // Create notification
+                await notificationService.createNotification({
+                    userId: recipientUserId,
+                    title: `Overdue: ${action.actionName}`,
+                    message: `Activity "${action.actionName}" for ${opportunityTitle} was due ${overdueText}. Please complete this action.`,
+                    type: "activity",
+                    entityId: action.actionId,
+                    entityType: "activity_plan_action",
+                    actionUrl: `/opportunity/${(action.plan?.opportunity as any)?.opportunityId}`,
+                    icon: "clock-circle",
+                });
+
+                console.log(`[OVERDUE_NOTIFICATION] ✅ User-wide Sent for action: ${action.actionName}`);
+            }
+        } catch (error) {
+            console.error('[OVERDUE_NOTIFICATION] \u274c Error in checkAllOverdueActionsForUser:', error);
+        }
     }
 }
