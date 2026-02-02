@@ -4,14 +4,14 @@ import { makeResponse, decrypt } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { ContactSchemaType } from "../schemas/contact.schema";
 import { Contact } from "../entity/Contact";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
 const _contactServices = new ContactServices();
 
 class ContactController {
-  async getAllContacts(request: CustomRequest, response: Response) {
+  async getAllContacts(request: AuthenticatedRequest, response: Response) {
     try {
       const contacts = await _contactServices.getAllContacts(request.user);
       return makeResponse(response, 200, true, "All contacts", contacts);
@@ -19,7 +19,7 @@ class ContactController {
       errorHandler(response, error.message);
     }
   }
-  async getContacts(request: CustomRequest, response: Response) {
+  async getContacts(request: AuthenticatedRequest, response: Response) {
     try {
       let page = Number(request.query.page);
       let limit = Number(request.query.limit);
@@ -106,7 +106,7 @@ class ContactController {
     }
   }
 
-  async bulkDeleteContact(request: CustomRequest, response: Response) {
+  async bulkDeleteContact(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const auth_time = request.user.auth_time;
@@ -151,7 +151,7 @@ class ContactController {
     }
   }
 
-  async createContact(request: CustomRequest, response: Response) {
+  async createContact(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const contact = await AppDataSource.transaction(
@@ -213,7 +213,7 @@ class ContactController {
     }
   }
 
-  async updateContact(request: CustomRequest, response: Response) {
+  async updateContact(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const contactId: string = request.params.contactId;
@@ -289,7 +289,7 @@ class ContactController {
     }
   }
 
-  async deleteContact(request: CustomRequest, response: Response) {
+  async deleteContact(request: AuthenticatedRequest, response: Response) {
     try {
       const contactId: string = request.params.contactId;
       const contact = await AppDataSource.transaction(
@@ -319,7 +319,7 @@ class ContactController {
     }
   }
 
-  async partiallyUpdateContact(request: CustomRequest, response: Response) {
+  async partiallyUpdateContact(request: AuthenticatedRequest, response: Response) {
     try {
       const contactId: string = request.params.contactId as string;
       if (!contactId)
@@ -367,7 +367,7 @@ class ContactController {
     }
   }
 
-  async UploadContactExcel(request: CustomRequest, response: Response) {
+  async UploadContactExcel(request: AuthenticatedRequest, response: Response) {
     try {
       const file = request.file;
 
@@ -422,7 +422,7 @@ class ContactController {
     }
   }
 
-  async getContactByAccountId(request: CustomRequest, response: Response) {
+  async getContactByAccountId(request: AuthenticatedRequest, response: Response) {
     try {
       let page = Number(request.query.page);
       let limit = Number(request.query.limit);
@@ -488,7 +488,7 @@ class ContactController {
   }
 
   async getContactsByOrgnizationIdAndOwnerId(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -511,7 +511,7 @@ class ContactController {
     }
   }
 
-  async uploadContactsUsingVCF(request: CustomRequest, response: Response) {
+  async uploadContactsUsingVCF(request: AuthenticatedRequest, response: Response) {
     const file = request.file;
     if (!file) {
       return makeResponse(response, 400, false, "File is required", null);

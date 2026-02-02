@@ -5,7 +5,8 @@ import { decrypt, roleNames, subscriptionStatus } from "../common/utils";
 import { AppDataSource } from "../data-source";
 import { Subscription } from "../entity/Subscription";
 import { User } from "../entity/User";
-import EmailManager from "./email-manager.service";
+import { EmailNotificationService } from "./emailNotification.service";
+import { EmailType } from "../entity/SentEmailLog";
 import SubscriptionService from "./subscription.service";
 
 class CronService {
@@ -71,9 +72,20 @@ class CronService {
   
   `;
 
-    const emailManager = new EmailManager();
+    const emailService = new EmailNotificationService();
     if (ownerUser.role === roleNames.ADMIN) {
-      await emailManager.sendEmail([ownerUser.email], subject, html);
+      try {
+        const result = await emailService.sendEmail({
+          to: ownerUser.email,
+          subject: subject,
+          bodyHtml: html,
+          emailType: EmailType.CUSTOM,
+          organizationId: ownerUser.orgId
+        });
+        console.log(`✓ Activity reminder queued for admin: ${result.jobId}`);
+      } catch (error: any) {
+        console.error(`Failed to queue activity reminder for ${ownerUser.email}:`, error.message);
+      }
     } else {
       //find admin
       const userRepository = AppDataSource.getRepository(User);
@@ -90,12 +102,19 @@ class CronService {
       if (admin) {
         const adminEmail = decrypt(admin.email);
 
-        await emailManager.sendEmailWithCC(
-          [ownerUser.email],
-          [adminEmail],
-          subject,
-          html
-        );
+        try {
+          const result = await emailService.sendEmail({
+            to: ownerUser.email,
+            cc: [adminEmail],
+            subject: subject,
+            bodyHtml: html,
+            emailType: EmailType.CUSTOM,
+            organizationId: ownerUser.orgId
+          });
+          console.log(`✓ Activity reminder queued with CC to admin: ${result.jobId}`);
+        } catch (error: any) {
+          console.error(`Failed to queue activity reminder for ${ownerUser.email}:`, error.message);
+        }
       }
     }
   }

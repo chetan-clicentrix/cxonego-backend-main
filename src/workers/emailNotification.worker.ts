@@ -90,7 +90,7 @@ async function createSentEmailLog(data: EmailJobData, status: EmailStatus, messa
         contactId: data.contactId,
         uploadSessionId: data.uploadSessionId,
         templateId: data.templateId,
-        sentById: data.sentById,
+        sentById: data.sentById ?? undefined, // Convert null to undefined for TypeScript
         organizationId: data.organizationId
     });
 

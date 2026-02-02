@@ -2,12 +2,12 @@ import { Response } from "express";
 import PlanServices from "../services/plan.service";
 import { makeResponse } from "../common/utils";
 import { errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 const planService = new PlanServices();
 
 class PlanController {
-  async addPlan(request: CustomRequest, response: Response) {
+  async addPlan(request: AuthenticatedRequest, response: Response) {
     try {
       const result = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -34,7 +34,7 @@ class PlanController {
     }
   }
 
-  async getAllPlans(request: CustomRequest, response: Response) {
+  async getAllPlans(request: AuthenticatedRequest, response: Response) {
     try {
       const data = await planService.getAllPlans(
         request
@@ -60,7 +60,7 @@ class PlanController {
     }
   }
 
-  async getPlanById(request: CustomRequest, response: Response) {
+  async getPlanById(request: AuthenticatedRequest, response: Response) {
     try {
       const planId = request.params.planId;
       const plan = await planService.getPlanById(planId);
@@ -77,7 +77,7 @@ class PlanController {
     }
   }
 
-  async updatePlan(request: CustomRequest, response: Response) {
+  async updatePlan(request: AuthenticatedRequest, response: Response) {
     try {
       const planId = request.params.planId;
       const plan = await AppDataSource.transaction(
@@ -102,7 +102,7 @@ class PlanController {
     }
   }
 
-  async deletePlan(request: CustomRequest, response: Response) {
+  async deletePlan(request: AuthenticatedRequest, response: Response) {
     try {
       const planId = request.params.planId;
       await planService.deletePlan(planId);
@@ -119,7 +119,7 @@ class PlanController {
     }
   }
 
-  async bulkDeletePlans(request: CustomRequest, response: Response) {
+  async bulkDeletePlans(request: AuthenticatedRequest, response: Response) {
     try {
       const payload = request.body.planIds;
       const plans = await AppDataSource.transaction(

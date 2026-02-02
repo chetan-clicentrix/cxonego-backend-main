@@ -18,7 +18,7 @@ export interface EmailJobData {
     contactId?: string;
     uploadSessionId?: string;
     templateId?: string;
-    sentById: string;
+    sentById: string | null; // Can be null for system-generated emails
     organizationId?: string;
 }
 

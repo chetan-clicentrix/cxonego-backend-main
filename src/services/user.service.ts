@@ -17,6 +17,7 @@ import {
   userDecryption,
 } from "./decryption.service";
 import { Request } from "express";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { decrypt } from "../common/utils";
 import {
   IsIinvitationRevokedSchemaType,
@@ -799,10 +800,13 @@ class UserServices {
     };
   }
 
-  updateUserRole = async (request: CustomRequest) => {
+  updateUserRole = async (request: AuthenticatedRequest) => {
     const { userId, role }: UpdateUserRoleSchemaType = request.body;
 
     const userInfo = request.user;
+    if (!userInfo) {
+      throw new ValidationFailedError("User information not found");
+    }
     const userRepository = AppDataSource.getRepository(User);
     const roleRepository = AppDataSource.getRepository(Role);
     const adminUser = await userRepository.findOneBy({
