@@ -347,7 +347,7 @@ class DashboardServices {
       }
 
       //chart percentage count
-      const allCategories = ["New", "In Progress", "Closed", "Qualified"];
+      const allCategories = ["New", "In Progress", "Qualified", "Closed"];
       const countsMap = new Map<string, number>();
       // Initialize countsMap with 0 for each category
       allCategories.forEach((category) => {
@@ -381,27 +381,29 @@ class DashboardServices {
       })) as statusdataType[];
 
       //chart category count
-      const countsMap2 = new Map<string, number>();
-      // Initialize countsMap with 0 for each category
+      const countsMap2 = new Map<string, { count: number; revenue: number }>();
       allCategories.forEach((category) => {
-        countsMap2.set(category, 0);
+        countsMap2.set(category, { count: 0, revenue: 0 });
       });
 
-      let catcountsData: { status: string; count: number }[] = [];
-      // Initialize countsMap with 0 for each category
       leads.forEach((lead) => {
         const status = lead.status;
+        const revenue = parseFloat(lead.price) || 0;
         if (countsMap2.has(status)) {
-          countsMap2.set(status, countsMap2.get(status)! + 1);
-        } else {
-          countsMap2.set(status, 1);
+          const current = countsMap2.get(status)!;
+          countsMap2.set(status, {
+            count: current.count + 1,
+            revenue: current.revenue + revenue
+          });
         }
       });
+
       // Convert countsMap to an array of objects
-      catcountsData = Array.from(countsMap2, ([status, count]) => ({
+      let catcountsData = Array.from(countsMap2, ([status, data]) => ({
         status,
-        count,
-      })) as categorycountdataType[];
+        count: data.count,
+        revenue: data.revenue
+      })) as any;
       //total open leads
       const newLeadsCount = leads.reduce((count, lead) => {
         if (lead.status === "New") {
@@ -742,25 +744,33 @@ class DashboardServices {
       })) as stagedataType[];
 
       //chart category count
-      const countsMap2 = new Map<string, number>();
+      const countsMap2 = new Map<string, { count: number; revenue: number }>();
       allCategories.forEach((category) => {
-        countsMap2.set(category, 0);
+        countsMap2.set(category, { count: 0, revenue: 0 });
       });
-
-      let catcountsData: { stage: string; count: number }[] = [];
 
       opportunities.forEach((opportunity) => {
         const stage = opportunity.stage;
+        const probability = parseInt(opportunity.probability, 10);
+        const estimatedRevenue = parseFloat(opportunity.estimatedRevenue);
+        const calculatedRevenue = !isNaN(probability) && !isNaN(estimatedRevenue)
+          ? (estimatedRevenue * probability) / 100
+          : 0;
+
         if (countsMap2.has(stage)) {
-          countsMap2.set(stage, countsMap2.get(stage)! + 1);
-        } else {
-          countsMap2.set(stage, 1);
+          const current = countsMap2.get(stage)!;
+          countsMap2.set(stage, {
+            count: current.count + 1,
+            revenue: current.revenue + calculatedRevenue
+          });
         }
       });
-      catcountsData = Array.from(countsMap2, ([stage, count]) => ({
+
+      let catcountsData = Array.from(countsMap2, ([stage, data]) => ({
         stage,
-        count,
-      })) as categoryStageOpportunityDataType[];
+        count: data.count,
+        revenue: data.revenue
+      })) as any;
 
       let monthlyRevenue: { [monthName: string]: number } = {};
       const currentYear = new Date().getFullYear();
