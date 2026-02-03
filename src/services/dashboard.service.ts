@@ -232,7 +232,8 @@ class DashboardServices {
     limit: number | undefined,
     search: string | undefined,
     status: string | undefined,
-    organizationId: string | null
+    organizationId: string | null,
+    groupBy?: string
   ) {
     try {
       const countryArray: string[] = [];
@@ -346,61 +347,54 @@ class DashboardServices {
         });
       }
 
-      //chart percentage count
-      const allCategories = ["New", "In Progress", "Qualified", "Closed"];
+      // Chart aggregation
+      const groupField = groupBy || "status";
       const countsMap = new Map<string, number>();
-      // Initialize countsMap with 0 for each category
-      allCategories.forEach((category) => {
-        countsMap.set(category, 0);
-      });
+      const countsMap2 = new Map<string, { count: number; revenue: number }>();
 
-      // Count the leads status-wise
-      leads.forEach((lead) => {
-        const status = lead.status;
-        if (countsMap.has(status)) {
-          countsMap.set(status, countsMap.get(status)! + 1);
-        } else {
-          countsMap.set(status, 1);
+      leads.forEach((lead: any) => {
+        let key = lead[groupField];
+
+        if (groupField === "owner") {
+          key = lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : "No Owner";
+        } else if (groupField === "company") {
+          key = lead.company ? lead.company.accountName : "No Account";
+        } else if (groupField === "contact") {
+          key = lead.contact ? lead.contact.fullName : "No Contact";
         }
+
+        if (!key) key = "Unknown";
+
+        // Percentage counts
+        countsMap.set(key, (countsMap.get(key) || 0) + 1);
+
+        // Category counts (with revenue)
+        const revenue = parseFloat(lead.price) || 0;
+        const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
+        countsMap2.set(key, {
+          count: currentBatch.count + 1,
+          revenue: currentBatch.revenue + revenue
+        });
       });
 
-      // Convert countsMap to an array of objects
-      let counts = Array.from(countsMap, ([status, count]) => ({
-        status,
+      // Convert maps to arrays
+      let counts = Array.from(countsMap, ([label, count]) => ({
+        status: label,
         count,
       }));
 
-      // Calculate total count
-      const totalCount = counts.reduce((total, { count }) => total + count, 0);
+      // Calculate total count for percentages
+      const totalCount = leads.length;
 
       // Calculate percentages
       const countsData = counts.map(({ status, count }) => ({
         status,
         percentage:
-          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : 0, // Check if totalCount is 0
+          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : "0",
       })) as statusdataType[];
 
-      //chart category count
-      const countsMap2 = new Map<string, { count: number; revenue: number }>();
-      allCategories.forEach((category) => {
-        countsMap2.set(category, { count: 0, revenue: 0 });
-      });
-
-      leads.forEach((lead) => {
-        const status = lead.status;
-        const revenue = parseFloat(lead.price) || 0;
-        if (countsMap2.has(status)) {
-          const current = countsMap2.get(status)!;
-          countsMap2.set(status, {
-            count: current.count + 1,
-            revenue: current.revenue + revenue
-          });
-        }
-      });
-
-      // Convert countsMap to an array of objects
-      let catcountsData = Array.from(countsMap2, ([status, data]) => ({
-        status,
+      let catcountsData = Array.from(countsMap2, ([label, data]) => ({
+        status: label,
         count: data.count,
         revenue: data.revenue
       })) as any;
@@ -607,7 +601,8 @@ class DashboardServices {
     revenueRange: RevenueRangeParamsType,
     wonReason: string[],
     lostReason: string[],
-    organizationId: string | null
+    organizationId: string | null,
+    groupBy?: string
   ) {
     try {
       const leadSourceArray: string[] = [];
@@ -704,70 +699,61 @@ class DashboardServices {
         }
       }
 
-      //chart percentage count
-      const allCategories = [
-        stageEnum.DOCUMENT_COLLECTION,
-        stageEnum.PROPOSAL_PREPARATION,
-        stageEnum.LOGIN_DESK,
-        stageEnum.QUERY,
-        stageEnum.QUERY_RESOLUTION,
-        stageEnum.APPROVED,
-        stageEnum.DISBURSED,
-        stageEnum.WON,
-        stageEnum.LOST,
-      ];
+      // Chart aggregation
+      const groupField = groupBy || "stage";
       const countsMap = new Map<string, number>();
-      allCategories.forEach((category) => {
-        countsMap.set(category, 0);
-      });
-
-      opportunities.forEach((oppurtunity) => {
-        const stage = oppurtunity.stage;
-        if (countsMap.has(stage)) {
-          countsMap.set(stage, countsMap.get(stage)! + 1);
-        } else {
-          countsMap.set(stage, 1);
-        }
-      });
-
-      let counts = Array.from(countsMap, ([stage, count]) => ({
-        stage,
-        count,
-      }));
-
-      const totalCount = counts.reduce((total, { count }) => total + count, 0);
-
-      const countsData = counts.map(({ stage, count }) => ({
-        stage,
-        percentage:
-          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : 0, // Check if totalCount is 0
-      })) as stagedataType[];
-
-      //chart category count
       const countsMap2 = new Map<string, { count: number; revenue: number }>();
-      allCategories.forEach((category) => {
-        countsMap2.set(category, { count: 0, revenue: 0 });
-      });
 
-      opportunities.forEach((opportunity) => {
-        const stage = opportunity.stage;
+      opportunities.forEach((opportunity: any) => {
+        let key = opportunity[groupField];
+
+        if (groupField === "owner") {
+          key = opportunity.owner ? `${opportunity.owner.firstName} ${opportunity.owner.lastName}` : "No Owner";
+        } else if (groupField === "company") {
+          key = opportunity.company ? opportunity.company.accountName : "No Account";
+        } else if (groupField === "contact") {
+          key = opportunity.contact ? opportunity.contact.fullName : "No Contact";
+        } else if (groupField === "leadSource") {
+          key = opportunity.Lead ? opportunity.Lead.leadSource : "No Source";
+        }
+
+        if (!key) key = "Unknown";
+
+        // Percentage counts
+        countsMap.set(key, (countsMap.get(key) || 0) + 1);
+
+        // Category counts (with revenue)
         const probability = parseInt(opportunity.probability, 10);
         const estimatedRevenue = parseFloat(opportunity.estimatedRevenue);
         const calculatedRevenue = !isNaN(probability) && !isNaN(estimatedRevenue)
           ? (estimatedRevenue * probability) / 100
           : 0;
 
-        if (countsMap2.has(stage)) {
-          const current = countsMap2.get(stage)!;
-          countsMap2.set(stage, {
-            count: current.count + 1,
-            revenue: current.revenue + calculatedRevenue
-          });
-        }
+        const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
+        countsMap2.set(key, {
+          count: currentBatch.count + 1,
+          revenue: currentBatch.revenue + calculatedRevenue
+        });
       });
 
-      let catcountsData = Array.from(countsMap2, ([stage, data]) => ({
+      // Convert maps to arrays
+      let counts = Array.from(countsMap, ([label, count]) => ({
+        stage: label,
+        count,
+      }));
+
+      // Calculate total count for percentages
+      const totalCount = opportunities.length;
+
+      // Calculate percentages
+      const countsData = counts.map(({ stage, count }) => ({
         stage,
+        percentage:
+          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : "0",
+      })) as stagedataType[];
+
+      let catcountsData = Array.from(countsMap2, ([label, data]) => ({
+        stage: label,
         count: data.count,
         revenue: data.revenue
       })) as any;

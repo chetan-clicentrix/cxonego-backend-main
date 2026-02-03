@@ -133,6 +133,10 @@ export const opportunityDecryption = async (opportunity: Oppurtunity) => {
     opportunity.estimatedRevenue = decrypt(opportunity.estimatedRevenue);
   if (opportunity?.actualRevenue)
     opportunity.actualRevenue = decrypt(opportunity.actualRevenue);
+  if (opportunity?.loanType)
+    opportunity.loanType = decrypt(opportunity.loanType);
+  if (opportunity?.loanAmount)
+    opportunity.loanAmount = decrypt(opportunity.loanAmount);
 
   return opportunity;
 };
