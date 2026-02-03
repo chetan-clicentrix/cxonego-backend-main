@@ -267,6 +267,16 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
           (oppurtunity?.probability &&
             oppurtunity?.probability
               ?.toString()
@@ -772,6 +782,8 @@ class opportunityService {
       "wonLostDescription",
       "estimatedRevenue",
       "actualRevenue",
+      "loanType",
+      "loanAmount",
     ];
 
     for (let key in updatedOpportunity) {
@@ -1067,6 +1079,16 @@ class opportunityService {
               .includes(String(search).toLowerCase())) ||
           (oppurtunity?.actualRevenue &&
             oppurtunity?.actualRevenue
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -1384,6 +1406,16 @@ class opportunityService {
               .includes(String(search).toLowerCase())) ||
           (oppurtunity?.actualRevenue &&
             oppurtunity?.actualRevenue
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||

@@ -216,6 +216,18 @@ export class Oppurtunity extends CustomBaseEntity {
     })
     applicantType: ApplicantType;
 
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    loanType: string;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    loanAmount: string;
+
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
@@ -226,5 +238,7 @@ export class Oppurtunity extends CustomBaseEntity {
         if (this.wonLostDescription) this.wonLostDescription = encryption(this.wonLostDescription);
         if (this.estimatedRevenue) this.estimatedRevenue = encryption(this.estimatedRevenue);
         if (this.actualRevenue) this.actualRevenue = encryption(this.actualRevenue);
+        if (this.loanType) this.loanType = encryption(this.loanType);
+        if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
     }
 }
