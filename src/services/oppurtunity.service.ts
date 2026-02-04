@@ -448,10 +448,25 @@ class opportunityService {
     }
 
     if (payload.company) {
-      const companydata = await AppDataSource.getRepository(Account).findOne({
+      const companyRepo = transactionEntityManager.getRepository(Account);
+      const companydata = await companyRepo.findOne({
         where: { accountId: String(payload.company) },
       });
       if (companydata) {
+        // Update Account with Category/Segment if provided in payload (e.g. from lead qualification)
+        const extraPayload = payload as any;
+        let updateNeeded = false;
+        if (extraPayload.category) {
+          companydata.clientCategory = extraPayload.category;
+          updateNeeded = true;
+        }
+        if (extraPayload.segment) {
+          companydata.segment = extraPayload.segment;
+          updateNeeded = true;
+        }
+        if (updateNeeded) {
+          await companyRepo.save(companydata);
+        }
         payload.company = companydata;
       } else {
         throw new ResourceNotFoundError("Account not found");
@@ -465,7 +480,7 @@ class opportunityService {
     const opportunity = await opportunityInstance.save();
 
     // Auto-assign activity plans based on category/segment
-    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user);
+    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user, transactionEntityManager);
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(
       transactionEntityManager,

@@ -81,7 +81,6 @@ class DashboardController {
             const salesPerson: string = request.body.salesPerson as string;
             const revenueRange: RevenueRangeParamsType = request.body.estimatedRevenue;
             let dateRange: RangeDateType = request.body.dateRange as RangeDateType;
-
             let page: number | undefined = Number(request.query.page) || undefined;
             let limit: number | undefined = Number(request.query.limit) || undefined;
             let search: string | undefined = request.query.search as string || undefined;
@@ -90,10 +89,14 @@ class DashboardController {
             const ownerId: string = request.user.userId;
             const role: Role[] = request.user.role;
             const organizationId: string | null = request.user.organizationId;
+            let rating: string[] | undefined = request.body.rating as string[] || undefined;
+            let loanType: string[] | undefined = request.body.loanType as string[] || undefined;
 
-            const leads = await dashboardServices.getLeadsDashboardData(ownerId, role,
-                country, state, city, source, salesPerson, revenueRange, dateRange, page,
-                limit, search, status, organizationId, groupBy);
+            const leads = await dashboardServices.getLeadsDashboardData(
+                ownerId, role, country, state, city, source, salesPerson,
+                revenueRange, dateRange, page, limit, search, status,
+                organizationId, groupBy, rating, loanType
+            );
             if (!leads) {
                 return makeResponse(response, 200, false, "Leads data not found", null);
             }
@@ -120,11 +123,15 @@ class DashboardController {
             const role: Role[] = request.user.role;
             const wonReason: string[] = request.body.wonReason as string[];
             const lostReason: string[] = request.body.lostReason as string[];
+            const priority: string[] = request.body.priority as string[];
+            const forecastCategory: string[] = request.body.forecastCategory as string[];
             let groupBy: string | undefined = request.body.groupBy as string || undefined;
 
-            const opportunities = await dashboardServices.getOpportunityDashboardData(ownerId, role,
-                currency, source, salesPerson, dateRange, page, limit, search, stage,
-                revenueRange, wonReason, lostReason, organizationId, groupBy);
+            const opportunities = await dashboardServices.getOpportunityDashboardData(
+                ownerId, role, currency, source, salesPerson, dateRange, page, limit,
+                search, stage, revenueRange, wonReason, lostReason, organizationId,
+                groupBy, priority, forecastCategory
+            );
             if (!opportunities) {
                 return makeResponse(response, 200, false, "Opportunity data not found", null);
             }

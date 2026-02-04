@@ -1,10 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, PrimaryColumn, JoinColumn, BeforeInsert, BeforeUpdate, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, PrimaryColumn, JoinColumn, BeforeInsert, BeforeUpdate, ManyToOne, AfterLoad } from "typeorm";
 import { CustomBaseEntity } from "./CustomBaseEntity";
 import { Lead } from "./Lead";
 import { SocialMedia } from "./SocialMedia";
 import { Contact } from "./Contact";
 import { status, statusType } from "../common/utils";
-import { encryption } from "../common/utils";
+import { encryption, decrypt } from "../common/utils";
 import { Oppurtunity } from "./Oppurtunity";
 import { Activity } from "./Activity";
 import { User } from "./User";
@@ -157,5 +157,27 @@ export class Account extends CustomBaseEntity {
         if (this.phone) this.phone = encryption(this.phone);
         if (this.clientCategory) this.clientCategory = encryption(this.clientCategory);
         if (this.segment) this.segment = encryption(this.segment);
+    }
+
+    @AfterLoad()
+    decrypt() {
+        if (this.accountName) this.accountName = decrypt(this.accountName);
+        if (this.industry) this.industry = decrypt(this.industry);
+        if (this.state) this.state = decrypt(this.state);
+        if (this.city) this.city = decrypt(this.city);
+        if (this.companySize) this.companySize = decrypt(this.companySize);
+        if (this.description) this.description = decrypt(this.description);
+        if (this.website) this.website = decrypt(this.website);
+        if (this.businessType) this.businessType = decrypt(this.businessType);
+        if (this.CurrencyCode) this.CurrencyCode = decrypt(this.CurrencyCode);
+        if (this.annualRevenue) this.annualRevenue = decrypt(this.annualRevenue);
+        if (this.address) this.address = decrypt(this.address);
+        if (this.area) this.area = decrypt(this.area);
+        if (this.country) this.country = decrypt(this.country);
+        if (this.email) this.email = decrypt(this.email);
+        if (this.countryCode) this.countryCode = decrypt(this.countryCode);
+        if (this.phone) this.phone = decrypt(this.phone);
+        if (this.clientCategory) this.clientCategory = decrypt(this.clientCategory);
+        if (this.segment) this.segment = decrypt(this.segment);
     }
 }

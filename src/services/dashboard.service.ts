@@ -233,7 +233,9 @@ class DashboardServices {
     search: string | undefined,
     status: string | undefined,
     organizationId: string | null,
-    groupBy?: string
+    groupBy?: string,
+    rating?: string[],
+    loanType?: string[]
   ) {
     try {
       const countryArray: string[] = [];
@@ -272,16 +274,10 @@ class DashboardServices {
           });
       }
 
-      if (country && country.length > 0) {
-        leadRepo.andWhere("lead.country IN (:country)", {
-          country: countryArray,
-        });
-      }
 
-      if (leadSource && leadSource.length > 0) {
-        leadRepo.andWhere("lead.leadSource IN (:leadSource)", {
-          leadSource: leadSourceArray,
-        });
+
+      if (status) {
+        leadRepo.andWhere("lead.status = :status", { status });
       }
 
       leadRepo.orderBy("lead.updatedAt", "DESC");
@@ -321,7 +317,7 @@ class DashboardServices {
         }
       }
 
-      if (state || city || salesPerson) {
+      if (state || city || salesPerson || country || leadSource || rating || loanType) {
         let firstName = "";
         let lastName = "";
         if (salesPerson) {
@@ -342,8 +338,12 @@ class DashboardServices {
             lead.owner?.lastName
               ?.toLowerCase()
               .includes(lastName?.toLowerCase());
+          const matchCountry = !country || country.length === 0 || country.includes(lead.country);
+          const matchLeadSource = !leadSource || leadSource.length === 0 || leadSource.includes(lead.leadSource);
+          const matchRating = !rating || rating.length === 0 || rating.includes(lead.rating);
+          const matchLoanType = !loanType || loanType.length === 0 || loanType.includes(lead.loanType);
 
-          return matchState && matchCity && matchSalesPerson;
+          return matchState && matchCity && matchSalesPerson && matchCountry && matchLeadSource && matchRating && matchLoanType;
         });
       }
 
@@ -434,9 +434,6 @@ class DashboardServices {
         search != undefined ||
         status != undefined
       ) {
-        if (status !== undefined) {
-          leads = leads.filter((lead) => lead.status === status);
-        }
         let searchedData: Lead[] = [];
         let skip = 0;
 
@@ -602,7 +599,9 @@ class DashboardServices {
     wonReason: string[],
     lostReason: string[],
     organizationId: string | null,
-    groupBy?: string
+    groupBy?: string,
+    priority?: string[],
+    forecastCategory?: string[]
   ) {
     try {
       const leadSourceArray: string[] = [];
@@ -636,11 +635,7 @@ class DashboardServices {
           });
       }
 
-      if (leadSource && leadSource.length > 0) {
-        opportunityRepo.andWhere("lead.leadSource IN (:leadSource)", {
-          leadSource: leadSourceArray,
-        });
-      }
+
 
       if (currency) {
         opportunityRepo.andWhere("oppurtunity.currency IN (:currency)", {
@@ -663,6 +658,18 @@ class DashboardServices {
       if (lostReason && lostReason.length > 0) {
         opportunityRepo.andWhere("oppurtunity.lostReason IN (:lostReason)", {
           lostReason: lostReason,
+        });
+      }
+
+      if (priority && priority.length > 0) {
+        opportunityRepo.andWhere("oppurtunity.priority IN (:priority)", {
+          priority: priority,
+        });
+      }
+
+      if (forecastCategory && forecastCategory.length > 0) {
+        opportunityRepo.andWhere("oppurtunity.forecastCategory IN (:forecastCategory)", {
+          forecastCategory: forecastCategory,
         });
       }
 
@@ -697,6 +704,30 @@ class DashboardServices {
             revenueRange
           );
         }
+      }
+
+      if (salesPerson || (leadSource && leadSource.length > 0)) {
+        let firstName = "";
+        let lastName = "";
+        const nameParts: string[] = salesPerson ? salesPerson.split(" ") : [];
+        firstName = nameParts[0] || "";
+        lastName = nameParts[1] || "";
+
+        opportunities = opportunities.filter((opportunity) => {
+          const matchSalesPerson =
+            !salesPerson ||
+            opportunity?.owner?.firstName
+              ?.toLowerCase()
+              .includes(firstName?.toLowerCase()) ||
+            opportunity?.owner?.lastName
+              ?.toLowerCase()
+              .includes(lastName?.toLowerCase());
+
+          const matchLeadSource = !leadSource || leadSource.length === 0 ||
+            (opportunity.Lead && leadSource.includes(opportunity.Lead.leadSource));
+
+          return matchSalesPerson && matchLeadSource;
+        });
       }
 
       // Chart aggregation
@@ -944,27 +975,6 @@ class DashboardServices {
           });
         }
 
-        if (salesPerson) {
-          let firstName = "";
-          let lastName = "";
-          if (salesPerson) {
-            const nameParts: string[] = salesPerson.split(" ");
-            firstName = nameParts[0];
-            lastName = nameParts[1];
-          }
-          skip = 1;
-          searchedData = await opportunities.filter((opportunity) => {
-            const matchSalesPerson =
-              !salesPerson ||
-              opportunity?.owner?.firstName
-                ?.toLowerCase()
-                .includes(firstName?.toLowerCase()) ||
-              opportunity?.owner?.lastName
-                ?.toLowerCase()
-                .includes(lastName?.toLowerCase());
-            return matchSalesPerson;
-          });
-        }
 
         if (searchedData.length === 0 && skip === 0) {
           searchedData = opportunities;

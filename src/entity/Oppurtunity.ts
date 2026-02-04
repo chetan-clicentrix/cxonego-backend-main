@@ -1,5 +1,5 @@
-import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from "typeorm";
-import { Currency, encryption, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage, ApplicantType } from "../common/utils";
+import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne, AfterLoad } from "typeorm";
+import { Currency, encryption, decrypt, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage, ApplicantType } from "../common/utils";
 import { Bank } from "./Bank";
 import { Account } from "./Account";
 import { Activity } from "./Activity";
@@ -240,5 +240,18 @@ export class Oppurtunity extends CustomBaseEntity {
         if (this.actualRevenue) this.actualRevenue = encryption(this.actualRevenue);
         if (this.loanType) this.loanType = encryption(this.loanType);
         if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
+    }
+
+    @AfterLoad()
+    decrypt() {
+        if (this.title) this.title = decrypt(this.title);
+        if (this.description) this.description = decrypt(this.description);
+        if (this.currentNeed) this.currentNeed = decrypt(this.currentNeed);
+        if (this.proposedSolution) this.proposedSolution = decrypt(this.proposedSolution);
+        if (this.wonLostDescription) this.wonLostDescription = decrypt(this.wonLostDescription);
+        if (this.estimatedRevenue) this.estimatedRevenue = decrypt(this.estimatedRevenue);
+        if (this.actualRevenue) this.actualRevenue = decrypt(this.actualRevenue);
+        if (this.loanType) this.loanType = decrypt(this.loanType);
+        if (this.loanAmount) this.loanAmount = decrypt(this.loanAmount);
     }
 }
