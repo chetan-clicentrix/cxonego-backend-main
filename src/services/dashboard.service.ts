@@ -635,11 +635,7 @@ class DashboardServices {
           });
       }
 
-      if (leadSource && leadSource.length > 0) {
-        opportunityRepo.andWhere("lead.leadSource IN (:leadSource)", {
-          leadSource: leadSourceArray,
-        });
-      }
+
 
       if (currency) {
         opportunityRepo.andWhere("oppurtunity.currency IN (:currency)", {
@@ -710,12 +706,12 @@ class DashboardServices {
         }
       }
 
-      if (salesPerson) {
+      if (salesPerson || (leadSource && leadSource.length > 0)) {
         let firstName = "";
         let lastName = "";
-        const nameParts: string[] = salesPerson.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
+        const nameParts: string[] = salesPerson ? salesPerson.split(" ") : [];
+        firstName = nameParts[0] || "";
+        lastName = nameParts[1] || "";
 
         opportunities = opportunities.filter((opportunity) => {
           const matchSalesPerson =
@@ -726,7 +722,11 @@ class DashboardServices {
             opportunity?.owner?.lastName
               ?.toLowerCase()
               .includes(lastName?.toLowerCase());
-          return matchSalesPerson;
+
+          const matchLeadSource = !leadSource || leadSource.length === 0 ||
+            (opportunity.Lead && leadSource.includes(opportunity.Lead.leadSource));
+
+          return matchSalesPerson && matchLeadSource;
         });
       }
 
