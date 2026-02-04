@@ -1,4 +1,5 @@
 import { AppDataSource } from "../data-source";
+import { EntityManager } from "typeorm";
 import { ActivityPlan } from "../entity/ActivityPlan";
 import { ActivityPlanAction } from "../entity/ActivityPlanAction";
 import { Oppurtunity } from "../entity/Oppurtunity";
@@ -8,7 +9,7 @@ import { User } from "../entity/User";
 import { ActivityPlanTemplate } from "../entity/ActivityPlanTemplate";
 import { Account } from "../entity/Account";
 import { sendMulticastNotifications } from "./pushNotification.service";
-import { decrypt } from "../common/utils";
+import { encryption, decrypt } from "../common/utils";
 
 export class ActivityPlanService {
     private planRepository = AppDataSource.getRepository(ActivityPlan);
@@ -260,12 +261,15 @@ export class ActivityPlanService {
         return planWithActions;
     }
 
-    async autoAssignPlanToOpportunity(opportunity: Oppurtunity, user: any) {
+    async autoAssignPlanToOpportunity(opportunity: Oppurtunity, user: any, transactionEntityManager?: EntityManager) {
         try {
             console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udd0d Starting auto-assignment for opportunity:', opportunity.opportunityId);
 
+            const accountRepo = transactionEntityManager ? transactionEntityManager.getRepository(Account) : AppDataSource.getRepository(Account);
+            const templateRepo = transactionEntityManager ? transactionEntityManager.getRepository(ActivityPlanTemplate) : AppDataSource.getRepository(ActivityPlanTemplate);
+
             // Fetch Account to get Category and Segment
-            const account = await AppDataSource.getRepository(Account).findOne({
+            const account = await accountRepo.findOne({
                 where: { accountId: (opportunity.company as any)?.accountId || (opportunity.company as any) }
             });
 
@@ -283,29 +287,33 @@ export class ActivityPlanService {
                 return;
             }
 
+            const searchCategory = encryption(account.clientCategory);
+            const searchSegment = encryption(account.segment);
+
             console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u2713 Account found:', {
                 accountId: account.accountId,
                 clientCategory: account.clientCategory,
                 segment: account.segment
             });
-
-            const templateRepo = AppDataSource.getRepository(ActivityPlanTemplate);
+            console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udd12 Searching for templates with:', {
+                category: searchCategory,
+                segment: searchSegment
+            });
 
             // Search for matching templates (both org-specific and global)
-            // Note: category and segment are now encrypted in both Account and Template
             const templates = await templateRepo.find({
                 where: [
                     // Org-specific templates
                     {
-                        category: account.clientCategory,
-                        segment: account.segment,
+                        category: searchCategory,
+                        segment: searchSegment,
                         isActive: true,
                         organization: { organisationId: opportunity.organization?.organisationId } as any
                     },
                     // Global templates (organization is null)
                     {
-                        category: account.clientCategory,
-                        segment: account.segment,
+                        category: searchCategory,
+                        segment: searchSegment,
                         isActive: true,
                         organization: null as any
                     }
