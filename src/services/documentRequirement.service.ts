@@ -59,9 +59,43 @@ class DocumentRequirementService {
 
         if (existingRequirements.length > 0) {
             console.log(
-                `Requirements already exist for opportunity ${opportunityId}. Skipping creation.`
+                `Requirements already exist for opportunity ${opportunityId}. Checking if bank/applicant type changed.`
             );
-            return existingRequirements;
+
+            // Fetch the documents that SHOULD exist for current bank/applicant type
+            const currentDocumentNames = await this.bankDocService.getDocumentsByBankAndType(
+                opportunity.bankId,
+                opportunity.applicantType,
+                user.organizationId
+            );
+
+            // Check if the existing requirements match the current configuration
+            // Compare by checking if document names match
+            const existingDocNames = existingRequirements
+                .map(req => req.documentName)
+                .sort();
+            const currentDocNames = currentDocumentNames.sort();
+
+            const hasChanged =
+                existingDocNames.length !== currentDocNames.length ||
+                existingDocNames.some((name, index) => name !== currentDocNames[index]);
+
+            if (!hasChanged) {
+                console.log(
+                    `Bank/applicant type unchanged for opportunity ${opportunityId}. Returning existing requirements.`
+                );
+                return existingRequirements;
+            }
+
+            // Configuration has changed - delete old requirements and create new ones
+            console.log(
+                `Bank/applicant type changed for opportunity ${opportunityId}. Deleting old requirements and creating new ones.`
+            );
+            console.log(`Old documents: ${existingDocNames.join(', ')}`);
+            console.log(`New documents: ${currentDocNames.join(', ')}`);
+
+            await requirementRepo.remove(existingRequirements);
+            // Continue to create new requirements below
         }
 
         // Fetch document list from BankDocumentConfig
