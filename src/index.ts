@@ -61,6 +61,7 @@ const allowedOrigins = [
   'https://cxonego.clicentrix.com',
   'https://api.clicentrix.com',
   'https://admin.clicentrix.com',
+  'https://cx1.capital-assist.co.in',
 
   '',
   undefined // This will match requests without an origin header
