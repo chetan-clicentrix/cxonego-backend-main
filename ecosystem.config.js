@@ -1,85 +1,84 @@
 module.exports = {
   apps: [
+    /* =========================
+       FRONTEND (React / Vite)
+       ========================= */
     {
-      // Application name
-      name: "cxonego-backend-main",
-      
-      // Script to run (compiled JavaScript from TypeScript build)
-      script: "build/src/index.js",
-      
-      // Cluster mode - use all available CPU cores for better performance
-      instances: "max", // or specify a number like 2, 4, etc.
-      exec_mode: "cluster",
-      
-      // Auto-restart configuration
+      name: "cxonego-frontend",
+      script: "server.cjs",
+
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
       autorestart: true,
-      watch: false, // Don't watch files in production
-      
-      // Memory management
-      max_memory_restart: "1G", // Restart if memory exceeds 1GB
-      
-      // Graceful shutdown
-      kill_timeout: 5000, // Wait 5 seconds before force killing
-      listen_timeout: 3000, // Wait 3 seconds for app to be ready
-      
-      // Error handling
-      max_restarts: 10, // Max restarts within min_uptime
-      min_uptime: "10s", // Min uptime before considering app stable
-      
-      // Logging configuration
-      error_file: "logs/error.log",
-      out_file: "logs/out.log",
-      log_file: "logs/combined.log",
-      time: true, // Prefix logs with timestamp
-      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
-      
-      // Log rotation (requires pm2-logrotate module)
-      // Install with: pm2 install pm2-logrotate
-      merge_logs: true,
-      
-      // Environment variables
+
+      // Memory tuning
+      // Heap: 2GB | Restart if real leak
+      node_args: "--max-old-space-size=2048",
+      max_memory_restart: "2200M",
+
+      // Environment
       env: {
         NODE_ENV: "production",
+        PORT: 5173
       },
-      env_production: {
-        NODE_ENV: "production",
-      },
-      
-      // Load .env file
-      env_file: ".env",
-      
-      // Advanced PM2 features
-      instance_var: "INSTANCE_ID", // Environment variable with instance id
-      
-      // Restart delay
-      restart_delay: 4000, // Wait 4 seconds before restart
-      
-      // Exponential backoff restart delay
-      exp_backoff_restart_delay: 100,
-      
-      // Source map support for better error traces
-      source_map_support: true,
-      
-      // Disable auto-dump on exit
+
+      // Logs
+      error_file: "logs/frontend-error.log",
+      out_file: "logs/frontend-out.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+
+      // Stability
+      max_restarts: 10,
+      restart_delay: 4000,
+      kill_timeout: 3000,
+      wait_ready: true,
+      listen_timeout: 10000,
+
+      source_map_support: false
+    },
+
+    /* =========================
+       BACKEND (Node API)
+       ========================= */
+    {
+      name: "cxonego-backend-main",
+      script: "build/src/index.js",
+
+      // 2 vCPU → 2 instances
+      instances: 2,
+      exec_mode: "cluster",
+      watch: false,
       autorestart: true,
-      
-      // Cron restart (optional - restart every day at 3 AM)
-      // cron_restart: "0 3 * * *",
-      
-      // Post-deploy hooks (optional)
-      // post_update: ["npm install", "echo Deployment finished"],
+
+      // Memory tuning
+      // Heap: 1.5GB per instance
+      node_args: "--max-old-space-size=1536",
+      max_memory_restart: "2G",
+
+      // Environment
+      env: {
+        NODE_ENV: "production"
+      },
+      env_file: ".env",
+
+      // Logs
+      error_file: "logs/backend-error.log",
+      out_file: "logs/backend-out.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+
+      // Stability
+      max_restarts: 10,
+      min_uptime: "15s",
+      restart_delay: 4000,
+      exp_backoff_restart_delay: 200,
+      kill_timeout: 5000,
+      listen_timeout: 5000,
+
+      instance_var: "INSTANCE_ID",
+      source_map_support: false
     }
-  ],
-  
-  // Deployment configuration (optional)
-  deploy: {
-    production: {
-      user: "root",
-      host: process.env.DEPLOY_HOST || "your-server-ip",
-      ref: "origin/production",
-      repo: process.env.REPO_URL || "git@github.com:your-repo.git",
-      path: "/root/cxonego/cxonego-backend-main",
-      "post-deploy": "npm install && npm run build && pm2 reload ecosystem.config.js --env production"
-    }
-  }
+  ]
 };
