@@ -62,63 +62,46 @@ const allowedOrigins = [
   'https://api.clicentrix.com',
   'https://admin.clicentrix.com',
   'https://cx1.capital-assist.co.in',
-
-  '',
-  undefined // This will match requests without an origin header
-].filter(Boolean) as (string | undefined)[];
+].filter(Boolean);
 
 // General CORS for all other routes
 app.use(cors({
   credentials: true,
   origin: function (origin, callback) {
-
-    if (!origin) return callback(null, true);
-
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) {
+      console.log('Request with no origin - allowing');
+      return callback(null, true);
+    }
 
     console.log(`Received request with origin: ${origin}`);
 
-
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      console.log(`Origin ${origin} is allowed`);
+      callback(null, true);
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Allow all origins in development
+      console.log(`Development mode - allowing origin: ${origin}`);
       callback(null, true);
     } else {
-      console.log(`Origin ${origin} not allowed by CORS`);
-      callback(null, true); // In production, still allow all origins for now
+      // Block in production
+      console.log(`Origin ${origin} NOT allowed by CORS`);
+      callback(new Error(`Origin ${origin} not allowed by CORS policy`));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'Origin', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
-// Add security headers
-// Add security headers
-app.use((req, res, next) => {
-  // Add Access-Control-Allow-Origin header to every response
-  const origin = req.headers.origin;
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept, x-api-key');
-  res.header('Access-Control-Allow-Credentials', 'true');
+
+// Add security headers (non-CORS related)
+app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
 
-// Handle OPTIONS requests manually for all routes
-app.options('*', (req, res) => {
-  // Get the origin from the request header
-  const origin = req.headers.origin;
-
-  // Log the origin for debugging
-  console.log(`OPTIONS request received from origin: ${origin}`);
-
-  // Set CORS headers
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
-  res.header('Access-Control-Allow-Credentials', 'true');
-
-  // Respond with 204 No Content
-  res.status(204).end();
-});
 
 // body-parser configuration - IMPORTANT: Skip multipart/form-data (handled by multer)
 app.use((req, _res, next) => {
