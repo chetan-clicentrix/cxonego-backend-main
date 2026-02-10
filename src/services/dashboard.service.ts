@@ -500,6 +500,21 @@ class DashboardServices {
                 lead.price
                   .toString()
                   .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.zone !== null &&
+                lead.zone
+                  .toString()
+                  .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.village !== null &&
+                lead.village
+                  .toString()
+                  .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.pincode !== null &&
+                lead.pincode
+                  .toString()
+                  .toLowerCase()
                   .includes(String(search).toLowerCase()))
             ) {
               return true;
