@@ -136,6 +136,9 @@ class LeadService {
       "description",
       "loanType",
       "loanAmount",
+      "zone",
+      "village",
+      "pincode",
     ];
     for (let key in updatedLead) {
       if (`${key}` === "contact") {
@@ -552,6 +555,26 @@ class LeadService {
               lead?.price
                 ?.toString()
                 .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
+                ?.toString()
+                .toLowerCase()
                 .includes(String(search).toLowerCase()))
           ) {
             return true;
@@ -735,19 +758,9 @@ class LeadService {
         throw new ResourceNotFoundError("Lead not found");
       }
 
-      if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
-      if (lead?.phone) lead.phone = decrypt(lead.phone);
-      if (lead?.country) lead.country = decrypt(lead.country);
-      if (lead?.state) lead.state = decrypt(lead.state);
-      if (lead?.city) lead.city = decrypt(lead.city);
-      if (lead?.email) lead.email = decrypt(lead.email);
-      if (lead?.title) lead.title = decrypt(lead.title);
-      if (lead?.leadSource) lead.leadSource = decrypt(lead.leadSource);
-      if (lead?.description) lead.description = decrypt(lead.description);
-      if (lead?.countryCode) lead.countryCode = decrypt(lead.countryCode);
-      if (lead?.price) lead.price = decrypt(lead.price);
-      if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
-      if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
+      if (lead) {
+        await leadDecryption(lead);
+      }
 
       if (lead.company) {
         lead.company = await accountDecryption(lead.company);
@@ -1275,6 +1288,26 @@ class LeadService {
               lead?.price
                 ?.toString()
                 .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
+                ?.toString()
+                .toLowerCase()
                 .includes(String(search).toLowerCase()))
           ) {
             return true;
@@ -1544,6 +1577,26 @@ class LeadService {
                 .includes(String(search).toLowerCase())) ||
             (lead?.price &&
               lead?.price
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase()))

@@ -18,7 +18,10 @@ export const LeadSchema = z.object({
     fullname: z.string().nullable().optional(),
     mobile: z.string().nullable().optional(),
     loanType: z.string(),
-    loanAmount: z.string()
+    loanAmount: z.string(),
+    zone: z.string().nullable().optional(),
+    village: z.string().nullable().optional(),
+    pincode: z.string().nullable().optional()
 });
 
 export const BulkLeadSchema = z.object({
@@ -83,7 +86,10 @@ export const LeadSchemaTypePath = z.object({
     fullname: z.string().optional(),
     mobile: z.string().optional(),
     loanType: z.string().optional(),
-    loanAmount: z.string().optional()
+    loanAmount: z.string().optional(),
+    zone: z.string().nullable().optional(),
+    village: z.string().nullable().optional(),
+    pincode: z.string().nullable().optional()
 })
 export type bulkDeleteSchemaType = z.infer<typeof bulkDeleteSchema>;
 export type bulkCreateType = z.infer<typeof bulkCreate>;

@@ -9,14 +9,14 @@ import {
   JoinColumn,
   AfterUpdate,
   AfterInsert,
+  AfterLoad,
 } from "typeorm";
 
 import { IsEmail, Matches } from "class-validator";
-import { Currency, ratingRate, statusType } from "../common/utils";
+import { Currency, ratingRate, statusType, encryption, decrypt } from "../common/utils";
 import { CustomBaseEntity } from "./CustomBaseEntity";
 import { Account } from "./Account";
 import { EncryptionTransformer } from "typeorm-encrypted";
-import { encryption } from "../common/utils";
 import { Contact } from "./Contact";
 import { Activity } from "./Activity";
 import { User } from "./User";
@@ -184,6 +184,24 @@ export class Lead extends CustomBaseEntity {
   })
   loanAmount: string;
 
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  zone: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  village: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  pincode: string;
+
   @BeforeInsert()
   @BeforeUpdate()
   encrypt() {
@@ -199,6 +217,9 @@ export class Lead extends CustomBaseEntity {
     if (this.price) this.price = encryption(this.price);
     if (this.loanType) this.loanType = encryption(this.loanType);
     if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
+    if (this.zone) this.zone = encryption(this.zone);
+    if (this.village) this.village = encryption(this.village);
+    if (this.pincode) this.pincode = encryption(this.pincode);
   }
 
   @AfterInsert()
@@ -209,6 +230,25 @@ export class Lead extends CustomBaseEntity {
   @AfterUpdate()
   auditHandlerAfterUpdate() {
     console.log(this)
+  }
+
+  @AfterLoad()
+  decrypt() {
+    if (this.fullName) this.fullName = decrypt(this.fullName);
+    if (this.countryCode) this.countryCode = decrypt(this.countryCode);
+    if (this.phone) this.phone = decrypt(this.phone);
+    if (this.country) this.country = decrypt(this.country);
+    if (this.leadSource) this.leadSource = decrypt(this.leadSource);
+    if (this.email) this.email = decrypt(this.email);
+    if (this.state) this.state = decrypt(this.state);
+    if (this.city) this.city = decrypt(this.city);
+    if (this.description) this.description = decrypt(this.description);
+    if (this.price) this.price = decrypt(this.price);
+    if (this.loanType) this.loanType = decrypt(this.loanType);
+    if (this.loanAmount) this.loanAmount = decrypt(this.loanAmount);
+    if (this.zone) this.zone = decrypt(this.zone);
+    if (this.village) this.village = decrypt(this.village);
+    if (this.pincode) this.pincode = decrypt(this.pincode);
   }
 }
 

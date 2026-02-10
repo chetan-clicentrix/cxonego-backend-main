@@ -59,6 +59,9 @@ export const leadDecryption = async (lead: Lead) => {
   if (lead?.countryCode) lead.countryCode = decrypt(lead.countryCode);
   if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
   if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
+  if (lead?.zone) lead.zone = decrypt(lead.zone);
+  if (lead?.village) lead.village = decrypt(lead.village);
+  if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
 
   return lead;
 };
@@ -95,6 +98,9 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
     if (lead?.description) lead.description = decrypt(lead.description);
     if (lead?.loanType) lead.loanType = decrypt(lead.loanType);
     if (lead?.loanAmount) lead.loanAmount = decrypt(lead.loanAmount);
+    if (lead?.zone) lead.zone = decrypt(lead.zone);
+    if (lead?.village) lead.village = decrypt(lead.village);
+    if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
     leadsArray.push(lead);
   }
 
