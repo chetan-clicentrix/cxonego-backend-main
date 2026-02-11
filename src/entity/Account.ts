@@ -64,20 +64,45 @@ export class Account extends CustomBaseEntity {
 
     @Column({
         type: "text",
-        nullable: false
+        nullable: true
     })
     address: string;
 
     @Column({
         type: "text",
-        default: null
+        default: null,
+        nullable: true
     })
     area: string;
 
-    @Column({ default: null })
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    zone: string;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    village: string;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    pincode: string;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    taluka: string;
+
+    @Column({ default: null, nullable: true })
     clientCategory: string;
 
-    @Column({ default: null })
+    @Column({ default: null, nullable: true })
     segment: string;
 
     @OneToMany(() => Lead, Lead => Lead.company)
@@ -141,8 +166,8 @@ export class Account extends CustomBaseEntity {
         if (this.industry) this.industry = encryption(this.industry);
         if (this.state) this.state = encryption(this.state);
         if (this.city) this.city = encryption(this.city);
-        if (this.countryCode) this.countryCode = this.countryCode;
-        if (this.phone) this.phone = this.phone
+        if (this.countryCode) this.countryCode = encryption(this.countryCode);
+        if (this.phone) this.phone = encryption(this.phone);
         if (this.companySize) this.companySize = encryption(this.companySize);
         if (this.description) this.description = encryption(this.description);
         if (this.website) this.website = encryption(this.website);
@@ -151,10 +176,12 @@ export class Account extends CustomBaseEntity {
         if (this.annualRevenue) this.annualRevenue = encryption(this.annualRevenue);
         if (this.address) this.address = encryption(this.address);
         if (this.area) this.area = encryption(this.area);
+        if (this.zone) this.zone = encryption(this.zone);
+        if (this.village) this.village = encryption(this.village);
+        if (this.pincode) this.pincode = encryption(this.pincode);
+        if (this.taluka) this.taluka = encryption(this.taluka);
         if (this.country) this.country = encryption(this.country);
         if (this.email) this.email = encryption(this.email);
-        if (this.countryCode) this.countryCode = encryption(this.countryCode);
-        if (this.phone) this.phone = encryption(this.phone);
         if (this.clientCategory) this.clientCategory = encryption(this.clientCategory);
         if (this.segment) this.segment = encryption(this.segment);
     }
@@ -173,6 +200,10 @@ export class Account extends CustomBaseEntity {
         if (this.annualRevenue) this.annualRevenue = decrypt(this.annualRevenue);
         if (this.address) this.address = decrypt(this.address);
         if (this.area) this.area = decrypt(this.area);
+        if (this.zone) this.zone = decrypt(this.zone);
+        if (this.village) this.village = decrypt(this.village);
+        if (this.pincode) this.pincode = decrypt(this.pincode);
+        if (this.taluka) this.taluka = decrypt(this.taluka);
         if (this.country) this.country = decrypt(this.country);
         if (this.email) this.email = decrypt(this.email);
         if (this.countryCode) this.countryCode = decrypt(this.countryCode);

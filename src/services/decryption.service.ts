@@ -39,6 +39,10 @@ export const accountDecryption = async (company: Account) => {
   if (company?.address) company.address = decrypt(company.address);
   if (company?.description) company.description = decrypt(company.description);
   if (company?.area) company.area = decrypt(company.area);
+  if (company?.zone) company.zone = decrypt(company.zone);
+  if (company?.village) company.village = decrypt(company.village);
+  if (company?.pincode) company.pincode = decrypt(company.pincode);
+  if (company?.taluka) company.taluka = decrypt(company.taluka);
   if (company?.clientCategory) company.clientCategory = decrypt(company.clientCategory);
   if (company?.segment) company.segment = decrypt(company.segment);
 
@@ -62,6 +66,7 @@ export const leadDecryption = async (lead: Lead) => {
   if (lead?.zone) lead.zone = decrypt(lead.zone);
   if (lead?.village) lead.village = decrypt(lead.village);
   if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
+  if (lead?.taluka) lead.taluka = decrypt(lead.taluka);
 
   return lead;
 };
@@ -101,6 +106,7 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
     if (lead?.zone) lead.zone = decrypt(lead.zone);
     if (lead?.village) lead.village = decrypt(lead.village);
     if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
+    if (lead?.taluka) lead.taluka = decrypt(lead.taluka);
     leadsArray.push(lead);
   }
 

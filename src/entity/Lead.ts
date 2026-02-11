@@ -202,6 +202,13 @@ export class Lead extends CustomBaseEntity {
   })
   pincode: string;
 
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  taluka: string;
+
   @BeforeInsert()
   @BeforeUpdate()
   encrypt() {
@@ -220,6 +227,7 @@ export class Lead extends CustomBaseEntity {
     if (this.zone) this.zone = encryption(this.zone);
     if (this.village) this.village = encryption(this.village);
     if (this.pincode) this.pincode = encryption(this.pincode);
+    if (this.taluka) this.taluka = encryption(this.taluka);
   }
 
   @AfterInsert()
@@ -249,6 +257,7 @@ export class Lead extends CustomBaseEntity {
     if (this.zone) this.zone = decrypt(this.zone);
     if (this.village) this.village = decrypt(this.village);
     if (this.pincode) this.pincode = decrypt(this.pincode);
+    if (this.taluka) this.taluka = decrypt(this.taluka);
   }
 }
 

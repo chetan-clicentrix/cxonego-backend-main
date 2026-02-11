@@ -188,6 +188,10 @@ class AccountServices {
         if (account.description)
           account.description = decrypt(account.description);
         if (account.area) account.area = decrypt(account.area);
+        if (account.zone) account.zone = decrypt(account.zone);
+        if (account.village) account.village = decrypt(account.village);
+        if (account.pincode) account.pincode = decrypt(account.pincode);
+        if (account.taluka) account.taluka = decrypt(account.taluka);
         if (account.clientCategory)
           account.clientCategory = decrypt(account.clientCategory);
         if (account.segment) account.segment = decrypt(account.segment);
@@ -343,6 +347,10 @@ class AccountServices {
         account.countryCode = decrypt(account.countryCode);
       if (account?.address) account.address = decrypt(account.address);
       if (account?.area) account.area = decrypt(account.area);
+      if (account?.zone) account.zone = decrypt(account.zone);
+      if (account?.village) account.village = decrypt(account.village);
+      if (account?.pincode) account.pincode = decrypt(account.pincode);
+      if (account?.taluka) account.taluka = decrypt(account.taluka);
       if (account?.clientCategory)
         account.clientCategory = decrypt(account.clientCategory);
       if (account?.segment) account.segment = decrypt(account.segment);
