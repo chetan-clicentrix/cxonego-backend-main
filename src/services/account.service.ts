@@ -418,7 +418,7 @@ class AccountServices {
     transactionEntityManager: EntityManager
   ) {
     if (await this.isAccountNameExists(payload.accountName, organizationId)) {
-      throw new Error("This account name is is allready use");
+      throw new Error("This account name is already in use");
     }
 
     if (payload?.socialMediaLink?.[0]?.name) {
@@ -472,10 +472,6 @@ class AccountServices {
     user: userInfo,
     transactionEntityManager: EntityManager
   ) {
-    // if(await this.isAccountNameExists(payload.accountName,user.organizationId)){
-    //     throw new Error("This account name is is allready use");;
-    // }
-
     payload.modifiedBy = user.email;
     const accountRepo = AppDataSource.getRepository(Account);
     const accountData = await accountRepo.findOneBy({ accountId: accountId });
