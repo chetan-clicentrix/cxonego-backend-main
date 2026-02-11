@@ -21,12 +21,12 @@ export const UpdateUser = z.object({
 
 export const profileSchema = z.object({
   userId: z.string(),
-  email: z.string().email().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  company: z.string().optional(),
+  email: z.string().email().optional().nullable(),
+  firstName: z.string().optional().nullable(),
+  lastName: z.string().optional().nullable(),
+  company: z.string().optional().nullable(),
   countryCode: z.string().nullable().optional(),
-  phone: z.string().optional(),
+  phone: z.string().optional().nullable(),
   primaryIntension: z.string().nullable().optional(),
   fcmWebToken: z.string().optional().nullable(),
   fcmAndroidToken: z.string().optional().nullable(),

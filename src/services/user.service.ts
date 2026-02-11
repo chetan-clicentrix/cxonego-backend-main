@@ -42,10 +42,12 @@ class UserServices {
       const orgRepository =
         transactionEntityManager.getRepository(Organisation);
       let user = await userRepository.findOne({ where: { userId: userId } });
-
+      // If user not found, we proceed to create/upsert it via the logic below
+      /*
       if (!user) {
         throw new ResourceNotFoundError("User not found");
       }
+      */
 
       //get the count if orgid is present or not in user table
       const count = await userRepository
@@ -53,43 +55,46 @@ class UserServices {
         .where("user.organisationOrganisationId = :id", { id: organizationId })
         .getCount();
 
-      const orgObject = await orgRepository
+      let actualOrgId = organizationId || (payload as any).organizationId || (payload.organisation as any)?.organisationId || (payload as any).organisationId;
+
+      const orgObject = actualOrgId ? await orgRepository
         .createQueryBuilder("Organisation")
         // .leftJoinAndSelect("Organisation.subscriptions", "subscription")
         .where("Organisation.organisationId = :orgId", {
-          orgId: organizationId,
+          orgId: actualOrgId,
         })
-        .getOne();
+        .getOne() : null;
 
-      const userObj = new User();
+      const userObj = user || new User();
       userObj.userId = userId;
-      if (payload.firstName) userObj.firstName = encryption(payload?.firstName);
-      if (payload.lastName) userObj.lastName = encryption(payload?.lastName);
+      if (payload.email) userObj.email = encryption(payload.email);
+      if (payload.firstName) userObj.firstName = encryption(payload.firstName);
+      if (payload.lastName) userObj.lastName = encryption(payload.lastName);
       if (payload.countryCode)
-        userObj.countryCode = encryption(payload?.countryCode);
-      if (payload.phone) userObj.phone = encryption(payload?.phone);
-      if (payload.country) userObj.country = encryption(payload?.country);
-      if (payload.state) userObj.state = encryption(payload?.state);
-      if (payload.city) userObj.city = encryption(payload?.city);
-      if (payload.theme) userObj.theme = encryption(payload?.theme);
-      if (payload.currency) userObj.currency = encryption(payload?.currency);
-      if (payload.industry) userObj.industry = encryption(payload?.industry);
-      if (payload.jobtitle) userObj.jobtitle = encryption(payload?.jobtitle);
+        userObj.countryCode = encryption(payload.countryCode);
+      if (payload.phone) userObj.phone = encryption(payload.phone);
+      if (payload.country) userObj.country = encryption(payload.country);
+      if (payload.state) userObj.state = encryption(payload.state);
+      if (payload.city) userObj.city = encryption(payload.city);
+      if (payload.theme) userObj.theme = encryption(payload.theme);
+      if (payload.currency) userObj.currency = encryption(payload.currency);
+      if (payload.industry) userObj.industry = encryption(payload.industry);
+      if (payload.jobtitle) userObj.jobtitle = encryption(payload.jobtitle);
       if (payload.primaryIntension)
-        userObj.primaryIntension = encryption(payload?.primaryIntension);
-      if (payload.fcmWebToken) userObj.fcmWebToken = payload?.fcmWebToken;
+        userObj.primaryIntension = encryption(payload.primaryIntension);
+      if (payload.fcmWebToken) userObj.fcmWebToken = payload.fcmWebToken;
       if (payload.fcmAndroidToken)
-        userObj.fcmAndroidToken = payload?.fcmAndroidToken;
-      if (payload.otp) userObj.otp = encryption(payload?.otp);
-      if (payload.isActive) userObj.isActive = payload?.isActive;
-      if (payload.emailVerified) userObj.emailVerified = payload?.emailVerified;
+        userObj.fcmAndroidToken = payload.fcmAndroidToken;
+      if (payload.otp) userObj.otp = encryption(payload.otp);
+      if (payload.isActive !== undefined) userObj.isActive = payload.isActive;
+      if (payload.emailVerified !== undefined) userObj.emailVerified = payload.emailVerified;
       if (payload.privacy_consent_given)
-        userObj.privacy_consent_given = payload?.privacy_consent_given;
+        userObj.privacy_consent_given = payload.privacy_consent_given;
       if (payload.privacy_consent_signed_date)
         userObj.privacy_consent_signed_date =
-          payload?.privacy_consent_signed_date;
+          payload.privacy_consent_signed_date;
 
-      if (count == 0 && orgObject) {
+      if (!user && count == 0 && orgObject) {
         const role = await roleRepository.findOne({
           where: { roleName: roleNames.ADMIN },
         });
@@ -100,19 +105,24 @@ class UserServices {
         userObj.roles = [role];
         amIAdmin = true;
         userObj.organisation = orgObject;
-      } else {
+      } else if (!user && userole) {
         //other wise whatever role come from invitation then it assign
-        if (userole) {
-          const role = await roleRepository.findOne({
-            where: { roleName: userole },
-          });
+        const role = await roleRepository.findOne({
+          where: { roleName: userole },
+        });
 
-          if (!role) {
-            throw new ResourceNotFoundError("Role not found");
-          }
-          userObj.roles = [role];
-          if (orgObject) userObj.organisation = orgObject;
+        if (!role) {
+          throw new ResourceNotFoundError("Role not found");
         }
+        userObj.roles = [role];
+        if (orgObject) userObj.organisation = orgObject;
+      } else if (!user && actualOrgId && orgObject) {
+        // Default role for new users if not specified but org exists
+        const role = await roleRepository.findOne({
+          where: { roleName: roleNames.SALESPERSON },
+        });
+        if (role) userObj.roles = [role];
+        userObj.organisation = orgObject;
       }
 
       //I'm admin, add me in my invited users.
@@ -120,7 +130,7 @@ class UserServices {
         userObj.invitedUsers = [
           {
             id: userId,
-            name: payload.firstName + " " + payload.lastName,
+            name: (payload.firstName || "") + " " + (payload.lastName || ""),
             email: payload.email,
             onboardingStatus: "ONBOARDED",
             role: userObj.roles[0].roleName,
@@ -132,15 +142,16 @@ class UserServices {
       // if (!amIAdmin && orgObject?.subscriptions) {
       //   userObj.subscriptions = orgObject?.subscriptions;
       // }
-      const update = await userRepository.save(userObj);
+      let update = await userRepository.save(userObj);
+      update = await userDecryption(update);
       //inform my admin that i am onboarded.
-      if (!amIAdmin) {
+      if (!amIAdmin && actualOrgId) {
         const adminUser = await userRepository
           .createQueryBuilder("User")
           .leftJoinAndSelect("User.organisation", "Organisation")
           .leftJoinAndSelect("User.roles", "Role")
           .where("Organisation.organisationId = :id", {
-            id: organizationId,
+            id: actualOrgId,
           })
           .andWhere("Role.roleName = :roleName", {
             roleName: roleNames.ADMIN,

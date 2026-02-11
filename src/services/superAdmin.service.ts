@@ -143,9 +143,9 @@ class SuperAdminService {
         "Provided user doesn't exist in this Organisation"
       );
     }
-    if (targetUser.onboardingStatus != "PENDING") {
-      throw new ResourceNotFoundError("Onboarded user can't be deleted.");
-    }
+    // if (targetUser.onboardingStatus != "PENDING") {
+    //   throw new ResourceNotFoundError("Onboarded user can't be deleted.");
+    // }
     admin.invitedUsers = admin.invitedUsers.filter(
       (cur) => cur.email != userEmail
     );
