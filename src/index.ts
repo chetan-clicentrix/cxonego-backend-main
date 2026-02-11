@@ -58,10 +58,12 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://62.72.30.141',
+  'http://72.62.226.176:5174',
   'https://cxonego.clicentrix.com',
   'https://api.clicentrix.com',
   'https://admin.clicentrix.com',
   'https://cx1.capital-assist.co.in',
+  'https://api.capital-assist.co.in',
 ].filter(Boolean);
 
 // General CORS for all other routes
