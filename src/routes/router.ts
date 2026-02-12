@@ -4,7 +4,7 @@ import authRouter from "./auth.routes";
 import emailPOC from "./email-poc.routes";
 import leadRouter from "./lead.routes";
 import accountRouter from "./account.routes";
-import userRouter from "./user.routes";
+import userRouter from "./users.v1.routes";
 import contactRouter from "./contact.routes";
 import roleRouter from "./role.routes";
 import servicesRouter from "./services.routes";
