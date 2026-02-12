@@ -133,6 +133,7 @@ export enum stage {
   QUERY_RESOLUTION = "Query Resolution",
   APPROVED = "Approved",
   DISBURSED = "Disbursed",
+  PDD = "PDD",
   WON = "Won",
   LOST = "Lost",
 }
