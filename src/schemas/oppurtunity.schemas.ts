@@ -14,12 +14,14 @@ export const OpportunitySchema = z.object({
     description: z.string().nullable().optional(),
     currentNeed: z.string().nullable().optional(),
     proposedSolution: z.string().nullable().optional(),
-    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "Won", "Lost"] as const),
+    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "PDD", "Won", "Lost"] as const),
     status: z.enum(["Active", "Inactive", "Cancelled"] as const),
     priority: z.enum(["Low", "Medium", "High"] as const),
     wonReason: z.enum(["Need Fulfilled", "Competitive Advantage", "Relationship & Trust", "Competitive Pricing", "UpSelling/CrossSelling", "Effective Sales Process"] as const).nullable().optional(),
     lostReason: z.enum(["Budget Constraint", "Competitive Selection", "Changed Needs/Priority", "Decision Making Delay", "No Purchase Intent", "Ineffective Sales Process", "Uncompetitive Pricing", "Product/Service Limitations", "Lack of Followup or Communication"] as const).nullable().optional(),
     wonLostDescription: z.string().nullable().optional(),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional(),
 });
 
 
@@ -49,9 +51,11 @@ export const OpportunitySchemaWithDate = z.object({
     description: z.string(),
     currentNeed: z.string(),
     proposedSolution: z.string(),
-    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "Won", "Lost"] as const),
+    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "PDD", "Won", "Lost"] as const),
     status: z.enum(["Active", "Inactive", "Cancelled"] as const),
     priority: z.enum(["Low", "Medium", "High"] as const),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional(),
 });
 
 export const OpportunityUpdateSchema = z.object({
@@ -68,11 +72,13 @@ export const OpportunityUpdateSchema = z.object({
     description: z.string(),
     currentNeed: z.string(),
     proposedSolution: z.string(),
-    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "Won", "Lost"] as const),
+    stage: z.enum(["Document collection", "Proposal Preparation", "Login Desk", "Query", "Query Resolution", "Approved", "Disbursed", "PDD", "Won", "Lost"] as const),
     status: z.enum(["Active", "Inactive", "Cancelled"] as const),
     priority: z.enum(["Low", "Medium", "High"] as const),
     wonReason: z.enum(["Need Fulfilled", "Competitive Advantage", "Relationship & Trust", "Competitive Pricing", "UpSelling/CrossSelling", "Effective Sales Process"] as const),
     lostReason: z.enum(["Budget Constraint", "Competitive Selection", "Changed Needs/Priority", "Decision Making Delay", "No Purchase Intent", "Ineffective Sales Process", "Uncompetitive Pricing", "Product/Service Limitations", "Lack of Followup or Communication"] as const),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional(),
 });
 
 

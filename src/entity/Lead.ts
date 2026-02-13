@@ -209,6 +209,18 @@ export class Lead extends CustomBaseEntity {
   })
   taluka: string;
 
+  @Column({
+    type: "boolean",
+    default: false,
+  })
+  wasQualified: boolean;
+
+  @Column({
+    type: "text",
+    nullable: true
+  })
+  closureComments: string;
+
   @BeforeInsert()
   @BeforeUpdate()
   encrypt() {
@@ -228,6 +240,7 @@ export class Lead extends CustomBaseEntity {
     if (this.village) this.village = encryption(this.village);
     if (this.pincode) this.pincode = encryption(this.pincode);
     if (this.taluka) this.taluka = encryption(this.taluka);
+    if (this.closureComments) this.closureComments = encryption(this.closureComments);
   }
 
   @AfterInsert()
@@ -258,6 +271,7 @@ export class Lead extends CustomBaseEntity {
     if (this.village) this.village = decrypt(this.village);
     if (this.pincode) this.pincode = decrypt(this.pincode);
     if (this.taluka) this.taluka = decrypt(this.taluka);
+    if (this.closureComments) this.closureComments = decrypt(this.closureComments);
   }
 }
 

@@ -133,6 +133,7 @@ export enum stage {
   QUERY_RESOLUTION = "Query Resolution",
   APPROVED = "Approved",
   DISBURSED = "Disbursed",
+  PDD = "PDD",
   WON = "Won",
   LOST = "Lost",
 }
@@ -483,4 +484,17 @@ export enum ActivityPlanActionStatus {
   COMPLETED = "Completed",
   OVERDUE = "Overdue",
   SKIPPED = "Skipped",
+}
+
+export enum ActivityPlanActionType {
+  DEFAULT = "Default",  // Standard activity with just comments
+  DOCUMENT_UPLOAD = "Document Upload",  // File upload to SharePoint
+  VERIFICATION = "Verification",  // Yes/No checkbox confirmation
+  DATA_ENTRY = "Data Entry",  // Text/number input field
+  SELECTION = "Selection",  // Dropdown from predefined choices
+  DATE_SELECTION = "Date Selection",  // Date picker
+  CALL_LOG = "Call Log",  // Structured call details form
+  MEETING_NOTES = "Meeting Notes",  // Rich text for meetings
+  APPROVAL = "Approval",  // Approve/Reject with comments
+  COMMENT = "Comment",  // Simple textarea for remarks
 }

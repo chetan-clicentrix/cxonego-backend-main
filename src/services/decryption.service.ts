@@ -67,6 +67,7 @@ export const leadDecryption = async (lead: Lead) => {
   if (lead?.village) lead.village = decrypt(lead.village);
   if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
   if (lead?.taluka) lead.taluka = decrypt(lead.taluka);
+  if (lead?.closureComments) lead.closureComments = decrypt(lead.closureComments);
 
   return lead;
 };
@@ -107,6 +108,7 @@ export const multipleleadsDecryption = async (leads: Array<Lead>) => {
     if (lead?.village) lead.village = decrypt(lead.village);
     if (lead?.pincode) lead.pincode = decrypt(lead.pincode);
     if (lead?.taluka) lead.taluka = decrypt(lead.taluka);
+    if (lead?.closureComments) lead.closureComments = decrypt(lead.closureComments);
     leadsArray.push(lead);
   }
 
