@@ -237,6 +237,8 @@ export class ActivityPlanService {
                 tat: config.tatDays > 0 ? `${config.tatDays} Day(s)` : `${config.tatHours} Hour(s)`,
                 dueDate: dueDate,
                 status: ActivityPlanActionStatus.PENDING,
+                actionType: config.actionType || ActivityPlanActionType.DEFAULT,
+                actionConfig: config.actionConfig,
                 assignedTo: null,
                 completedAt: null,
                 remarks: null,
