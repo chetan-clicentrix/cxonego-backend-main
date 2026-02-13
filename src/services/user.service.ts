@@ -23,9 +23,11 @@ import {
   IsIinvitationRevokedSchemaType,
   UpdateUserProfileSchemaType,
   UpdateUserRoleSchemaType,
+  CreateUserDirectlySchemaType,
 } from "../schemas/user.schemas";
 import { CustomRequest, userInfo } from "../interfaces/types";
 import { Subscription } from "../entity/Subscription";
+import * as admin from "firebase-admin";
 
 class UserServices {
   async updateProfile(
@@ -150,7 +152,7 @@ class UserServices {
 
         if (adminUser) {
           adminUser?.invitedUsers?.forEach((invite) => {
-            if (invite.email === payload.email) {
+            if (invite.email.toLowerCase() === payload.email.toLowerCase()) {
               invite.name = payload.firstName + " " + payload.lastName;
               invite.onboardingStatus = "ONBOARDED";
               invite.id = userId;
@@ -173,13 +175,36 @@ class UserServices {
       const userRepository = AppDataSource.getRepository(User);
       const roleRepository = AppDataSource.getRepository(Role);
 
-      const userIsExists = await userRepository.findOne({
-        // relations: ["organisation"],
-        where: { email: encryption(payload.email) },
+      let userIsExists = await userRepository.findOne({
+        where: { userId: payload.userId },
       });
 
+      if (!userIsExists) {
+        userIsExists = await userRepository.findOne({
+          where: { email: encryption(payload.email) },
+        });
+      }
+
+      if (!userIsExists) {
+        userIsExists = await userRepository.findOne({
+          where: { email: encryption(payload.email.toLowerCase()) },
+        });
+      }
+
       if (userIsExists) {
-        // console.log("userExist : ",userIsExists);
+        // If user exists but userId is different (e.g. legacy user or different auth provider), check if we need to update the ID
+        if (userIsExists.userId !== payload.userId) {
+          const oldUserId = userIsExists.userId;
+          // Updating primary key requires QueryBuilder or explicit update
+          await userRepository
+            .createQueryBuilder()
+            .update(User)
+            .set({ userId: payload.userId })
+            .where("userId = :id", { id: oldUserId })
+            .execute();
+
+          userIsExists.userId = payload.userId;
+        }
         return userIsExists;
       }
 
@@ -548,8 +573,6 @@ class UserServices {
         )}&organizationId=${invite.organizationId}`;
 
 
-        console.log("INVITE LINK:", inviteLink);
-
         const htmlTemplate = `
         <head>
         <title>CXOneGo Invitation</title>
@@ -630,6 +653,116 @@ class UserServices {
       message: `${newInvites} new user(s) have been invited successfully, you have ${maxNoOfUsers - alreadyInvitedUsers - newInvites
         } invites left.`,
     };
+  }
+
+  async createUserDirectly(
+    payload: CreateUserDirectlySchemaType,
+    adminUserId: string
+  ) {
+    try {
+      // 1. Verify admin permissions
+      const userRepository = AppDataSource.getRepository(User);
+      const adminUser = await userRepository.findOne({
+        where: { userId: adminUserId },
+        relations: ["roles", "organisation"],
+      });
+
+      if (!adminUser) {
+        throw new ResourceNotFoundError("Admin user not found");
+      }
+
+      if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
+        throw new ValidationFailedError("Only admins can create users directly");
+      }
+
+      // 2. Verify organization exists
+      const orgRepository = AppDataSource.getRepository(Organisation);
+      const organization = await orgRepository.findOne({
+        where: { organisationId: payload.organizationId },
+      });
+
+      if (!organization) {
+        throw new ResourceNotFoundError("Organization not found");
+      }
+
+      // 3. Create user in Firebase
+      let firebaseUser;
+      try {
+        firebaseUser = await admin.auth().createUser({
+          email: payload.email,
+          password: payload.password,
+          emailVerified: true, // Auto-verify email for admin-created users
+        });
+      } catch (firebaseError: any) {
+        if (firebaseError.code === "auth/email-already-exists") {
+          throw new ValidationFailedError("Email already exists");
+        }
+        throw new Error(`Firebase error: ${firebaseError.message}`);
+      }
+
+      // 4. Get role from database
+      const roleRepository = AppDataSource.getRepository(Role);
+      const role = await roleRepository.findOne({
+        where: { roleName: payload.role },
+      });
+
+      if (!role) {
+        // Rollback: delete Firebase user if role not found
+        await admin.auth().deleteUser(firebaseUser.uid);
+        throw new ResourceNotFoundError("Role not found");
+      }
+
+      // 5. Create user in database
+      const newUser = new User();
+      newUser.userId = firebaseUser.uid;
+      newUser.email = encryption(payload.email);
+      newUser.emailVerified = true;
+      newUser.isActive = true;
+      newUser.privacy_consent_given = "Yes";
+      newUser.privacy_consent_signed_date = new Date();
+      newUser.organisation = organization;
+      newUser.roles = [role];
+
+      if (payload.firstName) newUser.firstName = encryption(payload.firstName);
+      if (payload.lastName) newUser.lastName = encryption(payload.lastName);
+      if (payload.phone) newUser.phone = encryption(payload.phone);
+      if (payload.jobtitle) newUser.jobtitle = encryption(payload.jobtitle);
+      if (payload.countryCode) newUser.countryCode = encryption(payload.countryCode);
+
+      try {
+        await userRepository.save(newUser);
+      } catch (dbError: any) {
+        // Rollback: delete Firebase user if database save fails
+        await admin.auth().deleteUser(firebaseUser.uid);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+
+      // 6. Update admin's invitedUsers array
+      adminUser.invitedUsers = adminUser.invitedUsers || [];
+      adminUser.invitedUsers.push({
+        id: firebaseUser.uid,
+        name:
+          payload.firstName && payload.lastName
+            ? `${payload.firstName} ${payload.lastName}`
+            : "N/A",
+        email: payload.email,
+        role: payload.role,
+        onboardingStatus: "ONBOARDED", // Directly onboarded
+        isBlocked: false,
+      });
+
+      await userRepository.save(adminUser);
+
+      return {
+        userId: firebaseUser.uid,
+        email: payload.email,
+        role: payload.role,
+        message: "User created successfully and can now log in",
+      };
+    } catch (error) {
+      console.error("Error in createUserDirectly:", error);
+      throw error;
+    }
   }
   async partiallyUpadateUser(
     userId: string,
@@ -895,6 +1028,23 @@ class UserServices {
       throw new ResourceNotFoundError("Email not provided.");
     }
     const userRepository = AppDataSource.getRepository(User);
+
+    const encryptedEmail = encryption(userEmail);
+
+    let existingUser = await userRepository.findOne({
+      where: { email: encryptedEmail },
+      relations: ["organisation", "roles"],
+    });
+
+    if (existingUser) {
+      existingUser = await userDecryption(existingUser);
+      if (existingUser.organisation) {
+        existingUser.organisation = await orgnizationDecryption(
+          existingUser.organisation
+        );
+      }
+      return existingUser;
+    }
     const allUsers = await userRepository
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.organisation", "organisation")
@@ -908,7 +1058,13 @@ class UserServices {
     for (const user of allUsers) {
       if (user.invitedUsers) {
         for (const cur of user.invitedUsers) {
-          if (cur.email === userEmail) {
+          if (cur.email.toLowerCase() === userEmail.toLowerCase()) {
+            // If user is already onboarded (created directly), do not return invitation details
+            // This prevents the frontend from forcing the onboarding flow
+            if (cur.onboardingStatus === "ONBOARDED") {
+              break;
+            }
+
             targetUser = userDecryption(user);
             user.organisation = await orgnizationDecryption(user.organisation);
             break;

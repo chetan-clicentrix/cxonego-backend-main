@@ -57,6 +57,7 @@ app.use(
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://62.72.30.141',
   'http://72.62.226.176:5174',
   'https://cxonego.clicentrix.com',
@@ -142,8 +143,8 @@ app.use(
       RegExp("/api/v1/health"),
       RegExp("/api/v1/users/role"),
       RegExp("/api/v1/users/isInvitationRevoked"),
+      RegExp("/api/v1/users/isUserOnboarded"),
       RegExp("/api/v1/organization/"),
-      RegExp("/api/v1/users/"),
       RegExp("/api/v1/organization/create-organization"),
       RegExp("/api/v1/plan/getAllPlans"),
       RegExp("^/api/v1/customPlanRequest"),

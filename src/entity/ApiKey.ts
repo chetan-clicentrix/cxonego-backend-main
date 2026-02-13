@@ -8,6 +8,7 @@ import {
     JoinColumn,
 } from "typeorm";
 import { Organisation } from "./Organisation";
+import { User } from "./User";
 
 @Entity("api_keys")
 export class ApiKey {
@@ -41,6 +42,13 @@ export class ApiKey {
     @ManyToOne(() => Organisation, { nullable: false })
     @JoinColumn({ name: "organisationId" })
     organisation: Organisation;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: "ownerId" })
+    owner: User;
+
+    @Column({ type: "varchar", length: 50, nullable: true })
+    ownerId: string;
 
     @Column({ type: "varchar", length: 50 })
     organisationId: string;

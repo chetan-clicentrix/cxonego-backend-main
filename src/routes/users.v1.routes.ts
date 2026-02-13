@@ -9,9 +9,16 @@ import {
   updateUserRoleSchema,
   updateUserProfileSchema,
   isIinvitationRevokedSchema,
+  createUserDirectlySchema,
 } from "../schemas/user.schemas";
 const userRouter = Router();
 const userController = new UserController();
+
+userRouter.post(
+  "/create",
+  bodySchemaValidator(createUserDirectlySchema),
+  userController.createUserDirectly
+);
 
 userRouter.get("/", userController.getUsers);
 userRouter.get("/getUsersSubscriptions", userController.getUsersSubscriptions);
