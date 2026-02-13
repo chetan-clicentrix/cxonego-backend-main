@@ -51,8 +51,8 @@ router.delete(
 
 router.post(
     "/action/:actionId/upload-document",
-    authMiddleware(),
-    upload.single('file'),
+    authMiddleware() as any,
+    upload.single('file') as any,
     activityPlanController.uploadActivityPlanDocument
 );
 
