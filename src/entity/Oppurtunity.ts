@@ -44,6 +44,7 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({
         type: "enum",
         enum: purchaseTimeFrame,
+        nullable: true,
         // default:purchaseTimeFrame.first_MONTH     
     })
     purchaseTimeFrame: purchaseTimeFrame;
