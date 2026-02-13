@@ -18,6 +18,7 @@ import {
 import { Lead } from "../entity/Lead";
 import { Role } from "../entity/Role";
 import { Contact } from "../entity/Contact";
+import { Bank } from "../entity/Bank";
 import { Account } from "../entity/Account";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import {
@@ -117,6 +118,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
+        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.ownerId=:userId", { userId: userId })
@@ -129,6 +131,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
+        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.organizationId=:organizationId", {

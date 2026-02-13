@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../interfaces/types";
 import ApiKeyService from "../services/apiKey.service";
+import { decrypt } from "../common/utils";
 
 const apiKeyService = new ApiKeyService();
 
@@ -11,7 +12,7 @@ class ApiKeyController {
      */
     async createApiKey(request: AuthenticatedRequest, response: Response) {
         try {
-            const { name, description, permissions, expiresAt } = request.body;
+            const { name, description, ownerId, permissions, expiresAt } = request.body;
             const organisationId = request.user?.organizationId;
             const createdBy = request.user?.userId;
 
@@ -34,6 +35,7 @@ class ApiKeyController {
                 description,
                 organisationId,
                 createdBy,
+                ownerId,
                 permissions: permissions || ["leads:create", "leads:read"],
                 expiresAt: expiresAt ? new Date(expiresAt) : undefined,
             });
@@ -45,6 +47,7 @@ class ApiKeyController {
                     apiKeyId: result.apiKey.apiKeyId,
                     name: result.apiKey.name,
                     description: result.apiKey.description,
+                    ownerId: result.apiKey.ownerId,
                     apiKey: result.plainTextKey, // ⚠️ IMPORTANT: Save this! It won't be shown again
                     permissions: result.apiKey.permissions,
                     expiresAt: result.apiKey.expiresAt,
@@ -85,6 +88,13 @@ class ApiKeyController {
                 name: key.name,
                 description: key.description,
                 isActive: key.isActive,
+                ownerId: key.ownerId,
+                owner: key.owner ? {
+                    userId: key.owner.userId,
+                    firstName: decrypt(key.owner.firstName),
+                    lastName: decrypt(key.owner.lastName),
+                    email: decrypt(key.owner.email)
+                } : null,
                 permissions: key.permissions,
                 lastUsedAt: key.lastUsedAt,
                 expiresAt: key.expiresAt,
@@ -101,6 +111,51 @@ class ApiKeyController {
             return response.status(500).json({
                 success: false,
                 message: error.message || "Failed to list API keys",
+            });
+        }
+    }
+
+    /**
+     * Update an API key
+     * PATCH /api/v1/api-keys/:apiKeyId
+     */
+    async updateApiKey(request: AuthenticatedRequest, response: Response) {
+        try {
+            const { apiKeyId } = request.params;
+            const organisationId = request.user?.organizationId;
+            const { name, description, ownerId, permissions, isActive } = request.body;
+
+            if (!organisationId) {
+                return response.status(401).json({
+                    success: false,
+                    message: "Authentication required",
+                });
+            }
+
+            const updatedKey = await apiKeyService.updateApiKey(
+                apiKeyId,
+                organisationId,
+                { name, description, ownerId, permissions, isActive }
+            );
+
+            return response.status(200).json({
+                success: true,
+                message: "API key updated successfully",
+                data: {
+                    apiKeyId: updatedKey.apiKeyId,
+                    name: updatedKey.name,
+                    description: updatedKey.description,
+                    ownerId: updatedKey.ownerId,
+                    isActive: updatedKey.isActive,
+                    permissions: updatedKey.permissions,
+                    updatedAt: updatedKey.updatedAt
+                }
+            });
+        } catch (error: any) {
+            console.error("Error updating API key:", error);
+            return response.status(404).json({
+                success: false,
+                message: error.message || "Failed to update API key",
             });
         }
     }

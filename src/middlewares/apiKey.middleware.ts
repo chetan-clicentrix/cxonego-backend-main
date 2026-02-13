@@ -54,14 +54,28 @@ export const apiKeyAuth = async (
         };
 
         // Also set organization ID for compatibility with existing code
-        request.user = {
-            userId: "api-key-user", // Placeholder for API key requests
-            email: "api@automation.system",
-            emailVerified: true,
-            role: [],
-            organizationId: validApiKey.organisationId,
-            auth_time: Math.floor(Date.now() / 1000),
-        };
+        // Also set organization ID for compatibility with existing code
+        if (validApiKey.owner) {
+            // Impersonate the owner
+            request.user = {
+                userId: validApiKey.owner.userId,
+                email: validApiKey.owner.email,
+                emailVerified: validApiKey.owner.emailVerified,
+                role: validApiKey.owner.roles || [],
+                organizationId: validApiKey.organisationId,
+                auth_time: Math.floor(Date.now() / 1000),
+            };
+        } else {
+            // Fallback for keys without owners
+            request.user = {
+                userId: "api-key-user", // Placeholder for API key requests
+                email: "api@automation.system",
+                emailVerified: true,
+                role: [],
+                organizationId: validApiKey.organisationId,
+                auth_time: Math.floor(Date.now() / 1000),
+            };
+        }
 
         next();
     } catch (error) {

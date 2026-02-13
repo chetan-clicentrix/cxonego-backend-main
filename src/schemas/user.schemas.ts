@@ -89,3 +89,19 @@ export type UpdateUserProfileSchemaType = z.infer<
 export type IsIinvitationRevokedSchemaType = z.infer<
   typeof isIinvitationRevokedSchema
 >;
+
+export const createUserDirectlySchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email({ message: "Invalid email address" }),
+  password: z.string().min(6, "Password must be at least 6 characters long"),
+  phone: z.string().optional(),
+  countryCode: z.string().optional(),
+  jobtitle: z.string().optional(),
+  role: z.enum(["ADMIN", "SALESMANAGER", "SALESPERSON"]),
+  organizationId: z.string(),
+});
+
+export type CreateUserDirectlySchemaType = z.infer<
+  typeof createUserDirectlySchema
+>;
