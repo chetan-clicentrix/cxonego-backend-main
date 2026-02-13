@@ -15,24 +15,43 @@ const verifyToken = async (
   next: NextFunction
 ) => {
   if (!request.headers.authorization) {
-    return next({ name: "UnauthorizedError", message: "Invalid token" });
+    // console.error("Missing Authorization header");
+    return next({ name: "UnauthorizedError", message: "Missing Authorization header" });
   }
 
-  const tokenBearer = request.headers.authorization.split(" ")[1];
+  const parts = request.headers.authorization.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    // console.error("Invalid Authorization header format:", request.headers.authorization);
+    return next({ name: "UnauthorizedError", message: "Invalid Authorization header format" });
+  }
+
+  const tokenBearer = parts[1].trim();
+
+  if (!tokenBearer || tokenBearer.length < 10) {
+    // console.error("Token is empty or too short");
+    return next({ name: "UnauthorizedError", message: "Invalid token format" });
+  }
+
+  // Check if it looks like a JWT (has 2 dots)
+  if ((tokenBearer.match(/\./g) || []).length !== 2) {
+    // console.error("Token doesn't appear to be a valid JWT (missing dots)");
+    return next({ name: "UnauthorizedError", message: "Malformed token" });
+  }
   try {
     const token: DecodedIdToken = await verifier.verifyIdToken(tokenBearer);
-    // console.log("token is : ",token);
+
     const user = await _usersService.updateSertUser(
       { userId: token.user_id, email: token.email } as User,
       ""
     );
-    // console.log("user in firebase auth: ",user);
+
     if (user?.organisation?.organisationId == null) {
       next({
         name: "OrganisationUnregisteredError",
         message:
           "Please complete your onboarding, Organisation is not registered.",
       });
+      return;
     } else {
       request.user = {
         userId: token?.user_id as string,
@@ -42,11 +61,9 @@ const verifyToken = async (
         auth_time: token?.auth_time,
         organizationId: user?.organisation?.organisationId,
       };
-      // console.log("request.user : ",request.user);
     }
     next();
-  } catch (err) {
-    console.log("FIREBASE ERR IS : ", err.message);
+  } catch (err: any) {
     next({ name: "UnauthorizedError", message: "Invalid token" });
   }
 };

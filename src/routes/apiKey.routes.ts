@@ -20,6 +20,9 @@ router.delete(
     apiKeyController.revokeApiKey.bind(apiKeyController)
 );
 
+// Update an API key
+router.patch("/:apiKeyId", apiKeyController.updateApiKey.bind(apiKeyController));
+
 // Delete an API key permanently
 router.delete("/:apiKeyId", apiKeyController.deleteApiKey.bind(apiKeyController));
 

@@ -286,6 +286,35 @@ class UserController {
     }
   }
 
+  async createUserDirectly(request: AuthenticatedRequest, response: Response) {
+    try {
+      const payload = request.body;
+      const adminUserId = request.user?.userId;
+
+      if (!adminUserId) {
+        return makeResponse(
+          response,
+          401,
+          false,
+          "Unauthorized: Admin user ID not found",
+          null
+        );
+      }
+
+      const result = await userservices.createUserDirectly(payload, adminUserId);
+
+      return makeResponse(
+        response,
+        201,
+        true,
+        "User created successfully",
+        result
+      );
+    } catch (error) {
+      return errorHandler(response, error.message);
+    }
+  }
+
   async partiallyUpadateUser(request: AuthenticatedRequest, response: Response) {
     try {
       const userId: string = request.params.userId as string;
