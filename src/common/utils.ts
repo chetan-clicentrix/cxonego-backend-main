@@ -216,6 +216,18 @@ export enum Currency {
 }
 
 export enum purchaseTimeFrame {
+  first_MONTH = "1 Month",
+  second_MONTH = "2 Months",
+  third_MONTH = "3 Months",
+  fourth_MONTH = "4 Months",
+  fifth_MONTH = "5 Months",
+  sixth_MONTH = "6 Months",
+  seventh_MONTH = "7 Months",
+  eight_MONTH = "8 Months",
+  ninth_MONTH = "9 Months",
+  tenth_MONTH = "10 Months",
+  eleventh_MONTH = "11 Months",
+  twelve_MONTH = "12 Months",
   ONE_TWO_DAYS = "1-2 days",
   TWO_FIVE_DAYS = "2-5 days",
   FIVE_TEN_DAYS = "5-10 days",
