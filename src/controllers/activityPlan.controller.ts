@@ -87,4 +87,42 @@ export class ActivityPlanController {
             res.status(500).send(buildResponse(null, "Failed to delete action", error.message));
         }
     }
+
+    async uploadActivityPlanDocument(req: Request, res: Response) {
+        try {
+            const { actionId } = req.params;
+            const { opportunityId } = req.body;
+            // @ts-ignore
+            const user = req.user;
+            const file = req.file;
+
+            if (!file) {
+                return res.status(400).send(buildResponse(null, "No file uploaded"));
+            }
+
+            if (!user || !user.userId) {
+                return res.status(401).send(buildResponse(null, "User not authenticated"));
+            }
+
+            if (!opportunityId) {
+                return res.status(400).send(buildResponse(null, "Opportunity ID is required"));
+            }
+
+            // Use SharePoint service to upload the document
+            const { SharePointService } = await import("../services/sharepoint.service");
+            const sharepointService = new SharePointService();
+
+            const document = await sharepointService.uploadActivityPlanDocument(
+                user.userId,
+                opportunityId,
+                actionId,
+                file,
+                { description: req.body.description }
+            );
+
+            res.status(201).send(buildResponse(document, "Document uploaded successfully to activity plan action"));
+        } catch (error) {
+            res.status(500).send(buildResponse(null, "Failed to upload document", error.message));
+        }
+    }
 }

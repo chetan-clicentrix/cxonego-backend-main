@@ -3,7 +3,7 @@ import { EntityManager } from "typeorm";
 import { ActivityPlan } from "../entity/ActivityPlan";
 import { ActivityPlanAction } from "../entity/ActivityPlanAction";
 import { Oppurtunity } from "../entity/Oppurtunity";
-import { ActivityPlanStatus, ActivityPlanActionStatus, stage } from "../common/utils";
+import { ActivityPlanStatus, ActivityPlanActionStatus, stage, ActivityPlanActionType } from "../common/utils";
 import * as dayjs from "dayjs";
 import { User } from "../entity/User";
 import { ActivityPlanTemplate } from "../entity/ActivityPlanTemplate";
@@ -137,6 +137,8 @@ export class ActivityPlanService {
                 tat: config.tatDays > 0 ? `${config.tatDays} Day(s)` : `${config.tatHours} Hour(s)`,
                 dueDate: dueDate,
                 status: ActivityPlanActionStatus.PENDING,
+                actionType: (config as any).actionType || ActivityPlanActionType.DEFAULT,
+                actionData: null,
                 actionId: undefined,
                 assignedTo: null,
                 completedAt: null,

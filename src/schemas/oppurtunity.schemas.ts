@@ -3,7 +3,7 @@ import { z } from "zod";
 export const OpportunitySchema = z.object({
     title: z.string(),
     currency: z.enum(["INR", "GBP", "USD", "EUR", "AUD"] as const),
-    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months"] as const).nullable().optional(),
+    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months", "1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const).nullable().optional(),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
     estimatedRevenue: z.string(),
@@ -40,7 +40,7 @@ export const bulkDeleteOpportunitySchema = z.object({
 export const OpportunitySchemaWithDate = z.object({
     title: z.string(),
     currency: z.enum(["INR", "GBP", "USD", "EUR", "AUD"] as const),
-    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months"] as const),
+    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months", "1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
     estimatedRevenue: z.string(),
@@ -61,7 +61,7 @@ export const OpportunitySchemaWithDate = z.object({
 export const OpportunityUpdateSchema = z.object({
     title: z.string(),
     currency: z.enum(["INR", "GBP", "USD", "EUR", "AUD"] as const),
-    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months"] as const),
+    purchaseTimeFrame: z.enum(["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months", "1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
     estimatedRevenue: z.string(),

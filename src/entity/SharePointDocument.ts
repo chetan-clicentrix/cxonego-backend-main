@@ -19,6 +19,7 @@ export enum DocumentType {
 @Index(['opportunityId', 'deletedAt'])  // For opportunity document listing
 @Index(['uploadedById', 'deletedAt'])  // For user document listing
 @Index(['organizationId', 'deletedAt'])  // For org document listing
+@Index(['activityPlanActionId', 'deletedAt'])  // For activity plan action document listing
 export class SharePointDocument {
     constructor(payload: Partial<SharePointDocument>) {
         Object.assign(this, { ...payload });
@@ -99,6 +100,17 @@ export class SharePointDocument {
 
     @Column({ nullable: true })
     organizationId: string;
+
+    @ManyToOne(() => require("./ActivityPlanAction").ActivityPlanAction, (action: any) => action.documents, {
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
+        nullable: true
+    })
+    @JoinColumn({ name: "activityPlanActionId" })
+    activityPlanAction: any; // Optional: Link to activity plan action if uploaded as part of workflow
+
+    @Column({ nullable: true })
+    activityPlanActionId: string;
 
     // Timestamps
     @CreateDateColumn()

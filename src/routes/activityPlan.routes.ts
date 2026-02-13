@@ -1,9 +1,11 @@
 import * as express from "express";
 import { ActivityPlanController } from "../controllers/activityPlan.controller";
 import { authMiddleware } from "../middlewares/firebase.middleware";
+import * as multer from "multer";
 
 const router = express.Router();
 const activityPlanController = new ActivityPlanController();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.post(
     "/create-default",
@@ -45,6 +47,13 @@ router.delete(
     "/action/:actionId",
     authMiddleware(),
     activityPlanController.deleteAction
+);
+
+router.post(
+    "/action/:actionId/upload-document",
+    authMiddleware(),
+    upload.single('file'),
+    activityPlanController.uploadActivityPlanDocument
 );
 
 export default router;
