@@ -493,6 +493,7 @@ export enum ActivityPlanActionType {
   DATA_ENTRY = "Data Entry",  // Text/number input field
   SELECTION = "Selection",  // Dropdown from predefined choices
   DATE_SELECTION = "Date Selection",  // Date picker
+  START_END_DATE = "Start & End Date", // New: Start date and end date picker
   CALL_LOG = "Call Log",  // Structured call details form
   MEETING_NOTES = "Meeting Notes",  // Rich text for meetings
   APPROVAL = "Approval",  // Approve/Reject with comments

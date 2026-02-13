@@ -2,6 +2,7 @@ import { AppDataSource } from "../data-source";
 import { ActivityPlanTemplate } from "../entity/ActivityPlanTemplate";
 import { ActivityPlanTemplateAction } from "../entity/ActivityPlanTemplateAction";
 import { IsNull } from "typeorm";
+import { ActivityPlanActionType } from "../common/utils";
 
 export class ActivityPlanTemplateService {
     private templateRepository = AppDataSource.getRepository(ActivityPlanTemplate);
@@ -31,6 +32,8 @@ export class ActivityPlanTemplateService {
                 description: action.description,
                 tatDays: action.tatDays || 0,
                 tatHours: action.tatHours || 0,
+                actionType: action.actionType || ActivityPlanActionType.DEFAULT,
+                actionConfig: action.actionConfig,
                 modifiedBy: user.userId
             }));
             await this.templateActionRepository.save(actionsToSave);
@@ -86,6 +89,8 @@ export class ActivityPlanTemplateService {
                 description: action.description,
                 tatDays: action.tatDays || 0,
                 tatHours: action.tatHours || 0,
+                actionType: action.actionType || ActivityPlanActionType.DEFAULT,
+                actionConfig: action.actionConfig,
                 modifiedBy: user.userId
             }));
             await this.templateActionRepository.save(actionsToSave);
@@ -136,6 +141,8 @@ export class ActivityPlanTemplateService {
             description: action.description,
             tatDays: action.tatDays || 0,
             tatHours: action.tatHours || 0,
+            actionType: action.actionType || ActivityPlanActionType.DEFAULT,
+            actionConfig: action.actionConfig,
             modifiedBy: user.userId
         }));
 
