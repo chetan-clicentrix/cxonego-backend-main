@@ -17,11 +17,13 @@ export const LeadSchema = z.object({
     // owner:z.object({}).optional(),
     fullname: z.string().nullable().optional(),
     mobile: z.string().nullable().optional(),
-    loanType: z.string(),
-    loanAmount: z.string(),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional(),
     zone: z.string().nullable().optional(),
     village: z.string().nullable().optional(),
-    pincode: z.string().nullable().optional()
+    pincode: z.string().nullable().optional(),
+    wasQualified: z.boolean().optional(),
+    closureComments: z.string().nullable().optional()
 });
 
 export const BulkLeadSchema = z.object({
@@ -39,7 +41,9 @@ export const BulkLeadSchema = z.object({
     rating: z.enum(["Hot", "Warm", "Cold"] as const).optional(),
     owner: z.string().optional(),
     fullname: z.string().optional(),
-    mobile: z.string().optional()
+    mobile: z.string().optional(),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional()
 });
 
 export const bulkDeleteSchema = z.object({
@@ -85,11 +89,13 @@ export const LeadSchemaTypePath = z.object({
     modifiedBy: z.string().optional(),
     fullname: z.string().optional(),
     mobile: z.string().optional(),
-    loanType: z.string().optional(),
-    loanAmount: z.string().optional(),
+    loanType: z.string().nullable().optional(),
+    loanAmount: z.string().nullable().optional(),
     zone: z.string().nullable().optional(),
     village: z.string().nullable().optional(),
-    pincode: z.string().nullable().optional()
+    pincode: z.string().nullable().optional(),
+    wasQualified: z.boolean().optional(),
+    closureComments: z.string().nullable().optional()
 })
 export type bulkDeleteSchemaType = z.infer<typeof bulkDeleteSchema>;
 export type bulkCreateType = z.infer<typeof bulkCreate>;

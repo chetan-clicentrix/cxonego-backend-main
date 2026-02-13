@@ -1,8 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate, AfterLoad } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate, AfterLoad, OneToMany } from "typeorm";
 import { CustomBaseEntity } from "./CustomBaseEntity";
 import { ActivityPlan } from "./ActivityPlan";
 import { User } from "./User";
-import { ActivityPlanActionStatus, encryption, decrypt } from "../common/utils";
+import { ActivityPlanActionStatus, encryption, decrypt, ActivityPlanActionType } from "../common/utils";
 
 @Entity()
 export class ActivityPlanAction extends CustomBaseEntity {
@@ -60,6 +60,21 @@ export class ActivityPlanAction extends CustomBaseEntity {
     @Column({ type: "text", nullable: true })
     comments: string;
 
+    @Column({
+        type: "enum",
+        enum: ActivityPlanActionType,
+        default: ActivityPlanActionType.DEFAULT
+    })
+    actionType: ActivityPlanActionType;
+
+    @Column({ type: "text", nullable: true })
+    actionData: string; // JSON string storing user-submitted data (uploaded file info, selected values, etc.)
+
+    @OneToMany(() => require("./SharePointDocument").SharePointDocument, (doc: any) => doc.activityPlanAction, {
+        cascade: false
+    })
+    documents: any[]; // SharePoint documents uploaded for this action
+
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
@@ -68,6 +83,7 @@ export class ActivityPlanAction extends CustomBaseEntity {
         if (this.description) this.description = encryption(this.description);
         if (this.remarks) this.remarks = encryption(this.remarks);
         if (this.comments) this.comments = encryption(this.comments);
+        if (this.actionData) this.actionData = encryption(this.actionData);
     }
 
     @AfterLoad()
@@ -77,5 +93,6 @@ export class ActivityPlanAction extends CustomBaseEntity {
         if (this.description) this.description = decrypt(this.description);
         if (this.remarks) this.remarks = decrypt(this.remarks);
         if (this.comments) this.comments = decrypt(this.comments);
+        if (this.actionData) this.actionData = decrypt(this.actionData);
     }
 }

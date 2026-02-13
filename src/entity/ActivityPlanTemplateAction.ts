@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate, AfterLoad } from "typeorm";
 import { CustomBaseEntity } from "./CustomBaseEntity";
 import { ActivityPlanTemplate } from "./ActivityPlanTemplate";
-import { encryption, decrypt } from "../common/utils";
+import { encryption, decrypt, ActivityPlanActionType } from "../common/utils";
 
 @Entity()
 export class ActivityPlanTemplateAction extends CustomBaseEntity {
@@ -39,12 +39,23 @@ export class ActivityPlanTemplateAction extends CustomBaseEntity {
     @Column({ type: "int", default: 0 })
     tatHours: number;
 
+    @Column({
+        type: "enum",
+        enum: ActivityPlanActionType,
+        default: ActivityPlanActionType.DEFAULT
+    })
+    actionType: ActivityPlanActionType;
+
+    @Column({ type: "text", nullable: true })
+    actionConfig: string; // JSON string for type-specific config (e.g., dropdown options, file types)
+
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
         if (this.actionName) this.actionName = encryption(this.actionName);
         if (this.stageName) this.stageName = encryption(this.stageName);
         if (this.description) this.description = encryption(this.description);
+        if (this.actionConfig) this.actionConfig = encryption(this.actionConfig);
     }
 
     @AfterLoad()
@@ -52,5 +63,6 @@ export class ActivityPlanTemplateAction extends CustomBaseEntity {
         if (this.actionName) this.actionName = decrypt(this.actionName);
         if (this.stageName) this.stageName = decrypt(this.stageName);
         if (this.description) this.description = decrypt(this.description);
+        if (this.actionConfig) this.actionConfig = decrypt(this.actionConfig);
     }
 }

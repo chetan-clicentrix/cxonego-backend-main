@@ -168,6 +168,97 @@ export class SharePointService {
     }
 
     /**
+     * Upload a file for an Activity Plan Action to SharePoint
+     * Creates folder structure: CxOneGo Documents / [Opportunity Title] / Activity Plans / [Action Name]
+     */
+    async uploadActivityPlanDocument(
+        userId: string,
+        opportunityId: string,
+        actionId: string,
+        file: Express.Multer.File,
+        metadata?: {
+            description?: string;
+        }
+    ): Promise<SharePointDocument> {
+        try {
+            const { ActivityPlanAction } = await import("../entity/ActivityPlanAction");
+            const actionRepository = AppDataSource.getRepository(ActivityPlanAction);
+
+            // 1. Validate inputs
+            const user = await this.userRepository.findOne({ where: { userId }, relations: ['organisation'] });
+            if (!user) throw new Error("User not found");
+
+            const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+            if (!opportunity) throw new Error("Opportunity not found");
+
+            const action = await actionRepository.findOne({ where: { actionId } });
+            if (!action) throw new Error("Activity Plan Action not found");
+
+            // 2. Get Graph Client (Service Principal)
+            const client = await this.getGraphClient();
+            const siteId = await this.getSiteId();
+
+            // 3. Create Folder Structure: CxOneGo Documents / [Opportunity Title] / Activity Plans / [Action Name]
+            const opportunityTitle = opportunity.title ? decrypt(opportunity.title) : '';
+            let displayName = opportunityTitle.trim();
+            if (!displayName) {
+                displayName = `Opportunity-${opportunity.opportunityId}`;
+            }
+            const opportunityFolderName = displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const actionName = action.actionName ? decrypt(action.actionName) : 'Unknown Action';
+            const actionFolderName = actionName.replace(/[^\w\s-]/g, '_');
+            const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
+
+            // Build the file path in SharePoint
+            const filePath = `${rootFolder}/${opportunityFolderName}/Activity Plans/${actionFolderName}/${file.originalname}`;
+
+            console.log(`Uploading activity plan file to SharePoint: ${filePath}`);
+
+            // 4. Upload File to SharePoint Site
+            const driveItem = await client.api(`/sites/${siteId}/drive/root:/${filePath}:/content`)
+                .put(file.buffer);
+
+            console.log("✓ Activity plan file uploaded to SharePoint:", driveItem.id);
+
+            // 5. Create Sharing Link (View Link)
+            const permission = await client.api(`/sites/${siteId}/drive/items/${driveItem.id}/createLink`)
+                .post({
+                    type: "view",
+                    scope: "organization" // Organization-wide access
+                });
+
+            const webUrl = permission.link.webUrl;
+
+            // 6. Save to Database with Activity Plan Action link
+            const document = new SharePointDocument({
+                fileName: file.originalname,
+                fileType: file.mimetype,
+                fileSize: file.size,
+                sharepointFileId: driveItem.id,
+                sharepointLink: webUrl,
+                sharepointFolderPath: `${rootFolder}/${opportunityFolderName}/Activity Plans/${actionFolderName}`,
+                opportunityFolderName: opportunityFolderName,
+                description: metadata?.description || `Uploaded for activity: ${actionName}`,
+                documentType: DocumentType.OTHER,
+                opportunity: opportunity,
+                uploadedBy: user,
+                organization: user.organisation,
+                activityPlanActionId: actionId  // Link to activity plan action
+            });
+
+            // Encrypt sensitive fields
+            document.encrypt();
+
+            console.log('✓ Activity plan document metadata saved to database');
+            return await this.documentRepository.save(document);
+
+        } catch (error) {
+            console.error("Error uploading activity plan file to SharePoint:", error);
+            throw new Error(`Failed to upload activity plan file: ${error.message}`);
+        }
+    }
+
+    /**
      * Upload file from temp path (for resumable uploads)
      * Used by background worker after chunks are assembled
      */
