@@ -139,6 +139,7 @@ class LeadService {
       "zone",
       "village",
       "pincode",
+      "closureComments",
     ];
     for (let key in updatedLead) {
       if (`${key}` === "contact") {

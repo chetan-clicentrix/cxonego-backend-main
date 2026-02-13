@@ -133,6 +133,7 @@ export enum stage {
   QUERY_RESOLUTION = "Query Resolution",
   APPROVED = "Approved",
   DISBURSED = "Disbursed",
+  PDD = "PDD",
   WON = "Won",
   LOST = "Lost",
 }
@@ -227,6 +228,14 @@ export enum purchaseTimeFrame {
   tenth_MONTH = "10 Months",
   eleventh_MONTH = "11 Months",
   twelve_MONTH = "12 Months",
+  ONE_TWO_DAYS = "1-2 days",
+  TWO_FIVE_DAYS = "2-5 days",
+  FIVE_TEN_DAYS = "5-10 days",
+  TEN_FIFTEEN_DAYS = "10-15 days",
+  FIFTEEN_TWENTY_DAYS = "15-20 days",
+  TWENTY_TWENTYFIVE_DAYS = "20-25 days",
+  TWENTYFIVE_THIRTY_DAYS = "25-30 days",
+  ONE_ONEHALF_MONTHS = "1-1.5 months",
 }
 // Encrypt plaintext using AES-GCM
 
@@ -487,4 +496,17 @@ export enum ActivityPlanActionStatus {
   COMPLETED = "Completed",
   OVERDUE = "Overdue",
   SKIPPED = "Skipped",
+}
+
+export enum ActivityPlanActionType {
+  DEFAULT = "Default",  // Standard activity with just comments
+  DOCUMENT_UPLOAD = "Document Upload",  // File upload to SharePoint
+  VERIFICATION = "Verification",  // Yes/No checkbox confirmation
+  DATA_ENTRY = "Data Entry",  // Text/number input field
+  SELECTION = "Selection",  // Dropdown from predefined choices
+  DATE_SELECTION = "Date Selection",  // Date picker
+  CALL_LOG = "Call Log",  // Structured call details form
+  MEETING_NOTES = "Meeting Notes",  // Rich text for meetings
+  APPROVAL = "Approval",  // Approve/Reject with comments
+  COMMENT = "Comment",  // Simple textarea for remarks
 }
