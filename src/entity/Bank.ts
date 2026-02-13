@@ -33,6 +33,12 @@ export class Bank extends CustomBaseEntity {
     })
     code: string;
 
+    @Column({
+        type: "json",
+        nullable: true
+    })
+    relationshipManagers: { name: string; contact: string }[];
+
     @ManyToOne(() => Organisation, (organisation) => organisation.banks, {
         cascade: true,
         onUpdate: "CASCADE",
