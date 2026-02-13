@@ -221,7 +221,6 @@ class DashboardServices {
   async getLeadsDashboardData(
     ownerId: string,
     role: Role[],
-    country: string[] | undefined,
     state: string | undefined,
     city: string | undefined,
     leadSource: string[] | undefined,
@@ -234,17 +233,12 @@ class DashboardServices {
     status: string | undefined,
     organizationId: string | null,
     groupBy?: string,
-    rating?: string[],
-    loanType?: string[]
+    loanType?: string[],
+    zone?: string,
+    village?: string,
+    taluka?: string
   ) {
     try {
-      const countryArray: string[] = [];
-      if (country) {
-        for (let i = 0; i < country.length; i++) {
-          countryArray.push(encryption(country[i]));
-        }
-      }
-
       const leadSourceArray: string[] = [];
       if (leadSource) {
         for (let i = 0; i < leadSource.length; i++) {
@@ -290,17 +284,6 @@ class DashboardServices {
         lead.owner = await userDecryption(lead.owner as User);
       }
 
-      if (city) {
-        leads = leads.filter((lead) =>
-          lead.city.toLowerCase().includes(city?.toLowerCase())
-        );
-      }
-      if (state) {
-        leads = leads.filter((lead) =>
-          lead.state.toLowerCase().includes(state?.toLowerCase())
-        );
-      }
-
       if (dateRange) {
         if (dateRange.startDate && dateRange.endDate) {
           leads = this.filterLeadsByDateRange(
@@ -317,7 +300,7 @@ class DashboardServices {
         }
       }
 
-      if (state || city || salesPerson || country || leadSource || rating || loanType) {
+      if (state || city || salesPerson || leadSource || loanType || zone || village || taluka) {
         let firstName = "";
         let lastName = "";
         if (salesPerson) {
@@ -330,6 +313,12 @@ class DashboardServices {
             !state || lead.state?.toLowerCase().includes(state?.toLowerCase());
           const matchCity =
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
+          const matchZone =
+            !zone || lead.zone?.toLowerCase().includes(zone?.toLowerCase());
+          const matchVillage =
+            !village || lead.village?.toLowerCase().includes(village?.toLowerCase());
+          const matchTaluka =
+            !taluka || lead.taluka?.toLowerCase().includes(taluka?.toLowerCase());
           const matchSalesPerson =
             !salesPerson ||
             lead.owner?.firstName
@@ -338,12 +327,10 @@ class DashboardServices {
             lead.owner?.lastName
               ?.toLowerCase()
               .includes(lastName?.toLowerCase());
-          const matchCountry = !country || country.length === 0 || country.includes(lead.country);
           const matchLeadSource = !leadSource || leadSource.length === 0 || leadSource.includes(lead.leadSource);
-          const matchRating = !rating || rating.length === 0 || rating.includes(lead.rating);
           const matchLoanType = !loanType || loanType.length === 0 || loanType.includes(lead.loanType);
 
-          return matchState && matchCity && matchSalesPerson && matchCountry && matchLeadSource && matchRating && matchLoanType;
+          return matchState && matchCity && matchSalesPerson && matchLeadSource && matchLoanType && matchZone && matchVillage && matchTaluka;
         });
       }
 
@@ -361,6 +348,16 @@ class DashboardServices {
           key = lead.company ? lead.company.accountName : "No Account";
         } else if (groupField === "contact") {
           key = lead.contact ? lead.contact.fullName : "No Contact";
+        } else if (groupField === "state") {
+          key = lead.state || "No State";
+        } else if (groupField === "city") {
+          key = lead.city || "No Town/City";
+        } else if (groupField === "zone") {
+          key = lead.zone || "No Zone";
+        } else if (groupField === "village") {
+          key = lead.village || "No Village";
+        } else if (groupField === "taluka") {
+          key = lead.taluka || "No Taluka";
         }
 
         if (!key) key = "Unknown";
@@ -615,8 +612,9 @@ class DashboardServices {
     lostReason: string[],
     organizationId: string | null,
     groupBy?: string,
-    priority?: string[],
-    forecastCategory?: string[]
+    bankId?: string,
+    loanType?: string[],
+    applicantType?: string[]
   ) {
     try {
       const leadSourceArray: string[] = [];
@@ -634,6 +632,7 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
+          .leftJoinAndSelect("oppurtunity.bank", "bank")
           .where("oppurtunity.ownerId=:ownerId", { ownerId: ownerId })
           .andWhere("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
@@ -645,6 +644,7 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
+          .leftJoinAndSelect("oppurtunity.bank", "bank")
           .where("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
           });
@@ -676,16 +676,8 @@ class DashboardServices {
         });
       }
 
-      if (priority && priority.length > 0) {
-        opportunityRepo.andWhere("oppurtunity.priority IN (:priority)", {
-          priority: priority,
-        });
-      }
-
-      if (forecastCategory && forecastCategory.length > 0) {
-        opportunityRepo.andWhere("oppurtunity.forecastCategory IN (:forecastCategory)", {
-          forecastCategory: forecastCategory,
-        });
+      if (bankId) {
+        opportunityRepo.andWhere("oppurtunity.bankId = :bankId", { bankId });
       }
 
       opportunityRepo
@@ -741,7 +733,10 @@ class DashboardServices {
           const matchLeadSource = !leadSource || leadSource.length === 0 ||
             (opportunity.Lead && leadSource.includes(opportunity.Lead.leadSource));
 
-          return matchSalesPerson && matchLeadSource;
+          const matchLoanType = !loanType || loanType.length === 0 || loanType.includes(opportunity.loanType);
+          const matchApplicantType = !applicantType || applicantType.length === 0 || applicantType.includes(opportunity.applicantType);
+
+          return matchSalesPerson && matchLeadSource && matchLoanType && matchApplicantType;
         });
       }
 
@@ -761,6 +756,12 @@ class DashboardServices {
           key = opportunity.contact ? opportunity.contact.fullName : "No Contact";
         } else if (groupField === "leadSource") {
           key = opportunity.Lead ? opportunity.Lead.leadSource : "No Source";
+        } else if (groupField === "bank") {
+          key = opportunity.bank ? opportunity.bank.name : "No Bank";
+        } else if (groupField === "loanType") {
+          key = opportunity.loanType || "No Loan Type";
+        } else if (groupField === "applicantType") {
+          key = opportunity.applicantType || "No Applicant Type";
         }
 
         if (!key) key = "Unknown";
@@ -982,6 +983,10 @@ class DashboardServices {
                   .includes(String(search).toLowerCase())) ||
               (opportunity?.priority !== null &&
                 opportunity?.priority
+                  ?.toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (opportunity?.bank?.name !== null &&
+                opportunity?.bank?.name
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase()))
             ) {
