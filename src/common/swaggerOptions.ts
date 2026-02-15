@@ -15,6 +15,12 @@ const options = {
           scheme: "bearer",
           bearerFormat: "JWT",
           description: "Enter your JWT token"
+        },
+        ApiKeyAuth: {
+          type: "apiKey",
+          in: "header",
+          name: "x-api-key",
+          description: "API key for WhatsApp automation and external integrations"
         }
       },
       schemas: {
@@ -27,7 +33,7 @@ const options = {
             },
             error: {
               type: "object",
-              description: "Error details" 
+              description: "Error details"
             }
           }
         }
@@ -47,7 +53,7 @@ const options = {
   },
   apis: [
     "./src/routes/*.ts",
-    "./src/controllers/*.ts", 
+    "./src/controllers/*.ts",
     "./src/schemas/*.ts",
     "./src/entity/*.ts"
   ]

@@ -44,6 +44,7 @@ import activityPlanRouter from "./activityPlan.routes";
 import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
 import apiKeyRouter from "./apiKey.routes";
 import apiLeadRouter from "./api.lead.routes";
+import apiUnifiedRouter from "./api.unified.routes";
 
 const router = Router({ mergeParams: true });
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
@@ -85,6 +86,9 @@ router.use("/api-keys", apiKeyRouter);
 
 // API endpoints for automation (uses API key auth instead of Firebase)
 router.use("/api/lead", apiLeadRouter);
+
+// Unified API for WhatsApp AI Agent (comprehensive CRM access)
+router.use("/api/unified", apiUnifiedRouter);
 
 // Email Notification Module
 console.log("Registering email notification routes...");
