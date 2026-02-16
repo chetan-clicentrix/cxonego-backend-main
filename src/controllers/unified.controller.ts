@@ -676,6 +676,20 @@ class UnifiedController {
                 return makeResponse(response, 404, false, "Lead not found", null);
             }
 
+            // Check if lead is already qualified
+            if (lead.wasQualified) {
+                return makeResponse(response, 400, false, "Lead has already been qualified to an opportunity", null);
+            }
+
+            // Double-check if opportunity already exists for this lead
+            const existingOpp = await oppRepo.findOne({
+                where: { Lead: { leadId } }
+            });
+
+            if (existingOpp) {
+                return makeResponse(response, 400, false, "An opportunity already exists for this lead", existingOpp);
+            }
+
             // Get owner and organization
             const owner = await userRepo.findOne({ where: { userId } });
             const organization = await orgRepo.findOne({ where: { organisationId: orgId! } });
