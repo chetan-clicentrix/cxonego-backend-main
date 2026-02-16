@@ -3,13 +3,13 @@ import { Request, Response } from "express";
 import OppurtunityServices from "../services/oppurtunity.service";
 import { makeResponse, decrypt } from "../common/utils";
 import { Oppurtunity } from "../entity/Oppurtunity";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
 import { AppDataSource } from "../data-source";
 const oppurtunityServices = new OppurtunityServices();
 export class OppurtunityController {
-  async getAllOppurtunities(request: CustomRequest, response: Response) {
+  async getAllOppurtunities(request: AuthenticatedRequest, response: Response) {
     try {
       const oppurtunities = await oppurtunityServices.getAllOppurtunities(
         request.user
@@ -25,7 +25,7 @@ export class OppurtunityController {
       errorHandler(response, error.message);
     }
   }
-  async getAllOppurtunity(request: CustomRequest, response: Response) {
+  async getAllOppurtunity(request: AuthenticatedRequest, response: Response) {
     try {
       const search: string | undefined = request.query.search as
         | string
@@ -96,7 +96,7 @@ export class OppurtunityController {
       errorHandler(response, error.message);
     }
   }
-  async createOppurtunity(request: CustomRequest, response: Response) {
+  async createOppurtunity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const payload = request.body as Oppurtunity;
@@ -155,7 +155,7 @@ export class OppurtunityController {
       errorHandler(response, errorMessage);
     }
   }
-  async updateOppurtunity(request: CustomRequest, response: Response) {
+  async updateOppurtunity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const oppurtunity = await AppDataSource.transaction(
@@ -214,7 +214,7 @@ export class OppurtunityController {
       errorHandler(response, errorMessage);
     }
   }
-  async deleteOppurtunity(request: CustomRequest, response: Response) {
+  async deleteOppurtunity(request: AuthenticatedRequest, response: Response) {
     try {
       const oppurtunity = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -269,7 +269,7 @@ export class OppurtunityController {
     }
   }
 
-  async bulkDeleteOpportunity(request: CustomRequest, response: Response) {
+  async bulkDeleteOpportunity(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const auth_time = request.user.auth_time;
@@ -309,7 +309,7 @@ export class OppurtunityController {
   }
 
   async getAllOppurtunityByAccountId(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -387,7 +387,7 @@ export class OppurtunityController {
   }
 
   async getAllOppurtunityByContactId(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {

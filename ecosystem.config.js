@@ -1,19 +1,43 @@
 module.exports = {
   apps: [
+
     {
-      name: "cxonego-backend-main",
+      name: "cxonego-backend",
       script: "build/src/index.js",
-      env: {
-        NODE_ENV: "production",
-      },
-      instances: 1,
-      autorestart: true,
+
+      // 2 vCPU → 2 instances
+      instances: 2,
+      exec_mode: "cluster",
       watch: false,
-      max_memory_restart: "1G",
-      env_production: {
-        NODE_ENV: "production",
+      autorestart: true,
+
+      // Memory tuning
+      // Heap: 1.5GB per instance
+      node_args: "--max-old-space-size=1536",
+      max_memory_restart: "2G",
+
+      // Environment
+      env: {
+        NODE_ENV: "production"
       },
-      env_file: ".env"
+      env_file: ".env",
+
+      // Logs
+      error_file: "logs/backend-error.log",
+      out_file: "logs/backend-out.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
+
+      // Stability
+      max_restarts: 10,
+      min_uptime: "15s",
+      restart_delay: 4000,
+      exp_backoff_restart_delay: 200,
+      kill_timeout: 5000,
+      listen_timeout: 5000,
+
+      instance_var: "INSTANCE_ID",
+      source_map_support: false
     }
   ]
-}; 
+};

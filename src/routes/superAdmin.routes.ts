@@ -15,8 +15,6 @@ superAdminRouter.post(
   superAdminController.login
 );
 
-superAdminRouter.post("/verifyCaptcha", superAdminController.verifyCaptcha);
-
 superAdminRouter.post("/disableUser", superAdminController.disableUser);
 
 superAdminRouter.post(

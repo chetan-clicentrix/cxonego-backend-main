@@ -17,7 +17,8 @@ import {
   orgnizationDecryption,
   userDecryption,
 } from "./decryption.service";
-import EmailManager from "./email-manager.service";
+import { EmailNotificationService } from "./emailNotification.service";
+import { EmailType } from "../entity/SentEmailLog";
 import * as moment from "moment";
 import * as moment1 from "moment-timezone";
 const activityServices = new ActivityServices();
@@ -163,9 +164,9 @@ class CalenderServices {
         const formattedDuration = `${Math.floor(duration.asHours())
           .toString()
           .padStart(2, "0")}:${duration
-          .minutes()
-          .toString()
-          .padStart(2, "0")}:${duration.seconds().toString().padStart(2, "0")}`;
+            .minutes()
+            .toString()
+            .padStart(2, "0")}:${duration.seconds().toString().padStart(2, "0")}`;
 
         // console.log("Meeting Duration:", formattedDuration);
 
@@ -188,15 +189,19 @@ class CalenderServices {
             </body>
             </html>`;
 
-        const emailManager = new EmailManager();
+        const emailService = new EmailNotificationService();
         try {
-          await emailManager.sendEmail(
-            [participentEmailId[i]],
-            `Scheduled Meeting - ${decrypt(calenderObj.title)}`,
-            mailTemplate
-          );
-        } catch (error) {
-          console.log("Error while sending email", error);
+          const result = await emailService.sendEmail({
+            to: participentEmailId[i],
+            subject: `Scheduled Meeting - ${decrypt(calenderObj.title)}`,
+            bodyHtml: mailTemplate,
+            emailType: EmailType.CUSTOM,
+            sentById: userId,
+            organizationId: userData?.organisation?.organisationId
+          });
+          console.log(`✓ Meeting invitation queued for ${participentEmailId[i]}: ${result.jobId}`);
+        } catch (error: any) {
+          console.error(`Failed to queue meeting invitation for ${participentEmailId[i]}:`, error.message);
         }
       }
 

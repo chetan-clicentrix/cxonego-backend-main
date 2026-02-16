@@ -2,12 +2,12 @@ import { RequestHandler, Request, Response } from "express";
 import AuthService from "../services/auth.service";
 import { makeResponse } from "../common/utils";
 import { ValidationFailedError, errorHandler } from "../common/errors";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 
 class AuthController {
   _authService = new AuthService();
 
-  disableFirebaseUser = async (req: CustomRequest, res: Response) => {
+  disableFirebaseUser = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const user = await this._authService.disableFirebaseUser(
         req.body.userId,

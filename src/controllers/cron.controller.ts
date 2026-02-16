@@ -58,6 +58,7 @@ class CronController {
       null
     );
   }
+
 }
 
 export default CronController;

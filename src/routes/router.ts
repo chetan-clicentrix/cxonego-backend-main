@@ -4,7 +4,7 @@ import authRouter from "./auth.routes";
 import emailPOC from "./email-poc.routes";
 import leadRouter from "./lead.routes";
 import accountRouter from "./account.routes";
-import userRouter from "./user.routes";
+import userRouter from "./users.v1.routes";
 import contactRouter from "./contact.routes";
 import roleRouter from "./role.routes";
 import servicesRouter from "./services.routes";
@@ -20,14 +20,33 @@ import noteRouter from "./note.routes";
 import healthRouter from "./health.routes";
 import planRouter from "./plan.routes";
 import subscriptionRouter from "./subscription.routes";
+import caseRouter from "./case.routes";
+import technicianRouter from "./technician.routes";
+import assignmentRouter from "./ticketAssignment.routes";
 import customPlanRequestRouter from "./customPlanRequest.routes";
 import superAdminRouter from "./superAdmin.routes";
 import cronRouter from "./cron.routes";
 import leadAssignmentRouter from "./leadAssignment.routes";
 import documentRouter from "./document.routes";
-// import customeToken from "./firebaseToken.routes";
+import sharepointRouter from "./sharepoint.routes";
+import leadRoutingConfigRouter from "./leadRoutingConfig.routes";
+import bankRouter from "./bank.routes";
+import bankDocConfigRouter from "./bankDocumentConfig.routes";
+import skillRouter from "./skill.routes";
+import uploadPublicRouter from "./uploadPublic.routes";
+import uploadSessionRouter from "./uploadSession.routes";
+import documentUploadRouter from "./document.upload.routes";
+import emailNotificationRouter from "./emailNotification.routes";
+import notificationRouter from "./notification.routes";
+
+
+import activityPlanRouter from "./activityPlan.routes";
+import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
+import apiKeyRouter from "./apiKey.routes";
+import apiLeadRouter from "./api.lead.routes";
 
 const router = Router({ mergeParams: true });
+router.use("/leadRoutingConfig", leadRoutingConfigRouter);
 router.use("/leadAssignment", leadAssignmentRouter)
 router.use("/auth", authRouter)
 router.use("/lead", leadRouter);
@@ -41,6 +60,8 @@ router.use("/services", servicesRouter);
 router.use("/opportunity", oppurtunityRouter);
 router.use("/moodimage", moodRouter);
 router.use("/activity", activityRouter);
+router.use("/activity-plan", activityPlanRouter);
+router.use("/activity-plan-templates", activityPlanTemplateRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/audit", auditRouter);
 router.use("/calender", calenderRouter);
@@ -54,4 +75,38 @@ router.use("/customPlanRequest", customPlanRequestRouter);
 router.use("/superAdmin", superAdminRouter);
 router.use("/cron", cronRouter)
 router.use("/document", documentRouter)
+router.use("/sharepoint", sharepointRouter)
+router.use("/skills", skillRouter);
+router.use("/bank", bankRouter);
+router.use("/bank-config", bankDocConfigRouter);
+
+// API Key Management (for automation tools like n8n)
+router.use("/api-keys", apiKeyRouter);
+
+// API endpoints for automation (uses API key auth instead of Firebase)
+router.use("/api/lead", apiLeadRouter);
+
+// Email Notification Module
+console.log("Registering email notification routes...");
+router.use("/email-notification", emailNotificationRouter);
+console.log("✓ Email notification routes registered!");
+
+// In-App Notification Module
+console.log("Registering notification routes...");
+router.use("/notifications", notificationRouter);
+console.log("✓ Notification routes registered!");
+
+
+// Document Upload Module
+console.log("Registering upload routes...");
+router.use("/public/upload", uploadPublicRouter); // Public upload endpoints
+router.use("/upload-session", uploadSessionRouter); // Admin session management
+router.use("/documents", documentUploadRouter); // Get uploaded documents
+console.log("Upload routes registered!");
+
+// Case Management Module
+router.use("/cases", caseRouter);
+router.use("/technicians", technicianRouter);
+router.use("/assignments", assignmentRouter);
+
 export default router;

@@ -5,21 +5,17 @@ import { ISTDateSubscriber } from "./ist-date-subscriber";
 
 dotenv.config();
 
-// Determine if we're in production
 const isProd = process.env.NODE_ENV === "production";
 
-// Allow TypeORM synchronize to be controlled via env; default off outside prod
-const shouldSynchronize =
-  process.env.TYPEORM_SYNCHRONIZE === "true" || (isProd && process.env.TYPEORM_SYNCHRONIZE !== "false");
+// SAFER: Default to false, only true if explicitly set
+const shouldSynchronize = process.env.TYPEORM_SYNCHRONIZE === "true";
 
-// Set the entity path based on environment
-const entitiesPath = isProd 
-  ? ["build/src/entity/*.js"]  // Production path (compiled JS files)
-  : ["src/entity/*.ts", "src/entity/*.js"];  // Development path (TS source files)
+const entitiesPath = isProd
+  ? ["build/src/entity/*.js"]
+  : ["src/entity/*.ts", "src/entity/*.js"];
 
-// Set migrations path (only in development)
-const migrationsPath = isProd 
-  ? [] // No migrations in production
+const migrationsPath = isProd
+  ? ["build/src/migration/*.js"]
   : ["src/migration/*.ts", "src/migration/*.js"];
 
 export const AppDataSource = new DataSource({
@@ -31,12 +27,11 @@ export const AppDataSource = new DataSource({
   database: process.env.DATABASE_NAME,
   synchronize: shouldSynchronize,
   logging: ["error"],
-  // logging:true,
   entities: entitiesPath,
   migrations: migrationsPath,
+  migrationsTableName: "migrations_history", // Track migration history
   extra: {
     timezone: "Z",
-    // Add connection parameters using proper MySQL2 option names
     connectTimeout: Number.parseInt(process.env.DATABASE_CONNECT_TIMEOUT ?? "5000"),
   },
   subscribers: [ISTDateSubscriber]

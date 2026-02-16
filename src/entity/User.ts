@@ -16,6 +16,7 @@ import {
 } from "typeorm";
 import { Account } from "./Account";
 import { Role } from "./Role";
+import { SharePointDocument } from "./SharePointDocument";
 import { Organisation } from "./Organisation";
 import { MoodImage } from "./MoodImage";
 import { Contact } from "./Contact";
@@ -25,6 +26,11 @@ import { Activity } from "./Activity";
 import { Note } from "./Note";
 import { Subscription } from "./Subscription";
 import { Document } from "./Document";
+import { Case } from "./Case";
+import { Technician } from "./Technician";
+import { TicketAssignment } from "./TicketAssignment";
+import { TicketStatusHistory } from "./TicketStatusHistory";
+import { Skill } from "./Skill";
 
 @Entity()
 export class User extends BaseEntity {
@@ -161,6 +167,16 @@ export class User extends BaseEntity {
     expiryDate: number;
   };
 
+  @Column({
+    type: "json",
+    nullable: true
+  })
+  sharepointTokens?: {
+    refreshToken: string;
+    accessToken: string;
+    expiryDate: number;
+  };
+
   @ManyToMany(() => Role, (role) => role.users, {
     eager: true,
     cascade: true,
@@ -185,6 +201,9 @@ export class User extends BaseEntity {
   @OneToMany(() => Account, (Account) => Account.owner)
   company: Account[];
 
+  @OneToMany(() => SharePointDocument, (doc) => doc.uploadedBy)
+  sharepointDocuments: SharePointDocument[];
+
   @OneToMany(() => Contact, (Contact) => Contact.owner)
   contact: Contact[];
 
@@ -208,4 +227,19 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Document, (document) => document.uploadedBy)
   documents: Document[];
+
+  @OneToMany(() => Case, (caseItem) => caseItem.createdBy)
+  createdCases: Case[];
+
+  @OneToOne(() => Technician, (technician) => technician.user)
+  technician: Technician;
+
+  @OneToMany(() => TicketAssignment, (assignment) => assignment.assignedBy)
+  ticketAssignments: TicketAssignment[];
+
+  @OneToMany(() => TicketStatusHistory, (history) => history.changedBy)
+  ticketStatusChanges: TicketStatusHistory[];
+
+  @OneToMany(() => Skill, (skill) => skill.owner)
+  skills: Skill[];
 }

@@ -24,6 +24,7 @@ import { User } from "../entity/User";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
 import * as XLSX from "xlsx";
+import LeadRoutingConfigService from "./leadRoutingConfig.service";
 
 class LeadService {
   async getAllLeads(userInfo: userInfo) {
@@ -45,7 +46,11 @@ class LeadService {
       if (lead.company) lead.company = await accountDecryption(lead.company);
       if (lead.contact) lead.contact = await contactDecryption(lead.contact);
       lead.owner = await userDecryption(lead.owner);
+      console.log(lead.organization);
     }
+
+    console.log(leads);
+
     return leads;
   }
 
@@ -55,7 +60,8 @@ class LeadService {
         ? date.getMonth() + 1
         : "0" + (date.getMonth() + 1)
     );
-    
+
+
     const year = String(date.getFullYear().toString().slice(-2));
     const lastLead = await AppDataSource.getRepository(Lead)
       .createQueryBuilder("LeadEntity")
@@ -68,7 +74,7 @@ class LeadService {
     const yearFromRecord = String(lastLead?.leadId.slice(3, 5)); //L032409,L0324010
 
     const leadIdFromRecord = String(lastLead?.leadId.substring(5));
-    
+
     if (year === yearFromRecord) {
       leadNo = leadIdFromRecord;
     }
@@ -117,8 +123,7 @@ class LeadService {
 
     //keys which are encrypted in table goes in if block and non encrypted goes in else block
     const keywords = [
-      "firstName",
-      "lastName",
+      "fullName",
       "phone",
       "title",
       "email",
@@ -129,6 +134,12 @@ class LeadService {
       "countryCode",
       "price",
       "description",
+      "loanType",
+      "loanAmount",
+      "zone",
+      "village",
+      "pincode",
+      "closureComments",
     ];
     for (let key in updatedLead) {
       if (`${key}` === "contact") {
@@ -136,24 +147,16 @@ class LeadService {
         const updatedContact = updatedLead[key];
         if (!oldContact && updatedContact) {
           description += `null --> ${decrypt(
-            updatedContact.firstName
-          )} ${decrypt(updatedContact.lastName)}`;
+            updatedContact.fullName
+          )}`;
         } else if (oldContact && !updatedContact) {
-          description += `${decrypt(oldContact.firstName)} ${decrypt(
-            oldContact.lastName
-          )} --> null`;
+          description += `${decrypt(oldContact.fullName)} --> null`;
         } else if (
           oldContact != updatedContact &&
           updatedLead[key].contactId !== oldLead[key].contactId
         ) {
-          const oldContactName =
-            decrypt(oldLead[key].firstName) +
-            " " +
-            decrypt(oldLead[key].lastName);
-          const updatedContactName =
-            decrypt(updatedLead[key].firstName) +
-            " " +
-            decrypt(updatedLead[key].lastName);
+          const oldContactName = decrypt(oldLead[key].fullName);
+          const updatedContactName = decrypt(updatedLead[key].fullName);
           description += `${key} ${oldContactName} --> ${updatedContactName} `;
         }
       } else if (`${key}` === "company") {
@@ -261,19 +264,54 @@ class LeadService {
 
     payload.leadId = await this.getLeadId(new Date());
     console.log(payload.leadId);
-    
-    const userRepo = AppDataSource.getRepository(User);
-    const userData = await userRepo.findOne({ where: { userId: user.userId } });
-    if (userData) {
-      payload.owner = userData as User;
-    }
 
+    const userRepo = AppDataSource.getRepository(User);
     const organizationRepo = AppDataSource.getRepository(Organisation);
+
+    // Set organization first (needed for routing)
     if (user.organizationId) {
       const orgnizationData = await organizationRepo.findOne({
         where: { organisationId: user.organizationId },
       });
       if (orgnizationData) payload.organization = orgnizationData;
+    }
+
+    // Execute lead routing logic to determine owner
+    const leadRoutingService = new LeadRoutingConfigService();
+    let ownerAssigned = false;
+
+    try {
+      // Create a temporary lead object for routing evaluation
+      const tempLead = new Lead(payload);
+      const routedUserId = await leadRoutingService.executeRouting(tempLead);
+
+      if (routedUserId) {
+        console.log(`[Lead Routing] Rule matched. Routing lead to user: ${routedUserId}`);
+        const routedUser = await userRepo.findOne({ where: { userId: routedUserId } });
+
+        if (routedUser && routedUser.isActive) {
+          payload.owner = routedUser as User;
+          ownerAssigned = true;
+          const decryptedEmail = routedUser.email ? decrypt(routedUser.email) : routedUser.email;
+          console.log(`[Lead Routing] Successfully assigned lead to: ${decryptedEmail}`);
+        } else {
+          console.log(`[Lead Routing] Routed user not found or inactive. Falling back to creator.`);
+        }
+      } else {
+        console.log(`[Lead Routing] No routing rules matched. Assigning to creator.`);
+      }
+    } catch (error) {
+      console.error(`[Lead Routing] Error during routing execution:`, error);
+    }
+
+    // Fallback: Assign to creator if routing didn't assign an owner
+    if (!ownerAssigned) {
+      const userData = await userRepo.findOne({ where: { userId: user.userId } });
+      if (userData) {
+        payload.owner = userData as User;
+        const decryptedEmail = userData.email ? decrypt(userData.email) : userData.email;
+        console.log(`[Lead Routing] Assigned to creator: ${decryptedEmail}`);
+      }
     }
 
     if (payload.contact) {
@@ -292,7 +330,7 @@ class LeadService {
     const leadInstance = new Lead(payload);
     const lead = await leadInstance.save();
     // console.log('lead',lead);
-    
+
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(transactionEntityManager, lead, auditId);
 
@@ -421,6 +459,7 @@ class LeadService {
         lead.company = await accountDecryption(lead.company as Account);
         lead.contact = await contactDecryption(lead.contact as Contact);
         lead.owner = await userDecryption(lead.owner as User);
+        console.log("lead", lead.owner);
       }
 
       let skip = 0;
@@ -428,13 +467,8 @@ class LeadService {
         skip = 1;
         searchedData = await leads.filter((lead) => {
           if (
-            (lead?.firstName &&
-              lead?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.lastName &&
-              lead?.lastName
+            (lead?.fullName &&
+              lead?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -498,13 +532,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -527,6 +556,26 @@ class LeadService {
               lead?.price
                 ?.toString()
                 .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
+                ?.toString()
+                .toLowerCase()
                 .includes(String(search).toLowerCase()))
           ) {
             return true;
@@ -535,13 +584,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -550,12 +592,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
@@ -612,8 +651,50 @@ class LeadService {
     // console.log('3rd log.');
 
     const userRepo = AppDataSource.getRepository(User);
+
+    // Check if routing-relevant attributes have changed
+    const routingAttributes: (keyof Lead)[] = ['phone', 'title', 'email', 'country', 'state', 'city', 'leadSource', 'countryCode', 'price', 'leadType'];
+    let routingAttributesChanged = false;
+
+    for (const attr of routingAttributes) {
+      if (payload[attr] !== undefined && payload[attr] !== lead[attr]) {
+        routingAttributesChanged = true;
+        break;
+      }
+    }
+
+    // Re-evaluate routing if relevant attributes changed and owner not explicitly set
     const userObj: User = payload.owner;
-    if (payload.owner) {
+    if (routingAttributesChanged && !userObj) {
+      console.log('[Lead Routing] Routing-relevant attributes changed. Re-evaluating routing rules...');
+
+      try {
+        const leadRoutingService = new LeadRoutingConfigService();
+        // Merge payload with existing lead for routing evaluation
+        const tempLead = new Lead(lead);
+        Object.assign(tempLead, payload);
+        const routedUserId = await leadRoutingService.executeRouting(tempLead);
+
+        if (routedUserId && routedUserId !== lead.owner?.userId) {
+          console.log(`[Lead Routing] New rule matched. Re-routing lead from ${lead.owner?.userId} to ${routedUserId}`);
+          const routedUser = await userRepo.findOne({ where: { userId: routedUserId } });
+
+          if (routedUser && routedUser.isActive) {
+            payload.owner = routedUser as User;
+            console.log(`[Lead Routing] Successfully re-assigned lead to: ${routedUser.email}`);
+          } else {
+            console.log(`[Lead Routing] Routed user not found or inactive. Keeping current owner.`);
+          }
+        } else if (routedUserId) {
+          console.log(`[Lead Routing] Same owner matched. No change needed.`);
+        } else {
+          console.log(`[Lead Routing] No routing rules matched. Keeping current owner.`);
+        }
+      } catch (error) {
+        console.error(`[Lead Routing] Error during routing re-evaluation:`, error);
+      }
+    } else if (payload.owner) {
+      // Owner explicitly set in payload - validate and assign
       const userData = await userRepo
         .createQueryBuilder("user")
         .leftJoinAndSelect("user.organisation", "organisation")
@@ -678,18 +759,9 @@ class LeadService {
         throw new ResourceNotFoundError("Lead not found");
       }
 
-      if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-      if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
-      if (lead?.phone) lead.phone = decrypt(lead.phone);
-      if (lead?.country) lead.country = decrypt(lead.country);
-      if (lead?.state) lead.state = decrypt(lead.state);
-      if (lead?.city) lead.city = decrypt(lead.city);
-      if (lead?.email) lead.email = decrypt(lead.email);
-      if (lead?.title) lead.title = decrypt(lead.title);
-      if (lead?.leadSource) lead.leadSource = decrypt(lead.leadSource);
-      if (lead?.description) lead.description = decrypt(lead.description);
-      if (lead?.countryCode) lead.countryCode = decrypt(lead.countryCode);
-      if (lead?.price) lead.price = decrypt(lead.price);
+      if (lead) {
+        await leadDecryption(lead);
+      }
 
       if (lead.company) {
         lead.company = await accountDecryption(lead.company);
@@ -856,7 +928,7 @@ class LeadService {
 
       // Process each row
       for (const row of rows) {
-        if (row.firstName && row.lastName && row.phone) {
+        if (row.fullName && row.phone) {
           row.countryCode = `+${row.countryCode}`;
           row.phone = `${row.phone}`;
           row.price = `${row.price}`;
@@ -960,8 +1032,7 @@ class LeadService {
             leadId.slice(0, -1) +
             (Number(leadId.slice(-1)) + count++).toString();
 
-          if (lead.firstName) lead.firstName = encryption(lead.firstName);
-          if (lead.lastName) lead.lastName = encryption(lead.lastName);
+          if (lead.fullName) lead.fullName = encryption(lead.fullName);
           if (lead.phone) lead.phone = encryption(lead.phone);
           if (lead.country) lead.country = encryption(lead.country);
           if (lead.leadSource) lead.leadSource = encryption(lead.leadSource);
@@ -1129,13 +1200,8 @@ class LeadService {
         skip = 1;
         searchedData = await leads.filter((lead) => {
           if (
-            (lead?.firstName &&
-              lead?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.lastName &&
-              lead?.lastName
+            (lead?.fullName &&
+              lead?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1199,13 +1265,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1228,6 +1289,26 @@ class LeadService {
               lead?.price
                 ?.toString()
                 .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
+                ?.toString()
+                .toLowerCase()
                 .includes(String(search).toLowerCase()))
           ) {
             return true;
@@ -1236,13 +1317,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -1251,12 +1325,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
@@ -1420,13 +1491,8 @@ class LeadService {
         skip = 1;
         searchedData = await leads.filter((lead) => {
           if (
-            (lead?.firstName &&
-              lead?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.lastName &&
-              lead?.lastName
+            (lead?.fullName &&
+              lead?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1490,13 +1556,8 @@ class LeadService {
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.firstName &&
-              lead?.contact?.firstName
-                ?.toString()
-                .toLowerCase()
-                .includes(String(search).toLowerCase())) ||
-            (lead?.contact?.lastName &&
-              lead?.contact?.lastName
+            (lead?.contact?.fullName &&
+              lead?.contact?.fullName
                 ?.toString()
                 .toLowerCase()
                 .includes(String(search).toLowerCase())) ||
@@ -1519,6 +1580,26 @@ class LeadService {
               lead?.price
                 ?.toString()
                 .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.zone &&
+              lead?.zone
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.village &&
+              lead?.village
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.pincode &&
+              lead?.pincode
+                ?.toString()
+                .toLowerCase()
+                .includes(String(search).toLowerCase())) ||
+            (lead?.loanType &&
+              lead?.loanType
+                ?.toString()
+                .toLowerCase()
                 .includes(String(search).toLowerCase()))
           ) {
             return true;
@@ -1527,13 +1608,6 @@ class LeadService {
       }
 
       if (state || city || contact || company) {
-        let firstName = "";
-        let lastName = "";
-        if (contact) {
-          const nameParts: string[] = contact.split(" ");
-          firstName = nameParts[0];
-          lastName = nameParts[1];
-        }
         skip = 1;
         searchedData = await leads.filter((lead) => {
           const matchState =
@@ -1542,12 +1616,9 @@ class LeadService {
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
           const matchContact =
             !contact ||
-            lead.contact?.firstName
+            lead.contact?.fullName
               ?.toLowerCase()
-              .includes(firstName?.toLowerCase()) ||
-            lead.contact?.lastName
-              ?.toLowerCase()
-              .includes(lastName?.toLowerCase());
+              .includes(contact?.toLowerCase());
           const matchCompany =
             !company ||
             lead.company?.accountName
@@ -1593,7 +1664,7 @@ class LeadService {
 
       // Encrypt the title for search if encryption is used in the system
       const encryptedTitle = encryption(leadTitle);
-      
+
       // Update all leads with matching title
       const result = await transactionEntityManager
         .createQueryBuilder()

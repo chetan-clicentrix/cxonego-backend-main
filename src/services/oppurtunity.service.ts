@@ -13,10 +13,12 @@ import {
   purchaseTimeFrame,
   roleNames,
   statusType,
+  stage,
 } from "../common/utils";
 import { Lead } from "../entity/Lead";
 import { Role } from "../entity/Role";
 import { Contact } from "../entity/Contact";
+import { Bank } from "../entity/Bank";
 import { Account } from "../entity/Account";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import {
@@ -28,11 +30,13 @@ import {
   userDecryption,
 } from "./decryption.service";
 import { User } from "../entity/User";
+import { ActivityPlanService } from "./activityPlan.service";
 import { Audit } from "../entity/Audit";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
 
 class opportunityService {
+  private activityPlanService = new ActivityPlanService();
   async getAllOppurtunities(userInfo: userInfo) {
     const oppurtunities = await AppDataSource.getRepository(Oppurtunity)
       .createQueryBuilder("opportunity")
@@ -114,6 +118,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
+        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.ownerId=:userId", { userId: userId })
@@ -126,6 +131,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
+        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.organizationId=:organizationId", {
@@ -264,6 +270,16 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
           (oppurtunity?.probability &&
             oppurtunity?.probability
               ?.toString()
@@ -309,13 +325,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -356,23 +367,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName
@@ -450,10 +451,25 @@ class opportunityService {
     }
 
     if (payload.company) {
-      const companydata = await AppDataSource.getRepository(Account).findOne({
+      const companyRepo = transactionEntityManager.getRepository(Account);
+      const companydata = await companyRepo.findOne({
         where: { accountId: String(payload.company) },
       });
       if (companydata) {
+        // Update Account with Category/Segment if provided in payload (e.g. from lead qualification)
+        const extraPayload = payload as any;
+        let updateNeeded = false;
+        if (extraPayload.category) {
+          companydata.clientCategory = extraPayload.category;
+          updateNeeded = true;
+        }
+        if (extraPayload.segment) {
+          companydata.segment = extraPayload.segment;
+          updateNeeded = true;
+        }
+        if (updateNeeded) {
+          await companyRepo.save(companydata);
+        }
         payload.company = companydata;
       } else {
         throw new ResourceNotFoundError("Account not found");
@@ -465,6 +481,9 @@ class opportunityService {
       opportunityId: await this.getOpportunityId(new Date()),
     } as Oppurtunity);
     const opportunity = await opportunityInstance.save();
+
+    // Auto-assign activity plans based on category/segment
+    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user, transactionEntityManager);
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(
       transactionEntityManager,
@@ -555,6 +574,11 @@ class opportunityService {
         throw new ResourceNotFoundError("Contact not found");
       }
       if (contact) payload.contact = contact;
+    }
+
+    // Auto-mark as Won when stage is Disbursed
+    if (payload.stage === stage.DISBURSED) {
+      payload.stage = stage.WON;
     }
 
     const opportunityEntity = new Oppurtunity(payload);
@@ -776,6 +800,8 @@ class opportunityService {
       "wonLostDescription",
       "estimatedRevenue",
       "actualRevenue",
+      "loanType",
+      "loanAmount",
     ];
 
     for (let key in updatedOpportunity) {
@@ -783,31 +809,21 @@ class opportunityService {
         const oldContact = oldOpportunity[key];
         const updatedContact = updatedOpportunity[key];
         if (!oldContact && updatedContact) {
-          description += `null --> ${decrypt(
-            updatedContact.firstName
-          )} ${decrypt(updatedContact.lastName)}`;
+          description += `null --> ${decrypt(updatedContact.fullName)}`;
         } else if (oldContact && !updatedContact) {
-          description += `${decrypt(oldContact.firstName)} ${decrypt(
-            oldContact.lastName
-          )} --> null`;
+          description += `${decrypt(oldContact.fullName)} --> null`;
         } else if (
           oldContact != updatedContact &&
           updatedOpportunity[key].contactId !== oldOpportunity[key].contactId
         ) {
-          const oldContactName =
-            decrypt(oldOpportunity[key].firstName) +
-            " " +
-            decrypt(oldOpportunity[key].lastName);
-          const updatedContactName =
-            decrypt(updatedOpportunity[key].firstName) +
-            " " +
-            decrypt(updatedOpportunity[key].lastName);
+          const oldContactName = decrypt(oldOpportunity[key].fullName);
+          const updatedContactName = decrypt(updatedOpportunity[key].fullName);
           description += `${key} ${oldContactName} --> ${updatedContactName} `;
         }
       } else if (`${key}` === "company") {
         const oldCompany = oldOpportunity[key];
         const updatedCompany = updatedOpportunity[key];
-        
+
         if (!oldCompany && updatedCompany) {
           description += `null --> ${decrypt(updatedCompany.accountName)}`;
         } else if (oldCompany && !updatedCompany) {
@@ -1084,6 +1100,16 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
           (oppurtunity?.probability &&
             oppurtunity?.probability
               ?.toString()
@@ -1129,13 +1155,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -1176,23 +1197,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName
@@ -1416,6 +1427,16 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanType &&
+            oppurtunity?.loanType
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
+          (oppurtunity?.loanAmount &&
+            oppurtunity?.loanAmount
+              ?.toString()
+              .toLowerCase()
+              .includes(String(search).toLowerCase())) ||
           (oppurtunity?.probability &&
             oppurtunity?.probability
               ?.toString()
@@ -1461,13 +1482,8 @@ class opportunityService {
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.firstName &&
-            oppurtunity?.contact?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase())) ||
-          (oppurtunity?.contact?.lastName &&
-            oppurtunity?.contact?.lastName
+          (oppurtunity?.contact?.fullName &&
+            oppurtunity?.contact?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase())) ||
@@ -1508,23 +1524,13 @@ class opportunityService {
     }
 
     if (contact || company) {
-      let firstName = "";
-      let lastName = "";
-      if (contact) {
-        const nameParts: string[] = contact.split(" ");
-        firstName = nameParts[0];
-        lastName = nameParts[1];
-      }
       skip = 1;
       searchData = await oppurtunites.filter((opportunity) => {
         const matchContact =
           !contact ||
-          opportunity.contact?.firstName
+          opportunity.contact?.fullName
             ?.toLowerCase()
-            .includes(firstName?.toLowerCase()) ||
-          opportunity.contact?.lastName
-            ?.toLowerCase()
-            .includes(lastName?.toLowerCase());
+            .includes(contact?.toLowerCase());
         const matchCompany =
           !company ||
           opportunity.company?.accountName

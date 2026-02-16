@@ -183,10 +183,7 @@ class ContactServices {
         skip = 1;
         searchedData = contacts.filter((contact) => {
           if (
-            contact?.firstName
-              ?.toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            contact?.lastName
+            contact?.fullName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.countryCode
@@ -619,8 +616,7 @@ class ContactServices {
 
       // Define the expected columns
       const expectedColumns = [
-        "firstName",
-        "lastName",
+        "fullName",
         "countryCode",
         "phone",
         "email",
@@ -660,11 +656,10 @@ class ContactServices {
         );
       }
 
-      // Process each row
       for (const row of rows) {
-        if (row.firstName && row.lastName && row.phone) {
-          row.countryCode = `+${row.countryCode}`;
-          row.phone = `${row.phone}`;
+        if (row.fullName) {
+          row.countryCode = `+${row.countryCode || ""}`;
+          row.phone = `${row.phone || ""}`;
           contacts.push(row);
         }
       }
@@ -706,8 +701,7 @@ class ContactServices {
       let DuplicateCount = 0;
       const duplicateContactData: Array<{
         phone: string;
-        firstName: string;
-        lastName: string;
+        fullName: string;
       }> = [];
       let errorCount = 0;
 
@@ -795,10 +789,8 @@ class ContactServices {
               }
             }
 
-            if (contact.firstName)
-              contact.firstName = encryption(contact.firstName);
-            if (contact.lastName)
-              contact.lastName = encryption(contact.lastName);
+            if (contact.fullName)
+              contact.fullName = encryption(contact.fullName);
             if (contact.countryCode)
               contact.countryCode = encryption(contact.countryCode);
             if (contact.phone) contact.phone = encryption(contact.phone);
@@ -827,8 +819,7 @@ class ContactServices {
               DuplicateCount++;
               duplicateContactData.push({
                 phone: decrypt(contact.phone),
-                firstName: decrypt(contact.firstName),
-                lastName: decrypt(contact.lastName),
+                fullName: decrypt(contact.fullName),
               });
             } else {
               if (existingDeletedPhoneNumbers.has(decryptedPhone)) {
@@ -880,9 +871,8 @@ class ContactServices {
             if (!account) return;
             contact.company = account;
           }
-          if (contact.firstName)
-            contact.firstName = encryption(contact.firstName);
-          if (contact.lastName) contact.lastName = encryption(contact.lastName);
+          if (contact.fullName)
+            contact.fullName = encryption(contact.fullName);
           if (contact.countryCode)
             contact.countryCode = encryption(contact.countryCode);
           if (contact.phone) contact.phone = encryption(contact.phone);
@@ -1002,9 +992,8 @@ class ContactServices {
     auditId: string
   ) {
     const auditRepository = transactionEntityManager.getRepository(Audit);
-    const firstName = decrypt(oldcontactRecord.firstName);
-    const lastName = decrypt(oldcontactRecord.lastName);
-    const description = `New contact created with name ${firstName} ${lastName} `;
+    const fullName = decrypt(oldcontactRecord.fullName);
+    const description = `New contact created with name ${fullName} `;
     const payload = {
       auditId: auditId,
       description: encryption(description),
@@ -1023,9 +1012,8 @@ class ContactServices {
     auditId: string
   ) {
     const auditRepository = transactionEntityManager.getRepository(Audit);
-    const firstName = decrypt(oldContactRecord.firstName);
-    const lastName = decrypt(oldContactRecord.lastName);
-    const description = `Contact has been deleted with name ${firstName} ${lastName}`;
+    const fullName = decrypt(oldContactRecord.fullName);
+    const description = `Contact has been deleted with name ${fullName}`;
     const payload = {
       auditId: auditId,
       description: encryption(description),
@@ -1060,8 +1048,7 @@ class ContactServices {
     }
     //keys which are encrypted in table goes in if block and non encrypted goes in else block
     const keywords = [
-      "firstName",
-      "lastName",
+      "fullName",
       "countryCode",
       "phone",
       "email",
@@ -1129,11 +1116,10 @@ class ContactServices {
       }
     }
 
-    const firstName = decrypt(oldContactRecord.firstName);
-    const lastName = decrypt(oldContactRecord.lastName);
+    const fullName = decrypt(oldContactRecord.fullName);
 
     if (!predescription)
-      description = `${firstName} ${lastName} contact changed from ${description}`;
+      description = `${fullName} contact changed from ${description}`;
 
     const payload = {
       auditId: auditId,
@@ -1265,10 +1251,7 @@ class ContactServices {
         skip = 1;
         searchedData = contacts.filter((contact) => {
           if (
-            contact?.firstName
-              ?.toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            contact?.lastName
+            contact?.fullName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.countryCode
@@ -1405,34 +1388,26 @@ class ContactServices {
     // const data=await fs.readFileSync("./contacts.txt","utf-8");
     const data = file.buffer.toString("utf-8");
     const contactInfo: {
-      firstName: string;
-      lastName: string;
+      fullName: string;
       phone: string;
     }[] = [];
-    const person: { firstName: string; lastName: string; phone: string } = {
-      firstName: "",
-      lastName: "",
+    const person: { fullName: string; phone: string } = {
+      fullName: "",
       phone: "",
     };
     for (let contact of data.split("\n")) {
       if (contact.includes("FN:")) {
         const name = contact.replace("FN:", "").replace("\r", "");
-        const spaceIndex = name.indexOf(" ");
-        if (spaceIndex !== -1) {
-          person.firstName = name.substring(0, spaceIndex);
-          person.lastName = name.substring(spaceIndex + 1);
-        } else {
-          person.firstName = name;
-        }
+        person.fullName = name;
       }
       if (contact.includes("TEL;CELL;PREF:") || contact.includes("TEL;CELL:")) {
         person.phone = contact.includes("TEL;CELL:")
           ? contact.replace("TEL;CELL:", "").replace("\r", "")
           : contact.replace("TEL;CELL;PREF:", "").replace("\r", "");
       }
-      if (person.firstName && person.phone) {
+      if (person.fullName && person.phone) {
         contactInfo.push({ ...person });
-        person.firstName = "";
+        person.fullName = "";
         person.phone = "";
       }
     }
@@ -1453,8 +1428,7 @@ class ContactServices {
     let DuplicateCount = 0;
     const duplicateContactData: Array<{
       phone: string;
-      firstName: string;
-      lastName: string;
+      fullName: string;
     }> = [];
     let errorCount = 0;
     try {
@@ -1534,9 +1508,8 @@ class ContactServices {
             if (orgnizationData) contact.organization = orgnizationData;
           }
 
-          if (contact.firstName)
-            contact.firstName = encryption(contact.firstName);
-          if (contact.lastName) contact.lastName = encryption(contact.lastName);
+          if (contact.fullName)
+            contact.fullName = encryption(contact.fullName);
           contact.countryCode = encryption("+91");
           if (contact.phone) contact.phone = encryption(contact.phone);
           contact.addressLine = encryption("NA");
@@ -1559,8 +1532,7 @@ class ContactServices {
             console.log("DuplicateCount is : ", DuplicateCount);
             duplicateContactData.push({
               phone: decrypt(contact.phone),
-              firstName: decrypt(contact.firstName),
-              lastName: decrypt(contact.lastName),
+              fullName: decrypt(contact.fullName),
             });
           } else {
             if (existingDeletedPhoneNumbers.has(decryptedPhone)) {

@@ -3,10 +3,10 @@ import { errorHandler } from "../common/errors";
 import { AuditServices } from "../services/audit.service";
 import { makeResponse } from "../common/utils";
 import { request } from "http";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 const auditServices = new AuditServices();
 export class AuditController {
-  async getAccountAudits(request: CustomRequest, response: Response) {
+  async getAccountAudits(request: AuthenticatedRequest, response: Response) {
     try {
       // const userId: string = request.user.userId;
       const accountId: string = request.params.accountId;
@@ -32,7 +32,7 @@ export class AuditController {
     }
   }
 
-  async getContactAudits(request: CustomRequest, response: Response) {
+  async getContactAudits(request: AuthenticatedRequest, response: Response) {
     const contactId: string = request.params.contactId;
     // const userId: string = request.user.userId;
     try {
@@ -58,7 +58,7 @@ export class AuditController {
     }
   }
 
-  async getLeadAudits(request: CustomRequest, response: Response) {
+  async getLeadAudits(request: AuthenticatedRequest, response: Response) {
     try {
       // const userId: string = request.user.userId;
       const leadId: string = request.params.leadId;
@@ -78,7 +78,7 @@ export class AuditController {
       errorHandler(response, error.message);
     }
   }
-  async getOpportunityAudits(request: CustomRequest, response: Response) {
+  async getOpportunityAudits(request: AuthenticatedRequest, response: Response) {
     try {
       // const userId: string = request.user.userId;
       const opportunityId: string = request.params.opportunityId;
