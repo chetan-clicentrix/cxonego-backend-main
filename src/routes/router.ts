@@ -46,6 +46,8 @@ import apiKeyRouter from "./apiKey.routes";
 import apiLeadRouter from "./api.lead.routes";
 
 const router = Router({ mergeParams: true });
+
+
 router.use("/leadRoutingConfig", leadRoutingConfigRouter);
 router.use("/leadAssignment", leadAssignmentRouter)
 router.use("/auth", authRouter)

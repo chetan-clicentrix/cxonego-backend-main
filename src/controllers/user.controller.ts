@@ -132,6 +132,7 @@ class UserController {
     }
   }
   async updateSertUser(request: AuthenticatedRequest, response: Response) {
+    console.log("updateSertUser hit with body:", JSON.stringify(request.body));
     const copiedObject = { ...request.body };
     try {
       const userProfile: User = request.body;
