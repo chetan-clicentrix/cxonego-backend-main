@@ -12,9 +12,10 @@ const errorMiddleware: ErrorRequestHandler = (err, req, res, next) => {
   } else if (err.name === "OrganisationUnregisteredError") {
     res.status(404).send(buildResponse(null, err.message, "failure"));
   } else {
+    console.error("[ERROR MIDDLEWARE] Unknown error:", err);
     res
-      .status(404)
-      .send(buildResponse(null, `Not Found - ${req.originalUrl}`, "failure"));
+      .status(500)
+      .send(buildResponse(null, `Internal Server Error - ${err.message || err}`, "failure"));
   }
   next();
 };

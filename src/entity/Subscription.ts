@@ -98,6 +98,7 @@ export class Subscription extends CustomBaseEntity {
     cascade: true,
     nullable: true,
     eager: true,
+    onUpdate: "CASCADE"
   })
   @JoinColumn({ name: "adminId" })
   admin: User;
