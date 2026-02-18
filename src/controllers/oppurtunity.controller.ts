@@ -176,7 +176,7 @@ export class OppurtunityController {
         }
       );
 
-      if (oppurtunity?.affected === 0 || oppurtunity == undefined) {
+      if (!oppurtunity) {
         return makeResponse(
           response,
           400,
