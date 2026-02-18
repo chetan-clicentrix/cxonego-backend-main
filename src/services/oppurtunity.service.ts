@@ -491,7 +491,7 @@ class opportunityService {
 
     const opportunityInstance = new Oppurtunity({
       ...payload,
-      opportunityId,
+      opportunityId: await this.getOpportunityId(new Date()),
     } as Oppurtunity);
 
     // Use transactionEntityManager to save — avoids opening a separate connection
