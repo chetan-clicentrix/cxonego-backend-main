@@ -2,7 +2,7 @@ import { ErrorRequestHandler } from "express";
 import { ForbiddenError } from "../common/errors";
 import { buildResponse } from "../common/utils";
 
-const errorMiddleware: ErrorRequestHandler = (err, req, res, next) => {
+const errorMiddleware: ErrorRequestHandler = (err, _req, res, next) => {
   if (err.name === "UnauthorizedError") {
     res.status(401).send("Invalid token");
   } else if (err instanceof ForbiddenError) {
