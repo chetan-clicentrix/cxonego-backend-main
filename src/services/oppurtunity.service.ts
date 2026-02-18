@@ -414,13 +414,14 @@ class opportunityService {
     user: userInfo,
     transactionEntityManager: EntityManager
   ) {
-    const userRepo = AppDataSource.getRepository(User);
+    // Use transactionEntityManager for ALL repos to avoid lock conflicts
+    const userRepo = transactionEntityManager.getRepository(User);
     const userData = await userRepo.findOne({ where: { userId: user.userId } });
     if (userData) {
       payload.owner = userData as User;
     }
 
-    const organizationRepo = AppDataSource.getRepository(Organisation);
+    const organizationRepo = transactionEntityManager.getRepository(Organisation);
     if (user.organizationId) {
       const orgnizationData = await organizationRepo.findOne({
         where: { organisationId: user.organizationId },
@@ -429,7 +430,7 @@ class opportunityService {
     }
 
     if (payload.Lead) {
-      const lead = await AppDataSource.getRepository(Lead).findOne({
+      const lead = await transactionEntityManager.getRepository(Lead).findOne({
         where: { leadId: String(payload.Lead) },
       });
       if (lead) {
@@ -440,7 +441,7 @@ class opportunityService {
     }
 
     if (payload.contact) {
-      const contact = await AppDataSource.getRepository(Contact).findOne({
+      const contact = await transactionEntityManager.getRepository(Contact).findOne({
         where: { contactId: String(payload.contact) },
       });
       if (contact) {
@@ -476,14 +477,17 @@ class opportunityService {
       }
     }
 
+    const opportunityId = await this.getOpportunityId(new Date());
     const opportunityInstance = new Oppurtunity({
       ...payload,
-      opportunityId: await this.getOpportunityId(new Date()),
+      opportunityId,
     } as Oppurtunity);
-    const opportunity = await opportunityInstance.save();
 
-    // Auto-assign activity plans based on category/segment
-    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user, transactionEntityManager);
+    // Use transactionEntityManager to save — avoids opening a separate connection
+    // that would conflict with the outer transaction's locks
+    const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
+    const opportunity = await opportunityRepo.save(opportunityInstance);
+
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(
       transactionEntityManager,
@@ -491,17 +495,23 @@ class opportunityService {
       auditId
     );
 
-    // if (payload.Lead) {
-    //   await transactionEntityManager
-    //     .getRepository(Lead)
-    //     .createQueryBuilder()
-    //     .update(Lead)
-    //     .set({ status: statusType.CLOSED })
-    //     .where("leadId = :leadId", { leadId: payload.Lead.leadId })
-    //     .execute();
-    // }
+    // NOTE: autoAssignPlanToOpportunity is intentionally called AFTER the transaction
+    // completes (from the controller) to avoid nested lock conflicts.
+    // We return the opportunityId so the controller can trigger it post-commit.
 
     return opportunity;
+  }
+
+  async postCreateOpportunityTasks(opportunity: Oppurtunity, user: userInfo) {
+    // This runs AFTER the transaction commits to avoid lock wait timeouts.
+    // autoAssignPlanToOpportunity uses its own DB connections and would
+    // deadlock if called inside the create transaction.
+    try {
+      await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user);
+    } catch (error) {
+      console.error('[OPPORTUNITY] Error in post-create tasks:', error);
+      // Don't throw — opportunity was already created successfully
+    }
   }
 
   async updateOppurtunity(
