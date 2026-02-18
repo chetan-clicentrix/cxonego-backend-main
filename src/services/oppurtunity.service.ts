@@ -118,7 +118,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
-        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
+        .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.ownerId=:userId", { userId: userId })
@@ -131,7 +131,7 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
-        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
+        .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
         .where("Oppurtunity.organizationId=:organizationId", {
@@ -477,7 +477,18 @@ class opportunityService {
       }
     }
 
-    const opportunityId = await this.getOpportunityId(new Date());
+    // Handle banks array
+    if (payload.banks && Array.isArray(payload.banks)) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bankIds = payload.banks.map(b => typeof b === 'string' ? b : (b as any).bankId).filter(Boolean);
+      if (bankIds.length > 0) {
+        const banks = await bankRepo.findByIds(bankIds);
+        if (banks.length > 0) {
+          payload.banks = banks;
+        }
+      }
+    }
+
     const opportunityInstance = new Oppurtunity({
       ...payload,
       opportunityId,
@@ -586,27 +597,38 @@ class opportunityService {
       if (contact) payload.contact = contact;
     }
 
+    // Handle banks array
+    if (payload.banks && Array.isArray(payload.banks)) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bankIds = payload.banks.map(b => typeof b === 'string' ? b : (b as any).bankId).filter(Boolean);
+      if (bankIds.length > 0) {
+        const banks = await bankRepo.findByIds(bankIds);
+        if (banks.length > 0) {
+          payload.banks = banks;
+        }
+      }
+    }
+
     // Auto-mark as Won when stage is Disbursed
     if (payload.stage === stage.DISBURSED) {
       payload.stage = stage.WON;
     }
 
-    const opportunityEntity = new Oppurtunity(payload);
+    // Use save() instead of update() for many-to-many relationships
+    // Merge the payload with the existing opportunity
+    Object.assign(opportunity, payload);
+    const updatedOpportunity = await oppurtunityRepo.save(opportunity);
 
-    const update = await oppurtunityRepo.update(
-      opportunityId,
-      opportunityEntity
-    );
     const auditId = String(user.auth_time) + user.userId;
     await this.updateAuditLogHandler(
       transactionEntityManager,
       opportunity,
-      opportunityEntity,
+      payload as any,
       payload.modifiedBy,
       auditId
     );
 
-    return update;
+    return updatedOpportunity;
   }
   async deleteOppurtunity(
     opportunityId: string,

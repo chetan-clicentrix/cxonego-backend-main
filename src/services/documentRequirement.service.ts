@@ -31,7 +31,7 @@ class DocumentRequirementService {
                 opportunityId,
                 organization: { organisationId: user.organizationId },
             },
-            relations: ["bank"], // Explicitly load bank relation
+            relations: ["banks"], // Explicitly load banks relation
         });
 
         if (!opportunity) {
@@ -40,15 +40,14 @@ class DocumentRequirementService {
 
         console.log("Opportunity details:", {
             opportunityId: opportunity.opportunityId,
-            bankId: opportunity.bankId,
-            bank: opportunity.bank,
+            banks: opportunity.banks,
             applicantType: opportunity.applicantType,
         });
 
-        // Check if bank and applicant type are set
-        if (!opportunity.bankId || !opportunity.applicantType) {
+        // Check if banks and applicant type are set
+        if (!opportunity.banks || opportunity.banks.length === 0 || !opportunity.applicantType) {
             throw new ValidationFailedError(
-                "Opportunity must have bank and applicant type configured"
+                "Opportunity must have at least one bank and applicant type configured"
             );
         }
 
@@ -63,11 +62,19 @@ class DocumentRequirementService {
             );
 
             // Fetch the documents that SHOULD exist for current bank/applicant type
-            const currentDocumentNames = await this.bankDocService.getDocumentsByBankAndType(
-                opportunity.bankId,
-                opportunity.applicantType,
-                user.organizationId
-            );
+            // Collect documents from all banks and deduplicate
+            const currentDocumentNamesSet = new Set<string>();
+
+            for (const bank of opportunity.banks) {
+                const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
+                    bank.bankId,
+                    opportunity.applicantType,
+                    user.organizationId
+                );
+                bankDocs.forEach(doc => currentDocumentNamesSet.add(doc));
+            }
+
+            const currentDocumentNames = Array.from(currentDocumentNamesSet);
 
             // Check if the existing requirements match the current configuration
             // Compare by checking if document names match
@@ -100,16 +107,27 @@ class DocumentRequirementService {
 
         // Fetch document list from BankDocumentConfig
         console.log("Fetching documents for:", {
-            bankId: opportunity.bankId,
+            banks: opportunity.banks.map(b => b.name),
             applicantType: opportunity.applicantType,
             organizationId: user.organizationId,
         });
 
-        const documentNames = await this.bankDocService.getDocumentsByBankAndType(
-            opportunity.bankId, // Use bankId directly instead of opportunity.bank.bankId
-            opportunity.applicantType,
-            user.organizationId
-        );
+        // Collect documents from all banks and deduplicate
+        const uniqueDocumentNames = new Set<string>();
+
+        for (const bank of opportunity.banks) {
+            const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
+                bank.bankId,
+                opportunity.applicantType,
+                user.organizationId
+            );
+
+            if (bankDocs && bankDocs.length > 0) {
+                bankDocs.forEach(doc => uniqueDocumentNames.add(doc));
+            }
+        }
+
+        const documentNames = Array.from(uniqueDocumentNames);
 
         console.log("Found documents:", documentNames);
 
