@@ -14,6 +14,7 @@ import {
 const userRouter = Router();
 const userController = new UserController();
 
+
 userRouter.post(
   "/create",
   bodySchemaValidator(createUserDirectlySchema),
@@ -32,7 +33,7 @@ userRouter.post(
 userRouter.get("/:userId", userController.getUserById);
 
 userRouter.post(
-  "/",
+  ["/", ""],
   //bodySchemaValidator(UpdateProfileSchema),
   userController.updateSertUser
 );

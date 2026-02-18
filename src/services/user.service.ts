@@ -205,6 +205,7 @@ class UserServices {
 
           userIsExists.userId = payload.userId;
         }
+        userIsExists = await userDecryption(userIsExists);
         return userIsExists;
       }
 
