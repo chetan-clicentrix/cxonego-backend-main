@@ -103,15 +103,15 @@ class SuperAdminService {
         .getOne();
 
       if (!adminUser) throw new ResourceNotFoundError("Admin not found");
-      const targetUserIndex = adminUser.invitedUsers.findIndex(
-        (user) => user?.id === userId
-      );
-      if (targetUserIndex === -1)
-        throw new ResourceNotFoundError(
-          "User not found in admin's invited list"
+      if (adminUser.invitedUsers) {
+        const targetUserIndex = adminUser.invitedUsers.findIndex(
+          (user) => user?.id === userId
         );
-      adminUser.invitedUsers[targetUserIndex].isBlocked = isBlocked;
-      await userRepository.save(adminUser);
+        if (targetUserIndex !== -1) {
+          adminUser.invitedUsers[targetUserIndex].isBlocked = isBlocked;
+          await userRepository.save(adminUser);
+        }
+      }
 
       // const auditId = v4();
       // await this.updateAuditLogHandler(
@@ -134,6 +134,9 @@ class SuperAdminService {
     const admin = await userRepository.findOne({ where: { userId: adminId } });
     if (!admin) {
       throw new ResourceNotFoundError("Invalid Admin ID provided.");
+    }
+    if (!admin.invitedUsers) {
+      return;
     }
     const targetUser = admin.invitedUsers.find(
       (cur) => cur.email === userEmail
