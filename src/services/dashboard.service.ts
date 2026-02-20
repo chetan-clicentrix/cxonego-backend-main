@@ -632,7 +632,7 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
-          .leftJoinAndSelect("oppurtunity.bank", "bank")
+          .leftJoinAndSelect("oppurtunity.banks", "bank")
           .where("oppurtunity.ownerId=:ownerId", { ownerId: ownerId })
           .andWhere("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
@@ -644,7 +644,7 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
-          .leftJoinAndSelect("oppurtunity.bank", "bank")
+          .leftJoinAndSelect("oppurtunity.banks", "bank")
           .where("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
           });
@@ -676,9 +676,8 @@ class DashboardServices {
         });
       }
 
-      if (bankId) {
-        opportunityRepo.andWhere("oppurtunity.bankId = :bankId", { bankId });
-      }
+      // Note: bankId filtering is handled after fetching due to many-to-many relationship
+      // We'll filter in-memory after the query
 
       opportunityRepo
         .andWhere("oppurtunity.status = :status", { status: "Active" }) //only active data show on whole dashboard
@@ -711,6 +710,13 @@ class DashboardServices {
             revenueRange
           );
         }
+      }
+
+      // Filter by bankId if specified (must be done after fetching due to many-to-many)
+      if (bankId) {
+        opportunities = opportunities.filter(opp =>
+          opp.banks && opp.banks.some(bank => bank.bankId === bankId)
+        );
       }
 
       if (salesPerson || (leadSource && leadSource.length > 0)) {
@@ -746,40 +752,50 @@ class DashboardServices {
       const countsMap2 = new Map<string, { count: number; revenue: number }>();
 
       opportunities.forEach((opportunity: any) => {
-        let key = opportunity[groupField];
+        let keys: string[] = [];
 
         if (groupField === "owner") {
-          key = opportunity.owner ? `${opportunity.owner.firstName} ${opportunity.owner.lastName}` : "No Owner";
+          keys = [opportunity.owner ? `${opportunity.owner.firstName} ${opportunity.owner.lastName}` : "No Owner"];
         } else if (groupField === "company") {
-          key = opportunity.company ? opportunity.company.accountName : "No Account";
+          keys = [opportunity.company ? opportunity.company.accountName : "No Account"];
         } else if (groupField === "contact") {
-          key = opportunity.contact ? opportunity.contact.fullName : "No Contact";
+          keys = [opportunity.contact ? opportunity.contact.fullName : "No Contact"];
         } else if (groupField === "leadSource") {
-          key = opportunity.Lead ? opportunity.Lead.leadSource : "No Source";
+          keys = [opportunity.Lead ? opportunity.Lead.leadSource : "No Source"];
         } else if (groupField === "bank") {
-          key = opportunity.bank ? opportunity.bank.name : "No Bank";
+          // Handle multiple banks by accurately counting for each bank
+          if (opportunity.banks && opportunity.banks.length > 0) {
+            keys = opportunity.banks.map((b: any) => b.name);
+          } else {
+            keys = ["No Bank"];
+          }
         } else if (groupField === "loanType") {
-          key = opportunity.loanType || "No Loan Type";
+          keys = [opportunity.loanType || "No Loan Type"];
         } else if (groupField === "applicantType") {
-          key = opportunity.applicantType || "No Applicant Type";
+          keys = [opportunity.applicantType || "No Applicant Type"];
+        } else {
+          // Default case (e.g. stage)
+          keys = [opportunity[groupField] || "Unknown"];
         }
 
-        if (!key) key = "Unknown";
+        keys.forEach(key => {
+          if (!key) key = "Unknown";
 
-        // Percentage counts
-        countsMap.set(key, (countsMap.get(key) || 0) + 1);
+          // Percentage counts
+          countsMap.set(key, (countsMap.get(key) || 0) + 1);
 
-        // Category counts (with revenue)
-        const probability = parseInt(opportunity.probability, 10);
-        const estimatedRevenue = parseFloat(opportunity.estimatedRevenue);
-        const calculatedRevenue = !isNaN(probability) && !isNaN(estimatedRevenue)
-          ? (estimatedRevenue * probability) / 100
-          : 0;
+          // Category counts (with revenue)
+          const probability = parseInt(opportunity.probability, 10);
+          const estimatedRevenue = parseFloat(opportunity.estimatedRevenue);
+          const calculatedRevenue = !isNaN(probability) && !isNaN(estimatedRevenue)
+            ? (estimatedRevenue * probability) / 100
+            : 0;
 
-        const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
-        countsMap2.set(key, {
-          count: currentBatch.count + 1,
-          revenue: currentBatch.revenue + calculatedRevenue
+          const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
+          countsMap2.set(key, {
+            count: currentBatch.count + 1,
+            revenue: currentBatch.revenue + calculatedRevenue
+          });
         });
       });
 
@@ -985,10 +1001,8 @@ class DashboardServices {
                 opportunity?.priority
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase())) ||
-              (opportunity?.bank?.name !== null &&
-                opportunity?.bank?.name
-                  ?.toLowerCase()
-                  .includes(String(search).toLowerCase()))
+              (opportunity?.banks && opportunity.banks.some(b =>
+                b?.name?.toLowerCase().includes(String(search).toLowerCase())))
             ) {
               return true;
             }
