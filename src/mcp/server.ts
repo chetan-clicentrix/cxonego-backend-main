@@ -411,8 +411,9 @@
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from "node:crypto";
 import * as express from "express";
 import { AuthenticatedRequest } from "../interfaces/types";
 import { UnifiedService } from "../services/unified.service";
@@ -422,10 +423,10 @@ export const mcpRouter = express.Router();
 
 const unifiedService = new UnifiedService();
 
-// ─── Session store: one Server+Transport per SSE connection ───────────────────
+// ─── Session store: one Server+Transport per MCP session ──────────────────────
 interface McpSession {
     server: Server;
-    transport: SSEServerTransport;
+    transport: StreamableHTTPServerTransport;
     context: { orgId?: string; userId?: string };
 }
 const activeSessions = new Map<string, McpSession>();
@@ -437,7 +438,6 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
         { capabilities: { tools: {} } }
     );
 
-    // List tools
     server.setRequestHandler(ListToolsRequestSchema, async () => {
         return {
             tools: [
@@ -524,7 +524,6 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
         };
     });
 
-    // Call tools — uses the per-session context for org/user scoping
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
             let result: any;
@@ -561,43 +560,57 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
     return server;
 }
 
-// ─── SSE endpoint: each connection gets its own Server + Transport ────────────
-mcpRouter.get("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
+// ─── Single /sse endpoint: handles both GET (stream) and POST (tool calls) ────
+// This implements the MCP Streamable HTTP spec (2025) used by n8n and other clients.
+// Both GET and POST go to the same URL — the transport handles the method internally.
+async function handleMcpRequest(req: AuthenticatedRequest, res: express.Response) {
     const context = {
         orgId: req.apiKey?.organisationId || req.user?.organizationId || undefined,
         userId: req.user?.userId || undefined
     };
 
-    const server = createMcpServer(context);
-    const transport = new SSEServerTransport("/api/v1/api/mcp/messages", res);
-    const sessionId = transport.sessionId;
+    // On POST: check if there's an existing session to reuse
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-    activeSessions.set(sessionId, { server, transport, context });
-    console.log(`MCP SSE Client connected: ${sessionId} (org: ${context.orgId}, active sessions: ${activeSessions.size})`);
+    if (sessionId && activeSessions.has(sessionId)) {
+        // Reuse existing session
+        const session = activeSessions.get(sessionId)!;
+        await session.transport.handleRequest(req as any, res, req.body);
+        return;
+    }
+
+    // New session: create fresh Server + Transport
+    const server = createMcpServer(context);
+    const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (newSessionId) => {
+            activeSessions.set(newSessionId, { server, transport, context });
+            console.log(`MCP session created: ${newSessionId} (org: ${context.orgId}, active: ${activeSessions.size})`);
+        }
+    });
+
+    transport.onclose = () => {
+        const sid = transport.sessionId;
+        if (sid) {
+            activeSessions.delete(sid);
+            console.log(`MCP session closed: ${sid} (active: ${activeSessions.size})`);
+        }
+    };
 
     await server.connect(transport);
+    await transport.handleRequest(req as any, res, req.body);
+}
 
-    res.on("close", () => {
-        activeSessions.delete(sessionId);
-        console.log(`MCP SSE Client disconnected: ${sessionId} (active sessions: ${activeSessions.size})`);
-    });
-});
+mcpRouter.get("/sse", handleMcpRequest);
+mcpRouter.post("/sse", handleMcpRequest);
 
-// ─── Messages endpoint: route by sessionId ────────────────────────────────────
+// Keep /messages for backward compatibility with older curl tests
 mcpRouter.post("/messages", async (req: express.Request, res: express.Response) => {
     const sessionId = req.query.sessionId as string;
-
-    if (!sessionId) {
-        res.status(400).send("Missing sessionId query parameter. Open /api/mcp/sse first.");
+    if (!sessionId || !activeSessions.has(sessionId)) {
+        res.status(400).send("Use POST /api/mcp/sse with Mcp-Session-Id header instead.");
         return;
     }
-
-    const session = activeSessions.get(sessionId);
-    if (!session) {
-        res.status(400).send(`No active SSE connection for sessionId: ${sessionId}. Re-open /api/mcp/sse.`);
-        return;
-    }
-
-    await session.transport.handlePostMessage(req, res, req.body);
+    const session = activeSessions.get(sessionId)!;
+    await session.transport.handleRequest(req as any, res, req.body);
 });
-
