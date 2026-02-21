@@ -120,6 +120,12 @@ export class OppurtunityController {
           null
         );
       }
+
+      // Run post-create tasks (activity plan auto-assignment) AFTER the transaction
+      // commits to avoid MySQL lock wait timeout caused by nested DB connections.
+      oppurtunityServices.postCreateOpportunityTasks(opportunity, request.user)
+        .catch(err => console.error('[OPPORTUNITY_CONTROLLER] Post-create task error:', err));
+
       return makeResponse(
         response,
         201,
@@ -170,7 +176,7 @@ export class OppurtunityController {
         }
       );
 
-      if (oppurtunity?.affected === 0 || oppurtunity == undefined) {
+      if (!oppurtunity) {
         return makeResponse(
           response,
           400,

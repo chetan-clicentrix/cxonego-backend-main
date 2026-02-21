@@ -943,8 +943,9 @@ class UserServices {
     }
     const userRepository = AppDataSource.getRepository(User);
     const roleRepository = AppDataSource.getRepository(Role);
-    const adminUser = await userRepository.findOneBy({
-      userId: userInfo.userId,
+    const adminUser = await userRepository.findOne({
+      where: { userId: userInfo.userId },
+      relations: ["roles"],
     });
     if (adminUser) {
       if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
