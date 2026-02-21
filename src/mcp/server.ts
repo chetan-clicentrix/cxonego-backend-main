@@ -420,172 +420,191 @@ import { UnifiedService } from "../services/unified.service";
 // Define the express Router
 export const mcpRouter = express.Router();
 
-let transport: SSEServerTransport | null = null;
 const unifiedService = new UnifiedService();
 
-// Create the MCP server
-const server = new Server(
-    {
-        name: "agentone-crm-mcp",
-        version: "1.0.0",
-    },
-    {
-        capabilities: {
-            tools: {},
-        },
-    }
-);
+// ─── Session Registry ────────────────────────────────────────────────────────
+// Map of sessionId → { transport, context }
+// Supports multiple concurrent connections (e.g. n8n with 3 sub-agents)
+const activeSessions = new Map<string, {
+    transport: SSEServerTransport;
+    context: { orgId?: string; userId?: string };
+}>();
 
-// Define tools
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-        tools: [
-            {
-                name: "smartSearch",
-                description: "Smart search across Leads, Opportunities, Accounts, or Contacts using phone, email, or name. Automatically handles encrypted data.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        query: { type: "string", description: "Search query (phone, email, name)" },
-                        entityTypes: {
-                            type: "array",
-                            items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact"] },
-                            description: "Entities to search inside"
-                        },
-                        filters: {
-                            type: "object",
-                            properties: {
-                                ownerId: { type: "string", description: "Filter by owner ('mine' or specific user ID)" },
-                                status: { type: "string" },
-                                rating: { type: "string" },
-                                stage: { type: "string" }
-                            }
-                        },
-                        limit: { type: "integer", default: 10 }
-                    }
-                }
-            },
-            {
-                name: "getDashboard",
-                description: "Get comprehensive dashboard data including leads, opportunities, activities metrics for specified time range",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year"], default: "week" },
-                        userId: { type: "string", description: "Filter by specific user (for managers)" }
-                    }
-                }
-            },
-            {
-                name: "scheduleActivity",
-                description: "Create a new activity (call, meeting, email, task) using natural language time expressions like 'tomorrow 3pm', 'in 2 hours', 'next week'",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        subject: { type: "string" },
-                        when: { type: "string", description: "Natural language time" },
-                        activityType: { type: "string", enum: ["CALL", "MEETING", "EMAIL", "TASK"], default: "CALL" },
-                        priority: { type: "string", enum: ["HIGH", "NORMAL", "LOW"], default: "NORMAL" },
-                        description: { type: "string" },
-                        relatedTo: {
-                            type: "object",
-                            properties: {
-                                type: { type: "string", enum: ["lead", "opportunity", "account", "contact"] },
-                                id: { type: "string" }
-                            }
+// ─── MCP Server Factory ──────────────────────────────────────────────────────
+// Each SSE connection gets its OWN Server instance to avoid "Already connected" error
+function createMcpServer(context: { orgId?: string; userId?: string }): Server {
+    const server = new Server(
+        { name: "agentone-crm-mcp", version: "1.0.0" },
+        { capabilities: { tools: {} } }
+    );
+
+    // List all available tools
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+        return {
+            tools: [
+                {
+                    name: "smartSearch",
+                    description: "Smart search across Leads, Opportunities, Accounts, or Contacts using phone, email, or name. Automatically handles encrypted data.",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            query: { type: "string", description: "Search query (phone, email, name)" },
+                            entityTypes: {
+                                type: "array",
+                                items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact"] },
+                                description: "Entities to search inside"
+                            },
+                            filters: {
+                                type: "object",
+                                properties: {
+                                    ownerId: { type: "string", description: "Filter by owner ('mine' or specific user ID)" },
+                                    status: { type: "string" },
+                                    rating: { type: "string" },
+                                    stage: { type: "string" }
+                                }
+                            },
+                            limit: { type: "integer", default: 10 }
                         }
-                    },
-                    required: ["subject", "when"]
-                }
-            },
-            {
-                name: "getUpcomingActivities",
-                description: "Retrieve open activities due in the next X days",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        days: { type: "integer", default: 7 },
-                        limit: { type: "integer", default: 20 }
+                    }
+                },
+                {
+                    name: "getDashboard",
+                    description: "Get comprehensive dashboard data including leads, opportunities, activities metrics for specified time range",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year"], default: "week" },
+                            userId: { type: "string", description: "Filter by specific user (for managers)" }
+                        }
+                    }
+                },
+                {
+                    name: "scheduleActivity",
+                    description: "Create a new activity (call, meeting, email, task) using natural language time expressions like 'tomorrow 3pm', 'in 2 hours', 'next week'",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            subject: { type: "string" },
+                            when: { type: "string", description: "Natural language time" },
+                            activityType: { type: "string", enum: ["CALL", "MEETING", "EMAIL", "TASK"], default: "CALL" },
+                            priority: { type: "string", enum: ["HIGH", "NORMAL", "LOW"], default: "NORMAL" },
+                            description: { type: "string" },
+                            relatedTo: {
+                                type: "object",
+                                properties: {
+                                    type: { type: "string", enum: ["lead", "opportunity", "account", "contact"] },
+                                    id: { type: "string" }
+                                }
+                            }
+                        },
+                        required: ["subject", "when"]
+                    }
+                },
+                {
+                    name: "getUpcomingActivities",
+                    description: "Retrieve open activities due in the next X days",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            days: { type: "integer", default: 7 },
+                            limit: { type: "integer", default: 20 }
+                        }
+                    }
+                },
+                {
+                    name: "getOverdueActivities",
+                    description: "Retrieve open activities that are past their due date",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            limit: { type: "integer", default: 20 }
+                        }
                     }
                 }
-            },
-            {
-                name: "getOverdueActivities",
-                description: "Retrieve open activities that are past their due date",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        limit: { type: "integer", default: 20 }
-                    }
-                }
+            ]
+        };
+    });
+
+    // Handle tool calls — context is captured per-connection via closure
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        try {
+            let result: any;
+            switch (request.params.name) {
+                case "smartSearch":
+                    result = await unifiedService.smartSearch(request.params.arguments || {}, context);
+                    break;
+                case "getDashboard":
+                    result = await unifiedService.getDashboard(request.params.arguments || {}, context);
+                    break;
+                case "scheduleActivity":
+                    result = await unifiedService.scheduleActivity(request.params.arguments || {}, context);
+                    break;
+                case "getUpcomingActivities":
+                    result = await unifiedService.getUpcomingActivities(request.params.arguments || {}, context);
+                    break;
+                case "getOverdueActivities":
+                    result = await unifiedService.getOverdueActivities(request.params.arguments || {}, context);
+                    break;
+                default:
+                    throw new Error(`Tool not found: ${request.params.name}`);
             }
-        ]
-    };
-});
-
-// Use a simple map to store the context for the active SSE session.
-// In a full production setup with multiple concurrent SSEs, you might need a way to pass
-// Context down more elegantly (e.g., via session IDs). Because SSEServerTransport handles one
-// persistent connection to standard out, we'll store the context in a module variable when SSE is opened.
-let activeContext: { orgId?: string, userId?: string } = {};
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    try {
-        let result: any;
-        switch (request.params.name) {
-            case "smartSearch":
-                result = await unifiedService.smartSearch(request.params.arguments || {}, activeContext);
-                break;
-            case "getDashboard":
-                result = await unifiedService.getDashboard(request.params.arguments || {}, activeContext);
-                break;
-            case "scheduleActivity":
-                result = await unifiedService.scheduleActivity(request.params.arguments || {}, activeContext);
-                break;
-            case "getUpcomingActivities":
-                result = await unifiedService.getUpcomingActivities(request.params.arguments || {}, activeContext);
-                break;
-            case "getOverdueActivities":
-                result = await unifiedService.getOverdueActivities(request.params.arguments || {}, activeContext);
-                break;
-            default:
-                throw new Error(`Tool not found: ${request.params.name}`);
+            return {
+                content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+            };
+        } catch (err: any) {
+            return {
+                content: [{ type: "text", text: `Error: ${err.message}` }],
+                isError: true
+            };
         }
+    });
 
-        return {
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-        };
-    } catch (err: any) {
-        return {
-            content: [{ type: "text", text: `Error: ${err.message}` }],
-            isError: true
-        };
-    }
-});
+    return server;
+}
 
-// The SSE endpoint N8n will connect to
+// ─── SSE Endpoint ────────────────────────────────────────────────────────────
+// n8n/AI agents connect here to open a persistent SSE stream
 mcpRouter.get("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
-    // Populate active context from middleware (Firebase or API Key)
-    activeContext = {
+    // Capture auth context from API key middleware
+    const context = {
         orgId: req.apiKey?.organisationId || req.user?.organizationId || undefined,
         userId: req.user?.userId || undefined
     };
 
-    transport = new SSEServerTransport("/api/v1/api/mcp/messages", res);
-    await server.connect(transport);
+    // Create a fresh Server instance for this connection
+    const serverInstance = createMcpServer(context);
+    const transport = new SSEServerTransport("/api/v1/api/mcp/messages", res);
 
-    // Provide the required onclose handler explicitly if not done by transport itself
+    await serverInstance.connect(transport);
+
+    const sessionId = transport.sessionId;
+    activeSessions.set(sessionId, { transport, context });
+
+    console.log(`[MCP] New SSE session: ${sessionId} | orgId: ${context.orgId} | active sessions: ${activeSessions.size}`);
+
+    // Clean up when client disconnects
     res.on("close", () => {
-        if (transport) {
-            console.log("MCP SSE Client disconnected");
-        }
+        activeSessions.delete(sessionId);
+        console.log(`[MCP] Session closed: ${sessionId} | remaining: ${activeSessions.size}`);
     });
 });
 
+// ─── Messages Endpoint ───────────────────────────────────────────────────────
+// n8n posts JSON-RPC tool calls here, routed by sessionId
 mcpRouter.post("/messages", async (req: express.Request, res: express.Response) => {
-    if (!transport) {
-        res.status(400).send("No active SSE connection");
+    const sessionId = req.query.sessionId as string;
+
+    if (!sessionId) {
+        res.status(400).send("Missing sessionId query parameter");
         return;
     }
-    await transport.handlePostMessage(req, res, req.body);
+
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+        res.status(400).send(`No active SSE session for sessionId: ${sessionId}`);
+        return;
+    }
+
+    await session.transport.handlePostMessage(req, res, req.body);
 });
+
