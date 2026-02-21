@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @swagger
  * tags:
  *   name: MCP Server
@@ -410,207 +410,290 @@
  *                   example: "Invalid or expired API key"
  */
 
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { randomUUID } from "node:crypto";
 import * as express from "express";
 import { AuthenticatedRequest } from "../interfaces/types";
 import { UnifiedService } from "../services/unified.service";
 
-// Define the express Router
 export const mcpRouter = express.Router();
-
 const unifiedService = new UnifiedService();
 
-// ─── Session store: one Server+Transport per MCP session ──────────────────────
 interface McpSession {
     server: Server;
-    transport: StreamableHTTPServerTransport;
+    transport: SSEServerTransport;
     context: { orgId?: string; userId?: string };
 }
 const activeSessions = new Map<string, McpSession>();
 
-// ─── Factory: creates a fresh Server instance with all tool handlers ──────────
+const LOAN_TYPES = [
+    "Auto Loan - Car Loan",
+    "Housing Loan - Home Loan - HL",
+    "Business Loan - BL",
+    "Personal Loan - PL",
+    "Credit Card",
+    "Current Account",
+    "Saving Account",
+    "Construction Equipment Loan",
+    "Commercial Vehicle Loan"
+];
+
+const PIPELINE_STAGES = [
+    "Document Collection","Proposal Preparation","Login Desk",
+    "Query","Query Resolution","Approved","Disbursed","PDD","Won","Lost"
+];
+
 function createMcpServer(context: { orgId?: string; userId?: string }): Server {
     const server = new Server(
-        { name: "agentone-crm-mcp", version: "1.0.0" },
+        { name: "agentone-crm-mcp", version: "2.0.0" },
         { capabilities: { tools: {} } }
     );
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
-        return {
-            tools: [
-                {
-                    name: "smartSearch",
-                    description: "Smart search across Leads, Opportunities, Accounts, or Contacts using phone, email, or name. Automatically handles encrypted data.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            query: { type: "string", description: "Search query (phone, email, name)" },
-                            entityTypes: {
-                                type: "array",
-                                items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact"] },
-                                description: "Entities to search inside"
-                            },
-                            filters: {
-                                type: "object",
-                                properties: {
-                                    ownerId: { type: "string", description: "Filter by owner ('mine' or specific user ID)" },
-                                    status: { type: "string" },
-                                    rating: { type: "string" },
-                                    stage: { type: "string" }
-                                }
-                            },
-                            limit: { type: "integer", default: 10 }
-                        }
-                    }
-                },
-                {
-                    name: "getDashboard",
-                    description: "Get comprehensive dashboard data including leads, opportunities, activities metrics for specified time range",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year"], default: "week" },
-                            userId: { type: "string", description: "Filter by specific user (for managers)" }
-                        }
-                    }
-                },
-                {
-                    name: "scheduleActivity",
-                    description: "Create a new activity (call, meeting, email, task) using natural language time expressions like 'tomorrow 3pm', 'in 2 hours', 'next week'",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            subject: { type: "string" },
-                            when: { type: "string", description: "Natural language time" },
-                            activityType: { type: "string", enum: ["CALL", "MEETING", "EMAIL", "TASK"], default: "CALL" },
-                            priority: { type: "string", enum: ["HIGH", "NORMAL", "LOW"], default: "NORMAL" },
-                            description: { type: "string" },
-                            relatedTo: {
-                                type: "object",
-                                properties: {
-                                    type: { type: "string", enum: ["lead", "opportunity", "account", "contact"] },
-                                    id: { type: "string" }
-                                }
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: [
+            {
+                name: "smartSearch",
+                description: "Search leads or opportunities by name/phone/email/loanType/zone. Returns loan fields (loanType, loanAmount, zone, taluka).",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        query: { type: "string" },
+                        entityTypes: { type: "array", items: { type: "string", enum: ["all","lead","opportunity","account","contact"] } },
+                        filters: {
+                            type: "object",
+                            properties: {
+                                ownerId: { type: "string" },
+                                status: { type: "string" },
+                                rating: { type: "string", enum: ["Hot","Warm","Cold"] },
+                                stage: { type: "string", enum: PIPELINE_STAGES },
+                                loanType: { type: "string" }
                             }
                         },
-                        required: ["subject", "when"]
-                    }
-                },
-                {
-                    name: "getUpcomingActivities",
-                    description: "Retrieve open activities due in the next X days",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            days: { type: "integer", default: 7 },
-                            limit: { type: "integer", default: 20 }
-                        }
-                    }
-                },
-                {
-                    name: "getOverdueActivities",
-                    description: "Retrieve open activities that are past their due date",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            limit: { type: "integer", default: 20 }
-                        }
+                        limit: { type: "integer", default: 10 }
                     }
                 }
-            ]
-        };
-    });
+            },
+            {
+                name: "getDashboard",
+                description: "Pipeline metrics for a user or team member. timeRange: today|week|month|quarter|year.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        timeRange: { type: "string", enum: ["today","week","month","quarter","year"], default: "week" },
+                        userId: { type: "string" }
+                    }
+                }
+            },
+            {
+                name: "scheduleActivity",
+                description: "Create a follow-up call/meeting/task. Time is natural language: 'tomorrow 3pm', 'in 2 hours'.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        subject: { type: "string" },
+                        when: { type: "string" },
+                        activityType: { type: "string", enum: ["CALL","MEETING","EMAIL","TASK"], default: "CALL" },
+                        priority: { type: "string", enum: ["HIGH","NORMAL","LOW"], default: "NORMAL" },
+                        description: { type: "string" },
+                        relatedTo: {
+                            type: "object",
+                            properties: {
+                                type: { type: "string", enum: ["lead","opportunity","account","contact"] },
+                                id: { type: "string" }
+                            }
+                        }
+                    },
+                    required: ["subject","when"]
+                }
+            },
+            {
+                name: "getUpcomingActivities",
+                description: "Get open activities due in the next N days.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        days: { type: "integer", default: 7 },
+                        limit: { type: "integer", default: 20 }
+                    }
+                }
+            },
+            {
+                name: "getOverdueActivities",
+                description: "Get open activities past their due date.",
+                inputSchema: {
+                    type: "object",
+                    properties: { limit: { type: "integer", default: 20 } }
+                }
+            },
+            {
+                name: "getNotes",
+                description: "Read notes on a lead, opportunity, account, contact, or case.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        entityType: { type: "string", enum: ["lead","opportunity","account","contact","case"] },
+                        entityId: { type: "string" },
+                        limit: { type: "integer", default: 10 }
+                    },
+                    required: ["entityType","entityId"]
+                }
+            },
+            {
+                name: "createNote",
+                description: "Save a call note or bank query on a lead/opportunity. E.g. 'HDFC query: income proof mismatch'.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        entityType: { type: "string", enum: ["lead","opportunity","account","contact","case"] },
+                        entityId: { type: "string" },
+                        content: { type: "string" },
+                        tags: { type: "string", description: "Comma-separated: 'bank-query,cibil,document'" }
+                    },
+                    required: ["entityType","entityId","content"]
+                }
+            },
+            {
+                name: "getPipelineByStage",
+                description: "View active loan files by stage and/or loan type. Returns stage summary + total pipeline value.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        stage: { type: "string", enum: PIPELINE_STAGES },
+                        loanType: { type: "string" },
+                        ownerId: { type: "string", description: "'mine' or userId" },
+                        limit: { type: "integer", default: 20 }
+                    }
+                }
+            },
+            {
+                name: "updateOpportunityStage",
+                description: "Move a loan file to a new stage. Optionally log a reason as a note.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        opportunityId: { type: "string" },
+                        newStage: { type: "string", enum: PIPELINE_STAGES },
+                        note: { type: "string", description: "Optional reason (saved as note)" }
+                    },
+                    required: ["opportunityId","newStage"]
+                }
+            },
+            {
+                name: "getBankFiles",
+                description: "Find loan files submitted to a bank, optionally filtered by stage. E.g. all HDFC files in Query.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        bankName: { type: "string", description: "Partial match: 'HDFC', 'Axis', 'SBI'" },
+                        stage: { type: "string", enum: PIPELINE_STAGES },
+                        limit: { type: "integer", default: 20 }
+                    },
+                    required: ["bankName"]
+                }
+            },
+            {
+                name: "updateLeadStatus",
+                description: "Update lead status (New/Qualified/Closed) or rating (Hot/Warm/Cold) after a call.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        leadId: { type: "string" },
+                        status: { type: "string", enum: ["New","In Progress","Qualified","Closed"] },
+                        rating: { type: "string", enum: ["Hot","Warm","Cold"] }
+                    },
+                    required: ["leadId"]
+                }
+            },
+            {
+                name: "convertLeadToOpportunity",
+                description: "Convert a qualified lead into an active loan file. Stage defaults to Document Collection.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        leadId: { type: "string" },
+                        loanType: { type: "string", enum: LOAN_TYPES },
+                        estimatedRevenue: { type: "string", description: "Loan amount in INR e.g. '5000000'" },
+                        estimatedCloseDate: { type: "string", description: "YYYY-MM-DD (defaults 90 days)" },
+                        banks: { type: "array", items: { type: "string" }, description: "Bank names to link" }
+                    },
+                    required: ["leadId","loanType","estimatedRevenue"]
+                }
+            },
+            {
+                name: "getCases",
+                description: "Get service/support cases filtered by status or priority.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        status: { type: "string", enum: ["New","Assigned","In Progress","On Hold","Resolved","Closed","Cancelled"] },
+                        priority: { type: "string", enum: ["Low","Medium","High","Critical"] },
+                        limit: { type: "integer", default: 10 }
+                    }
+                }
+            }
+        ]
+    }));
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
+            const args = request.params.arguments || {};
             let result: any;
             switch (request.params.name) {
-                case "smartSearch":
-                    result = await unifiedService.smartSearch(request.params.arguments || {}, context);
-                    break;
-                case "getDashboard":
-                    result = await unifiedService.getDashboard(request.params.arguments || {}, context);
-                    break;
-                case "scheduleActivity":
-                    result = await unifiedService.scheduleActivity(request.params.arguments || {}, context);
-                    break;
-                case "getUpcomingActivities":
-                    result = await unifiedService.getUpcomingActivities(request.params.arguments || {}, context);
-                    break;
-                case "getOverdueActivities":
-                    result = await unifiedService.getOverdueActivities(request.params.arguments || {}, context);
-                    break;
-                default:
-                    throw new Error(`Tool not found: ${request.params.name}`);
+                case "smartSearch":              result = await unifiedService.smartSearch(args, context); break;
+                case "getDashboard":             result = await unifiedService.getDashboard(args, context); break;
+                case "scheduleActivity":         result = await unifiedService.scheduleActivity(args, context); break;
+                case "getUpcomingActivities":    result = await unifiedService.getUpcomingActivities(args, context); break;
+                case "getOverdueActivities":     result = await unifiedService.getOverdueActivities(args, context); break;
+                case "getNotes":                 result = await unifiedService.getNotes(args, context); break;
+                case "createNote":               result = await unifiedService.createNote(args, context); break;
+                case "getPipelineByStage":       result = await unifiedService.getPipelineByStage(args, context); break;
+                case "updateOpportunityStage":   result = await unifiedService.updateOpportunityStage(args, context); break;
+                case "getBankFiles":             result = await unifiedService.getBankFiles(args, context); break;
+                case "updateLeadStatus":         result = await unifiedService.updateLeadStatus(args, context); break;
+                case "convertLeadToOpportunity": result = await unifiedService.convertLeadToOpportunity(args, context); break;
+                case "getCases":                 result = await unifiedService.getCases(args, context); break;
+                default: throw new Error(`Unknown tool: ${request.params.name}`);
             }
-            return {
-                content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-            };
+            return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
         } catch (err: any) {
-            return {
-                content: [{ type: "text", text: `Error: ${err.message}` }],
-                isError: true
-            };
+            return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
         }
     });
 
     return server;
 }
 
-// ─── Single /sse endpoint: handles both GET (stream) and POST (tool calls) ────
-// This implements the MCP Streamable HTTP spec (2025) used by n8n and other clients.
-// Both GET and POST go to the same URL — the transport handles the method internally.
-async function handleMcpRequest(req: AuthenticatedRequest, res: express.Response) {
+mcpRouter.get("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
     const context = {
         orgId: req.apiKey?.organisationId || req.user?.organizationId || undefined,
         userId: req.user?.userId || undefined
     };
-
-    // On POST: check if there's an existing session to reuse
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
-
-    if (sessionId && activeSessions.has(sessionId)) {
-        // Reuse existing session
-        const session = activeSessions.get(sessionId)!;
-        await session.transport.handleRequest(req as any, res, req.body);
-        return;
-    }
-
-    // New session: create fresh Server + Transport
     const server = createMcpServer(context);
-    const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (newSessionId) => {
-            activeSessions.set(newSessionId, { server, transport, context });
-            console.log(`MCP session created: ${newSessionId} (org: ${context.orgId}, active: ${activeSessions.size})`);
-        }
-    });
-
-    transport.onclose = () => {
-        const sid = transport.sessionId;
-        if (sid) {
-            activeSessions.delete(sid);
-            console.log(`MCP session closed: ${sid} (active: ${activeSessions.size})`);
-        }
-    };
-
+    const transport = new SSEServerTransport("/api/v1/api/mcp/sse", res);
+    const sessionId = transport.sessionId;
+    activeSessions.set(sessionId, { server, transport, context });
+    console.log(`[MCP] Session opened: ${sessionId} (org: ${context.orgId}, active: ${activeSessions.size})`);
     await server.connect(transport);
-    await transport.handleRequest(req as any, res, req.body);
-}
+    res.on("close", () => {
+        activeSessions.delete(sessionId);
+        console.log(`[MCP] Session closed: ${sessionId} (active: ${activeSessions.size})`);
+    });
+});
 
-mcpRouter.get("/sse", handleMcpRequest);
-mcpRouter.post("/sse", handleMcpRequest);
+mcpRouter.post("/sse", async (req: express.Request, res: express.Response) => {
+    const sessionId = req.query.sessionId as string;
+    if (!sessionId) { res.status(400).json({ error: "Missing sessionId." }); return; }
+    const session = activeSessions.get(sessionId);
+    if (!session) { res.status(404).json({ error: `Session not found: ${sessionId}` }); return; }
+    await session.transport.handlePostMessage(req, res, req.body);
+});
 
-// Keep /messages for backward compatibility with older curl tests
 mcpRouter.post("/messages", async (req: express.Request, res: express.Response) => {
     const sessionId = req.query.sessionId as string;
-    if (!sessionId || !activeSessions.has(sessionId)) {
-        res.status(400).send("Use POST /api/mcp/sse with Mcp-Session-Id header instead.");
-        return;
-    }
-    const session = activeSessions.get(sessionId)!;
-    await session.transport.handleRequest(req as any, res, req.body);
+    if (!sessionId) { res.status(400).json({ error: "Missing sessionId." }); return; }
+    const session = activeSessions.get(sessionId);
+    if (!session) { res.status(404).json({ error: `Session not found: ${sessionId}` }); return; }
+    await session.transport.handlePostMessage(req, res, req.body);
 });
