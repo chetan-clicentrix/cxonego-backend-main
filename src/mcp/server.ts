@@ -412,8 +412,9 @@
 
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from "node:crypto";
 import * as express from "express";
 import { AuthenticatedRequest } from "../interfaces/types";
 import { UnifiedService } from "../services/unified.service";
@@ -423,7 +424,7 @@ const unifiedService = new UnifiedService();
 
 interface McpSession {
     server: Server;
-    transport: SSEServerTransport;
+    transport: StreamableHTTPServerTransport;
     context: { orgId?: string; userId?: string };
 }
 const activeSessions = new Map<string, McpSession>();
@@ -441,8 +442,8 @@ const LOAN_TYPES = [
 ];
 
 const PIPELINE_STAGES = [
-    "Document Collection","Proposal Preparation","Login Desk",
-    "Query","Query Resolution","Approved","Disbursed","PDD","Won","Lost"
+    "Document Collection", "Proposal Preparation", "Login Desk",
+    "Query", "Query Resolution", "Approved", "Disbursed", "PDD", "Won", "Lost"
 ];
 
 function createMcpServer(context: { orgId?: string; userId?: string }): Server {
@@ -460,13 +461,13 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                     type: "object",
                     properties: {
                         query: { type: "string" },
-                        entityTypes: { type: "array", items: { type: "string", enum: ["all","lead","opportunity","account","contact"] } },
+                        entityTypes: { type: "array", items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact"] } },
                         filters: {
                             type: "object",
                             properties: {
                                 ownerId: { type: "string" },
                                 status: { type: "string" },
-                                rating: { type: "string", enum: ["Hot","Warm","Cold"] },
+                                rating: { type: "string", enum: ["Hot", "Warm", "Cold"] },
                                 stage: { type: "string", enum: PIPELINE_STAGES },
                                 loanType: { type: "string" }
                             }
@@ -481,7 +482,7 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 inputSchema: {
                     type: "object",
                     properties: {
-                        timeRange: { type: "string", enum: ["today","week","month","quarter","year"], default: "week" },
+                        timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year"], default: "week" },
                         userId: { type: "string" }
                     }
                 }
@@ -494,18 +495,18 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                     properties: {
                         subject: { type: "string" },
                         when: { type: "string" },
-                        activityType: { type: "string", enum: ["CALL","MEETING","EMAIL","TASK"], default: "CALL" },
-                        priority: { type: "string", enum: ["HIGH","NORMAL","LOW"], default: "NORMAL" },
+                        activityType: { type: "string", enum: ["CALL", "MEETING", "EMAIL", "TASK"], default: "CALL" },
+                        priority: { type: "string", enum: ["HIGH", "NORMAL", "LOW"], default: "NORMAL" },
                         description: { type: "string" },
                         relatedTo: {
                             type: "object",
                             properties: {
-                                type: { type: "string", enum: ["lead","opportunity","account","contact"] },
+                                type: { type: "string", enum: ["lead", "opportunity", "account", "contact"] },
                                 id: { type: "string" }
                             }
                         }
                     },
-                    required: ["subject","when"]
+                    required: ["subject", "when"]
                 }
             },
             {
@@ -533,11 +534,11 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 inputSchema: {
                     type: "object",
                     properties: {
-                        entityType: { type: "string", enum: ["lead","opportunity","account","contact","case"] },
+                        entityType: { type: "string", enum: ["lead", "opportunity", "account", "contact", "case"] },
                         entityId: { type: "string" },
                         limit: { type: "integer", default: 10 }
                     },
-                    required: ["entityType","entityId"]
+                    required: ["entityType", "entityId"]
                 }
             },
             {
@@ -546,12 +547,12 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 inputSchema: {
                     type: "object",
                     properties: {
-                        entityType: { type: "string", enum: ["lead","opportunity","account","contact","case"] },
+                        entityType: { type: "string", enum: ["lead", "opportunity", "account", "contact", "case"] },
                         entityId: { type: "string" },
                         content: { type: "string" },
                         tags: { type: "string", description: "Comma-separated: 'bank-query,cibil,document'" }
                     },
-                    required: ["entityType","entityId","content"]
+                    required: ["entityType", "entityId", "content"]
                 }
             },
             {
@@ -577,7 +578,7 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                         newStage: { type: "string", enum: PIPELINE_STAGES },
                         note: { type: "string", description: "Optional reason (saved as note)" }
                     },
-                    required: ["opportunityId","newStage"]
+                    required: ["opportunityId", "newStage"]
                 }
             },
             {
@@ -600,8 +601,8 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                     type: "object",
                     properties: {
                         leadId: { type: "string" },
-                        status: { type: "string", enum: ["New","In Progress","Qualified","Closed"] },
-                        rating: { type: "string", enum: ["Hot","Warm","Cold"] }
+                        status: { type: "string", enum: ["New", "In Progress", "Qualified", "Closed"] },
+                        rating: { type: "string", enum: ["Hot", "Warm", "Cold"] }
                     },
                     required: ["leadId"]
                 }
@@ -618,7 +619,7 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                         estimatedCloseDate: { type: "string", description: "YYYY-MM-DD (defaults 90 days)" },
                         banks: { type: "array", items: { type: "string" }, description: "Bank names to link" }
                     },
-                    required: ["leadId","loanType","estimatedRevenue"]
+                    required: ["leadId", "loanType", "estimatedRevenue"]
                 }
             },
             {
@@ -627,8 +628,8 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 inputSchema: {
                     type: "object",
                     properties: {
-                        status: { type: "string", enum: ["New","Assigned","In Progress","On Hold","Resolved","Closed","Cancelled"] },
-                        priority: { type: "string", enum: ["Low","Medium","High","Critical"] },
+                        status: { type: "string", enum: ["New", "Assigned", "In Progress", "On Hold", "Resolved", "Closed", "Cancelled"] },
+                        priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
                         limit: { type: "integer", default: 10 }
                     }
                 }
@@ -641,19 +642,19 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
             const args = request.params.arguments || {};
             let result: any;
             switch (request.params.name) {
-                case "smartSearch":              result = await unifiedService.smartSearch(args, context); break;
-                case "getDashboard":             result = await unifiedService.getDashboard(args, context); break;
-                case "scheduleActivity":         result = await unifiedService.scheduleActivity(args, context); break;
-                case "getUpcomingActivities":    result = await unifiedService.getUpcomingActivities(args, context); break;
-                case "getOverdueActivities":     result = await unifiedService.getOverdueActivities(args, context); break;
-                case "getNotes":                 result = await unifiedService.getNotes(args, context); break;
-                case "createNote":               result = await unifiedService.createNote(args, context); break;
-                case "getPipelineByStage":       result = await unifiedService.getPipelineByStage(args, context); break;
-                case "updateOpportunityStage":   result = await unifiedService.updateOpportunityStage(args, context); break;
-                case "getBankFiles":             result = await unifiedService.getBankFiles(args, context); break;
-                case "updateLeadStatus":         result = await unifiedService.updateLeadStatus(args, context); break;
+                case "smartSearch": result = await unifiedService.smartSearch(args, context); break;
+                case "getDashboard": result = await unifiedService.getDashboard(args, context); break;
+                case "scheduleActivity": result = await unifiedService.scheduleActivity(args, context); break;
+                case "getUpcomingActivities": result = await unifiedService.getUpcomingActivities(args, context); break;
+                case "getOverdueActivities": result = await unifiedService.getOverdueActivities(args, context); break;
+                case "getNotes": result = await unifiedService.getNotes(args, context); break;
+                case "createNote": result = await unifiedService.createNote(args, context); break;
+                case "getPipelineByStage": result = await unifiedService.getPipelineByStage(args, context); break;
+                case "updateOpportunityStage": result = await unifiedService.updateOpportunityStage(args, context); break;
+                case "getBankFiles": result = await unifiedService.getBankFiles(args, context); break;
+                case "updateLeadStatus": result = await unifiedService.updateLeadStatus(args, context); break;
                 case "convertLeadToOpportunity": result = await unifiedService.convertLeadToOpportunity(args, context); break;
-                case "getCases":                 result = await unifiedService.getCases(args, context); break;
+                case "getCases": result = await unifiedService.getCases(args, context); break;
                 default: throw new Error(`Unknown tool: ${request.params.name}`);
             }
             return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -665,35 +666,82 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
     return server;
 }
 
+// ─── GET /sse ─────────────────────────────────────────────────────────────────
+// n8n sometimes probes GET /sse as a health check before sending POST initialize.
+// Return a valid SSE keepalive stream so it doesn't get 400.
+// If a Mcp-Session-Id header is present, route to that session's transport.
 mcpRouter.get("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
+    const headerSessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    if (headerSessionId && activeSessions.has(headerSessionId)) {
+        // Route to existing session for server-sent notifications
+        const session = activeSessions.get(headerSessionId)!;
+        await session.transport.handleRequest(req as any, res, req.body);
+        return;
+    }
+
+    // No session yet — return a valid SSE stream (keepalive ping)
+    // This satisfies n8n's connectivity check without erroring.
+    res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*"
+    });
+    res.write(": mcp-ready\n\n");
+
+    const keepAlive = setInterval(() => res.write(": ping\n\n"), 25000);
+    res.on("close", () => clearInterval(keepAlive));
+});
+
+// ─── POST /sse ─────────────────────────────────────────────────────────────────
+// n8n uses Streamable HTTP: POST /sse (no sessionId) for initialize,
+// then POST /sse with Mcp-Session-Id header for tool calls.
+mcpRouter.post("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
     const context = {
         orgId: req.apiKey?.organisationId || req.user?.organizationId || undefined,
         userId: req.user?.userId || undefined
     };
+
+    const headerSessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    if (headerSessionId && activeSessions.has(headerSessionId)) {
+        // Existing session — route directly
+        const session = activeSessions.get(headerSessionId)!;
+        await session.transport.handleRequest(req as any, res, req.body);
+        return;
+    }
+
+    // New session — create Server + StreamableHTTP transport
     const server = createMcpServer(context);
-    const transport = new SSEServerTransport("/api/v1/api/mcp/sse", res);
-    const sessionId = transport.sessionId;
-    activeSessions.set(sessionId, { server, transport, context });
-    console.log(`[MCP] Session opened: ${sessionId} (org: ${context.orgId}, active: ${activeSessions.size})`);
-    await server.connect(transport);
-    res.on("close", () => {
-        activeSessions.delete(sessionId);
-        console.log(`[MCP] Session closed: ${sessionId} (active: ${activeSessions.size})`);
+    const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (newSessionId: string) => {
+            activeSessions.set(newSessionId, { server, transport, context });
+            console.log(`[MCP] Session created: ${newSessionId} (org: ${context.orgId}, active: ${activeSessions.size})`);
+        }
     });
+
+    transport.onclose = () => {
+        const sid = (transport as any).sessionId;
+        if (sid) {
+            activeSessions.delete(sid);
+            console.log(`[MCP] Session closed: ${sid} (active: ${activeSessions.size})`);
+        }
+    };
+
+    await server.connect(transport);
+    await transport.handleRequest(req as any, res, req.body);
 });
 
-mcpRouter.post("/sse", async (req: express.Request, res: express.Response) => {
-    const sessionId = req.query.sessionId as string;
-    if (!sessionId) { res.status(400).json({ error: "Missing sessionId." }); return; }
-    const session = activeSessions.get(sessionId);
-    if (!session) { res.status(404).json({ error: `Session not found: ${sessionId}` }); return; }
-    await session.transport.handlePostMessage(req, res, req.body);
-});
+// ─── POST /messages — backward compat ─────────────────────────────────────────
+mcpRouter.post("/messages", async (req: AuthenticatedRequest, res: express.Response) => {
+    const headerSessionId = req.headers["mcp-session-id"] as string | undefined;
+    const querySessionId = req.query.sessionId as string | undefined;
+    const sessionId = headerSessionId || querySessionId;
 
-mcpRouter.post("/messages", async (req: express.Request, res: express.Response) => {
-    const sessionId = req.query.sessionId as string;
-    if (!sessionId) { res.status(400).json({ error: "Missing sessionId." }); return; }
+    if (!sessionId) { res.status(400).json({ error: "Missing Mcp-Session-Id header or ?sessionId param." }); return; }
     const session = activeSessions.get(sessionId);
     if (!session) { res.status(404).json({ error: `Session not found: ${sessionId}` }); return; }
-    await session.transport.handlePostMessage(req, res, req.body);
+    await session.transport.handleRequest(req as any, res, req.body);
 });
