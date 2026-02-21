@@ -5,9 +5,10 @@ module.exports = {
       name: "cxonego-backend",
       script: "build/src/index.js",
 
-      // 2 vCPU → 2 instances
-      instances: 2,
-      exec_mode: "cluster",
+      // 1 instance — required for MCP SSE session affinity
+      // (MCP sessions are in-memory; cluster mode routes SSE & POST to different instances)
+      instances: 1,
+      exec_mode: "fork",
       watch: false,
       autorestart: true,
 
