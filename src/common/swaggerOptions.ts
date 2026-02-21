@@ -55,7 +55,8 @@ const options = {
     "./src/routes/*.ts",
     "./src/controllers/*.ts",
     "./src/schemas/*.ts",
-    "./src/entity/*.ts"
+    "./src/entity/*.ts",
+    "./src/mcp/*.ts"
   ]
 };
 
