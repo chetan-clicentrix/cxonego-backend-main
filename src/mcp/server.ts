@@ -422,23 +422,22 @@ export const mcpRouter = express.Router();
 
 const unifiedService = new UnifiedService();
 
-// ─── Session Registry ────────────────────────────────────────────────────────
-// Map of sessionId → { transport, context }
-// Supports multiple concurrent connections (e.g. n8n with 3 sub-agents)
-const activeSessions = new Map<string, {
+// ─── Session store: one Server+Transport per SSE connection ───────────────────
+interface McpSession {
+    server: Server;
     transport: SSEServerTransport;
     context: { orgId?: string; userId?: string };
-}>();
+}
+const activeSessions = new Map<string, McpSession>();
 
-// ─── MCP Server Factory ──────────────────────────────────────────────────────
-// Each SSE connection gets its OWN Server instance to avoid "Already connected" error
+// ─── Factory: creates a fresh Server instance with all tool handlers ──────────
 function createMcpServer(context: { orgId?: string; userId?: string }): Server {
     const server = new Server(
         { name: "agentone-crm-mcp", version: "1.0.0" },
         { capabilities: { tools: {} } }
     );
 
-    // List all available tools
+    // List tools
     server.setRequestHandler(ListToolsRequestSchema, async () => {
         return {
             tools: [
@@ -525,7 +524,7 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
         };
     });
 
-    // Handle tool calls — context is captured per-connection via closure
+    // Call tools — uses the per-session context for org/user scoping
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
             let result: any;
@@ -562,46 +561,40 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
     return server;
 }
 
-// ─── SSE Endpoint ────────────────────────────────────────────────────────────
-// n8n/AI agents connect here to open a persistent SSE stream
+// ─── SSE endpoint: each connection gets its own Server + Transport ────────────
 mcpRouter.get("/sse", async (req: AuthenticatedRequest, res: express.Response) => {
-    // Capture auth context from API key middleware
     const context = {
         orgId: req.apiKey?.organisationId || req.user?.organizationId || undefined,
         userId: req.user?.userId || undefined
     };
 
-    // Create a fresh Server instance for this connection
-    const serverInstance = createMcpServer(context);
+    const server = createMcpServer(context);
     const transport = new SSEServerTransport("/api/v1/api/mcp/messages", res);
-
-    await serverInstance.connect(transport);
-
     const sessionId = transport.sessionId;
-    activeSessions.set(sessionId, { transport, context });
 
-    console.log(`[MCP] New SSE session: ${sessionId} | orgId: ${context.orgId} | active sessions: ${activeSessions.size}`);
+    activeSessions.set(sessionId, { server, transport, context });
+    console.log(`MCP SSE Client connected: ${sessionId} (org: ${context.orgId}, active sessions: ${activeSessions.size})`);
 
-    // Clean up when client disconnects
+    await server.connect(transport);
+
     res.on("close", () => {
         activeSessions.delete(sessionId);
-        console.log(`[MCP] Session closed: ${sessionId} | remaining: ${activeSessions.size}`);
+        console.log(`MCP SSE Client disconnected: ${sessionId} (active sessions: ${activeSessions.size})`);
     });
 });
 
-// ─── Messages Endpoint ───────────────────────────────────────────────────────
-// n8n posts JSON-RPC tool calls here, routed by sessionId
+// ─── Messages endpoint: route by sessionId ────────────────────────────────────
 mcpRouter.post("/messages", async (req: express.Request, res: express.Response) => {
     const sessionId = req.query.sessionId as string;
 
     if (!sessionId) {
-        res.status(400).send("Missing sessionId query parameter");
+        res.status(400).send("Missing sessionId query parameter. Open /api/mcp/sse first.");
         return;
     }
 
     const session = activeSessions.get(sessionId);
     if (!session) {
-        res.status(400).send(`No active SSE session for sessionId: ${sessionId}`);
+        res.status(400).send(`No active SSE connection for sessionId: ${sessionId}. Re-open /api/mcp/sse.`);
         return;
     }
 

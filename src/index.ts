@@ -36,9 +36,6 @@ morgan.token("host", function (req: express.Request, _res) {
 
 const app = express();
 
-// Trust the first proxy (nginx) so Express correctly reads X-Forwarded-For
-// Required when running behind a reverse proxy in production
-app.set('trust proxy', 1);
 
 app.use(cookieParser());
 
@@ -191,7 +188,6 @@ const limiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  // Note: trust proxy is set via app.set('trust proxy', 1) above
 });
 
 
