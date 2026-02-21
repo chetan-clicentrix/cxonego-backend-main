@@ -282,8 +282,8 @@ export class UnifiedService {
         if (!when) throw new Error("Activity time is required (e.g. 'tomorrow 3pm', 'in 2 hours').");
 
         const parsed = this.parseNaturalTime(when);
-
         const activity = new Activity({} as Activity);
+        activity.activityId = uuidv4();
         activity.subject = subject;
         activity.activityType = activityType as any;
         activity.activityStatus = 'Open' as any;
@@ -772,6 +772,81 @@ export class UnifiedService {
                 issueReportedDate: c.issueReportedDate,
                 createdAt: c.createdAt
             }))
+        };
+    }
+
+    async createLead(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+
+        const {
+            fullName, phone, loanType, loanAmount,
+            email, city = 'Pune', state = 'Maharashtra', country = 'India',
+            zone, taluka, village, pincode,
+            leadSource = 'Direct', rating = 'Cold', description,
+            title
+        } = params;
+
+        // Required field validation
+        if (!fullName || fullName.trim() === '') throw new Error("Customer full name is required.");
+        if (!phone || phone.trim() === '') throw new Error("Customer phone number is required.");
+        if (!loanType) throw new Error("Loan type is required (e.g. 'Housing Loan - Home Loan - HL').");
+
+        const leadRepo = AppDataSource.getRepository(Lead);
+
+        // Duplicate check: warn if phone already exists in org
+        // (phone is encrypted, so we encrypt the search value)
+        const encryptedPhone = encryption(phone);
+        const existing = await leadRepo.findOne({
+            where: { phone: encryptedPhone, organizationId: ctx.orgId } as any
+        });
+        if (existing) {
+            return {
+                duplicate: true,
+                existingLeadId: existing.leadId,
+                message: `A lead with phone ${phone} already exists in the system. Lead ID: ${existing.leadId}. Use updateLeadStatus to update this lead instead.`
+            };
+        }
+
+        const lead = new Lead({} as Lead);
+        lead.leadId = uuidv4();
+        lead.fullName = fullName;
+        lead.phone = phone;
+        lead.email = email || '';
+        lead.title = title || `${loanType} Inquiry`;
+        lead.loanType = loanType;
+        lead.loanAmount = loanAmount ? String(loanAmount) : '';
+        lead.city = city;
+        lead.state = state;
+        lead.country = country;
+        lead.leadSource = leadSource;
+        (lead as any).rating = rating;
+        (lead as any).status = 'New';
+        lead.description = description || '';
+        if (zone) lead.zone = zone;
+        if (taluka) lead.taluka = taluka;
+        if (village) lead.village = village;
+        if (pincode) lead.pincode = pincode;
+
+        // Assign owner and organisation
+        const owner = await AppDataSource.getRepository(User).findOne({ where: { userId: ctx.userId } });
+        const organization = await AppDataSource.getRepository(Organisation).findOne({ where: { organisationId: ctx.orgId! } });
+        if (owner) lead.owner = owner;
+        if (organization) lead.organization = organization;
+
+        const saved = await leadRepo.save(lead);
+
+        return {
+            success: true,
+            leadId: saved.leadId,
+            fullName,
+            phone,
+            loanType,
+            loanAmount: loanAmount || null,
+            city,
+            rating,
+            status: 'New',
+            owner: owner ? `${owner.firstName} ${owner.lastName}` : 'You',
+            message: `Lead created successfully for ${fullName}. Lead ID: ${saved.leadId}`
         };
     }
 }
