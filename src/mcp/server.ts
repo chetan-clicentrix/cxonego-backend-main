@@ -557,14 +557,26 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
             },
             {
                 name: "getPipelineByStage",
-                description: "View active loan files by stage and/or loan type. Returns stage summary + total pipeline value.",
+                description: "Get active opportunities by stage or owner. Supports filtering for unassigned files and high-value deals.",
                 inputSchema: {
                     type: "object",
                     properties: {
                         stage: { type: "string", enum: PIPELINE_STAGES },
-                        loanType: { type: "string" },
-                        ownerId: { type: "string", description: "'mine' or userId" },
+                        ownerId: { type: "string", description: "Use 'mine' for your own or provide a specific userId. Leave empty to see all." },
+                        unassignedOnly: { type: "boolean", description: "If true, only returns opportunities without an owner." },
+                        minRevenue: { type: "number", description: "Filter for deals with estimated revenue >= this value." },
+                        loanType: { type: "string", enum: LOAN_TYPES },
                         limit: { type: "integer", default: 20 }
+                    }
+                }
+            },
+            {
+                name: "getManagerInsights",
+                description: "Find high-value unassigned opportunities and cross-reference with salesperson workloads for reassignment suggestions.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        minRevenue: { type: "number", description: "Threshold for 'high-value' deals. Default: 0" }
                     }
                 }
             },
@@ -752,6 +764,7 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 case "exportPipelineToExcel": result = await unifiedService.exportPipelineToExcel(args, context); break;
                 case "learnAgentSkill": result = await unifiedService.learnAgentSkill(args, context); break;
                 case "findAgentSkills": result = await unifiedService.findAgentSkills(args, context); break;
+                case "getManagerInsights": result = await unifiedService.getManagerInsights(args, context); break;
                 default: throw new Error(`Unknown tool: ${request.params.name}`);
             }
             return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };

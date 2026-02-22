@@ -498,7 +498,7 @@ export class UnifiedService {
 
     async getPipelineByStage(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { stage: stageFilter, loanType, ownerId, limit = 20 } = params;
+        const { stage: stageFilter, loanType, ownerId, unassignedOnly, minRevenue, limit = 20 } = params;
 
         const oppRepo = AppDataSource.getRepository(Oppurtunity);
         const query = oppRepo.createQueryBuilder('opp')
@@ -509,16 +509,30 @@ export class UnifiedService {
             .andWhere('opp.status = :status', { status: 'Active' });
 
         if (stageFilter) query.andWhere('opp.stage = :stage', { stage: stageFilter });
-        if (ownerId === 'mine') query.andWhere('opp.ownerId = :userId', { userId: ctx.userId });
-        else if (ownerId) query.andWhere('opp.ownerId = :userId', { userId: ownerId });
+
+        if (unassignedOnly) {
+            query.andWhere('opp.ownerId IS NULL');
+        } else if (ownerId === 'mine') {
+            query.andWhere('opp.ownerId = :userId', { userId: ctx.userId });
+        } else if (ownerId) {
+            query.andWhere('opp.ownerId = :userId', { userId: ownerId });
+        }
 
         query.orderBy('opp.estimatedCloseDate', 'ASC').limit(Number(limit));
 
         let opps = await query.getMany();
 
-        // Filter by loanType (encrypted field, post-query)
-        if (loanType) {
-            opps = opps.filter(o => this.safe(o.loanType).toLowerCase().includes(loanType.toLowerCase()));
+        // Filter by loanType (encrypted field) and minRevenue (JS filtering due to encryption)
+        if (loanType || minRevenue) {
+            opps = opps.filter(o => {
+                let match = true;
+                if (loanType) match = match && this.safe(o.loanType).toLowerCase().includes(loanType.toLowerCase());
+                if (minRevenue) {
+                    const revenue = parseInt(this.safe(o.estimatedRevenue) || this.safe(o.loanAmount) || '0');
+                    match = match && (revenue >= parseInt(minRevenue));
+                }
+                return match;
+            });
         }
 
         const stageCounts: Record<string, number> = {};
@@ -545,8 +559,53 @@ export class UnifiedService {
                 estimatedCloseDate: o.estimatedCloseDate,
                 applicantType: o.applicantType,
                 banks: (o.banks || []).map((b: any) => b.bankName || b.name).filter(Boolean),
-                owner: o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : 'Unassigned'
+                owner: o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : 'Unassigned',
+                ownerId: o.owner?.userId
             }))
+        };
+    }
+
+    async getManagerInsights(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { minRevenue = 0 } = params;
+
+        const userRepo = AppDataSource.getRepository(User);
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+
+        // 1. Find High-Value Unassigned Files
+        const unassignedOpps = await oppRepo.createQueryBuilder('opp')
+            .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
+            .andWhere('opp.ownerId IS NULL')
+            .andWhere('opp.status = :status', { status: 'Active' })
+            .getMany();
+
+        const filteredUnassigned = unassignedOpps.filter(o => {
+            const rev = parseInt(this.safe(o.estimatedRevenue) || this.safe(o.loanAmount) || '0');
+            return rev >= minRevenue;
+        }).map(o => ({
+            opportunityId: o.opportunityId,
+            title: this.safe(o.title),
+            revenue: this.safe(o.estimatedRevenue) || this.safe(o.loanAmount)
+        }));
+
+        // 2. Find Sales Team Workload
+        const users = await userRepo.find({
+            where: { organisation: { organisationId: ctx.orgId }, isActive: true } as any,
+            relations: ['opportunity']
+        });
+
+        const userWorkload = users.map(u => ({
+            userId: u.userId,
+            name: `${u.firstName} ${u.lastName}`,
+            activeFilesCount: (u.opportunity || []).filter(o => o.status === 'Active').length
+        })).sort((a, b) => a.activeFilesCount - b.activeFilesCount);
+
+        return {
+            highValueUnassigned: filteredUnassigned,
+            suggestedOwners: userWorkload.slice(0, 5), // Top 5 least busy
+            message: filteredUnassigned.length > 0
+                ? `Found ${filteredUnassigned.length} high-value unassigned files. Suggested owners are sorted by least workload.`
+                : "No high-value unassigned files found."
         };
     }
 
