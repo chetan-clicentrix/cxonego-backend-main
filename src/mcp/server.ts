@@ -633,6 +633,96 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                         limit: { type: "integer", default: 10 }
                     }
                 }
+            },
+            {
+                name: "createLead",
+                description: "Create a new loan lead in the CRM after gathering info from the customer. Ask for fullName, phone, and loanType before calling. Automatically checks for duplicate phone numbers.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        fullName: { type: "string", description: "Customer's full name" },
+                        phone: { type: "string", description: "Mobile number (10 digits)" },
+                        loanType: { type: "string", enum: LOAN_TYPES, description: "Type of loan required" },
+                        loanAmount: { type: "string", description: "Loan amount in INR (e.g. '5000000' for ₹50L)" },
+                        email: { type: "string", description: "Email address (optional)" },
+                        city: { type: "string", default: "Pune", description: "Customer's city" },
+                        state: { type: "string", default: "Maharashtra", description: "Customer's state" },
+                        zone: { type: "string", description: "Zone or area" },
+                        taluka: { type: "string", description: "Taluka (for rural leads)" },
+                        village: { type: "string", description: "Village name" },
+                        pincode: { type: "string", description: "PIN code" },
+                        leadSource: { type: "string", description: "How did they contact us? e.g. 'Referral', 'WhatsApp', 'Walk-in', 'Direct'" },
+                        rating: { type: "string", enum: ["Hot", "Warm", "Cold"], description: "Lead quality based on urgency. Default: Cold" },
+                        description: { type: "string", description: "Additional notes about this lead" }
+                    },
+                    required: ["fullName", "phone", "loanType"]
+                }
+            },
+            {
+                name: "listUsers",
+                description: "List active users in the current organization for reassignment.",
+                inputSchema: { type: "object", properties: {} }
+            },
+            {
+                name: "reassignEntity",
+                description: "Change ownership of a Lead, Opportunity, Activity, or Note. Automatically notifies the new owner.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        entityType: { type: "string", enum: ["lead", "opportunity", "activity", "note"] },
+                        entityId: { type: "string" },
+                        newOwnerId: { type: "string", description: "The userId of the new owner." },
+                        reason: { type: "string", description: "Reason for the transfer (optional)" }
+                    },
+                    required: ["entityType", "entityId", "newOwnerId"]
+                }
+            },
+            {
+                name: "qualifyLead",
+                description: "Qualify a lead, marking it as ready for conversion. Updates status and wasQualified flag.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        leadId: { type: "string" },
+                        notes: { type: "string", description: "Qualification notes (income, verification, etc.)" }
+                    },
+                    required: ["leadId"]
+                }
+            },
+            {
+                name: "exportPipelineToExcel",
+                description: "Generate a professional XLSX pipeline dashboard/report. Returns a download link.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        loanType: { type: "string", enum: LOAN_TYPES },
+                        timeRange: { type: "string", description: "Description of window e.g. 'this month', 'all time'" }
+                    }
+                }
+            },
+            {
+                name: "learnAgentSkill",
+                description: "Teach the agent a new multi-step skill or persistent knowledge recipe. Use this after a complex task is successfully solved.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        skillName: { type: "string", description: "Unique internal name for the skill." },
+                        description: { type: "string", description: "What this skill accomplishes." },
+                        instructions: { type: "string", description: "The detailed steps, markdown recipes, or logic to remember." },
+                        triggerKeywords: { type: "string", description: "Comma-separated words that should trigger this skill search." }
+                    },
+                    required: ["skillName", "instructions"]
+                }
+            },
+            {
+                name: "findAgentSkills",
+                description: "Search for previously learned skills or specialized knowledge to help solve the current user request.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        query: { type: "string", description: "Keyword or name to search for." }
+                    }
+                }
             }
         ]
     }));
@@ -655,6 +745,13 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 case "updateLeadStatus": result = await unifiedService.updateLeadStatus(args, context); break;
                 case "convertLeadToOpportunity": result = await unifiedService.convertLeadToOpportunity(args, context); break;
                 case "getCases": result = await unifiedService.getCases(args, context); break;
+                case "createLead": result = await unifiedService.createLead(args, context); break;
+                case "listUsers": result = await unifiedService.listUsers(args, context); break;
+                case "reassignEntity": result = await unifiedService.reassignEntity(args, context); break;
+                case "qualifyLead": result = await unifiedService.qualifyLead(args, context); break;
+                case "exportPipelineToExcel": result = await unifiedService.exportPipelineToExcel(args, context); break;
+                case "learnAgentSkill": result = await unifiedService.learnAgentSkill(args, context); break;
+                case "findAgentSkills": result = await unifiedService.findAgentSkills(args, context); break;
                 default: throw new Error(`Unknown tool: ${request.params.name}`);
             }
             return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };

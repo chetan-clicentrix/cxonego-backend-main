@@ -9,9 +9,15 @@ import { Organisation } from "../entity/Organisation";
 import { Note } from "../entity/Note";
 import { Case } from "../entity/Case";
 import { Bank } from "../entity/Bank";
+import { AgentSkill } from "../entity/AgentSkill";
+import { vectorService } from "./vector.service";
 import { In, Like, Between } from "typeorm";
 import { decrypt, encryption, statusType, stage, opportunityStatus } from "../common/utils";
 import { v4 as uuidv4 } from "uuid";
+import * as ExcelJS from "exceljs";
+import { notificationService } from "./notification.service";
+import * as path from "path";
+import * as fs from "fs";
 
 export interface ContextOptions {
     orgId?: string;
@@ -395,7 +401,7 @@ export class UnifiedService {
         this.requireOrg(ctx);
         const { entityType, entityId, limit = 10 } = params;
 
-        if (!entityType) throw new Error("entityType is required: lead | opportunity | account | contact");
+        if (!entityType) throw new Error("entityType is required: lead | opportunity | account | contact | case");
         if (!entityId) throw new Error("entityId (UUID) is required.");
 
         const noteRepo = AppDataSource.getRepository(Note);
@@ -847,6 +853,264 @@ export class UnifiedService {
             status: 'New',
             owner: owner ? `${owner.firstName} ${owner.lastName}` : 'You',
             message: `Lead created successfully for ${fullName}. Lead ID: ${saved.leadId}`
+        };
+    }
+
+    async listUsers(_params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const userRepo = AppDataSource.getRepository(User);
+        const users = await userRepo.find({
+            where: { organisation: { organisationId: ctx.orgId }, isActive: true },
+            select: ["userId", "firstName", "lastName", "email"]
+        });
+
+        return {
+            total: users.length,
+            users: users.map(u => ({
+                userId: u.userId,
+                name: `${this.safe(u.firstName)} ${this.safe(u.lastName)}`.trim(),
+                email: this.safe(u.email)
+            }))
+        };
+    }
+
+    async reassignEntity(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { entityType, entityId, newOwnerId, reason } = params;
+
+        if (!entityType || !entityId || !newOwnerId) {
+            throw new Error("entityType, entityId, and newOwnerId are required.");
+        }
+
+        const userRepo = AppDataSource.getRepository(User);
+        const newOwner = await userRepo.findOne({
+            where: { userId: newOwnerId, organisation: { organisationId: ctx.orgId } }
+        });
+        if (!newOwner) throw new Error("New owner not found in your organization.");
+
+        let repo: any;
+        let idField: string;
+        let entityName: string;
+
+        switch (entityType) {
+            case 'lead': repo = AppDataSource.getRepository(Lead); idField = 'leadId'; entityName = 'Lead'; break;
+            case 'opportunity': repo = AppDataSource.getRepository(Oppurtunity); idField = 'opportunityId'; entityName = 'Opportunity'; break;
+            case 'activity': repo = AppDataSource.getRepository(Activity); idField = 'activityId'; entityName = 'Activity'; break;
+            case 'note': repo = AppDataSource.getRepository(Note); idField = 'noteId'; entityName = 'Note'; break;
+            default: throw new Error(`Invalid entityType: ${entityType}`);
+        }
+
+        const entity = await repo.findOne({
+            where: { [idField]: entityId, organization: { organisationId: ctx.orgId } },
+            relations: ['owner']
+        });
+        if (!entity) throw new Error(`${entityName} not found.`);
+
+        const oldOwnerName = entity.owner ? `${this.safe(entity.owner.firstName)} ${this.safe(entity.owner.lastName)}` : 'Unassigned';
+        entity.owner = newOwner;
+        await repo.save(entity);
+
+        // Notify new owner
+        await notificationService.createNotification({
+            userId: newOwnerId,
+            title: `${entityName} Assigned to You`,
+            message: `You have been assigned as the owner of ${entityName}: ${entity.title || entity.subject || entity.fullName || entityId}. Reassigned from ${oldOwnerName}.${reason ? ` Reason: ${reason}` : ''}`,
+            type: entityType === 'opportunity' ? 'opportunity' : (entityType === 'lead' ? 'lead' : 'system'),
+            entityId: entityId,
+            entityType: entityName
+        });
+
+        return {
+            success: true,
+            message: `${entityName} successfully reassigned to ${this.safe(newOwner.firstName)} ${this.safe(newOwner.lastName)}.`,
+            newOwner: `${this.safe(newOwner.firstName)} ${this.safe(newOwner.lastName)}`
+        };
+    }
+
+    async qualifyLead(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { leadId, notes } = params;
+        if (!leadId) throw new Error("leadId is required.");
+
+        const leadRepo = AppDataSource.getRepository(Lead);
+        const lead = await leadRepo.findOne({
+            where: { leadId, organization: { organisationId: ctx.orgId } }
+        });
+        if (!lead) throw new Error("Lead not found.");
+
+        (lead as any).status = 'Qualified';
+        (lead as any).wasQualified = true;
+        if (notes) lead.description = (lead.description || '') + `\n\n[Qualification Note]: ${notes}`;
+
+        await leadRepo.save(lead);
+
+        return {
+            success: true,
+            leadId,
+            status: 'Qualified',
+            message: `Lead ${this.safe(lead.fullName)} has been qualified.`
+        };
+    }
+
+    async exportPipelineToExcel(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { timeRange = 'this month', loanType } = params;
+
+        // Fetch data
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+        const where: any = { organization: { organisationId: ctx.orgId }, status: 'Active' };
+        if (loanType) where.loanType = encryption(loanType);
+
+        const opps = await oppRepo.find({ where, relations: ['owner', 'banks'] });
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Pipeline Data');
+
+        sheet.columns = [
+            { header: 'Opportunity ID', key: 'id', width: 20 },
+            { header: 'Title', key: 'title', width: 30 },
+            { header: 'Stage', key: 'stage', width: 20 },
+            { header: 'Loan Type', key: 'loanType', width: 20 },
+            { header: 'Amount (INR)', key: 'amount', width: 15 },
+            { header: 'Owner', key: 'owner', width: 20 },
+            { header: 'Banks', key: 'banks', width: 30 },
+            { header: 'Created At', key: 'createdAt', width: 20 }
+        ];
+
+        opps.forEach(o => {
+            sheet.addRow({
+                id: o.opportunityId,
+                title: this.safe(o.title),
+                stage: o.stage,
+                loanType: this.safe(o.loanType),
+                amount: parseFloat(this.safe(o.loanAmount) || this.safe(o.estimatedRevenue) || '0'),
+                owner: o.owner ? `${this.safe(o.owner.firstName)} ${this.safe(o.owner.lastName)}` : 'Unassigned',
+                banks: (o.banks || []).map((b: any) => b.bankName || b.name).join(', '),
+                createdAt: o.createdAt
+            });
+        });
+
+        // Add Summary sheet with analysis
+        const summarySheet = workbook.addWorksheet('Analysis');
+        summarySheet.addRow(['Pipeline Analysis Summary']);
+        summarySheet.getRow(1).font = { bold: true, size: 14 };
+        summarySheet.addRow(['Total Count', opps.length]);
+        const totalValue = opps.reduce((sum, o) => sum + parseFloat(this.safe(o.loanAmount) || this.safe(o.estimatedRevenue) || '0'), 0);
+        summarySheet.addRow(['Total Pipeline Value', totalValue]);
+        summarySheet.addRow([]);
+        summarySheet.addRow(['Stage Breakdown']);
+        summarySheet.getRow(5).font = { bold: true };
+
+        const stageCounts: Record<string, number> = {};
+        opps.forEach(o => { stageCounts[o.stage] = (stageCounts[o.stage] || 0) + 1; });
+        Object.entries(stageCounts).forEach(([stage, count]) => {
+            summarySheet.addRow([stage, count]);
+        });
+
+        const fileName = `pipeline_export_${Date.now()}.xlsx`;
+        const tempDir = path.join(process.cwd(), 'temp_exports');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+        const filePath = path.join(tempDir, fileName);
+
+        await workbook.xlsx.writeFile(filePath);
+
+        return {
+            success: true,
+            filePath,
+            fileName,
+            message: `Export generated with ${opps.length} records.`,
+            downloadUrl: `/temp_exports/${fileName}` // Mock URL for the agent to report
+        };
+    }
+
+    async learnAgentSkill(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { skillName, description, instructions, triggerKeywords } = params;
+
+        if (!skillName || !instructions) {
+            throw new Error("skillName and instructions are required for learning.");
+        }
+
+        const skillRepo = AppDataSource.getRepository(AgentSkill);
+
+        // Find if name already exists in org to update or create new
+        let skill = await skillRepo.findOne({
+            where: { skillName, organization: { organisationId: ctx.orgId } }
+        });
+
+        if (skill) {
+            skill.description = description || skill.description;
+            skill.instructions = instructions;
+            skill.triggerKeywords = triggerKeywords || skill.triggerKeywords;
+        } else {
+            skill = new AgentSkill({
+                skillName,
+                description,
+                instructions,
+                triggerKeywords,
+                organization: { organisationId: ctx.orgId } as any,
+                author: { userId: ctx.userId } as any
+            });
+        }
+
+        // Generate embedding for "Name: Description (Keywords)"
+        const embedText = `${skillName}: ${description || ''} (${triggerKeywords || ''})`;
+        skill.embedding = await vectorService.generateEmbedding(embedText);
+
+        await skillRepo.save(skill);
+
+        return {
+            success: true,
+            skillId: skill.skillId,
+            message: `Skill '${skillName}' has been learned with vector embeddings for optimized retrieval.`
+        };
+    }
+
+    async findAgentSkills(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { query } = params;
+        const skillRepo = AppDataSource.getRepository(AgentSkill);
+
+        const skills = await skillRepo.find({
+            where: { organization: { organisationId: ctx.orgId } }
+        });
+
+        if (!query) {
+            return {
+                total: skills.length,
+                skills: skills.slice(0, 10).map(s => ({
+                    skillName: s.skillName,
+                    description: s.description,
+                    instructions: s.instructions,
+                    rating: s.rating
+                }))
+            };
+        }
+
+        // Similarity Search
+        const queryVector = await vectorService.generateEmbedding(query);
+        const scoredSkills = skills.map(s => {
+            const similarity = s.embedding ? vectorService.cosineSimilarity(queryVector, s.embedding) : 0;
+            return {
+                skillName: s.skillName,
+                description: s.description,
+                instructions: s.instructions,
+                triggerKeywords: s.triggerKeywords,
+                rating: s.rating,
+                similarity
+            };
+        });
+
+        // Sort by similarity descending
+        scoredSkills.sort((a, b) => b.similarity - a.similarity);
+
+        // Filter by a threshold (e.g. 0.3)
+        const topSkills = scoredSkills.filter(s => s.similarity > 0.2).slice(0, 5);
+
+        return {
+            total: topSkills.length,
+            skills: topSkills,
+            queryPerformed: query
         };
     }
 }
