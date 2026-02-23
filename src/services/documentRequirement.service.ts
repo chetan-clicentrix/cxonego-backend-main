@@ -25,13 +25,13 @@ class DocumentRequirementService {
         const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
         const requirementRepo = transactionEntityManager.getRepository(DocumentRequirement);
 
-        // Get opportunity with bank details (eager loading should handle this)
+        // Get opportunity with bank details and batch details
         const opportunity = await opportunityRepo.findOne({
             where: {
                 opportunityId,
                 organization: { organisationId: user.organizationId },
             },
-            relations: ["banks"], // Explicitly load banks relation
+            relations: ["banks", "batch", "batch.opportunities", "batch.opportunities.banks"], // Load batch and sibling opportunities
         });
 
         if (!opportunity) {
@@ -44,8 +44,24 @@ class DocumentRequirementService {
             applicantType: opportunity.applicantType,
         });
 
+        // Gather all banks from the batch (or just this opportunity)
+        let allBanks: any[] = [];
+        if (opportunity.batch && opportunity.batch.opportunities) {
+            opportunity.batch.opportunities.forEach(opp => {
+                if (opp.banks) {
+                    allBanks.push(...opp.banks);
+                }
+            });
+            // Deduplicate bank array by ID
+            const bankMap = new Map();
+            allBanks.forEach(b => bankMap.set(b.bankId, b));
+            allBanks = Array.from(bankMap.values());
+        } else {
+            allBanks = opportunity.banks || [];
+        }
+
         // Check if banks and applicant type are set
-        if (!opportunity.banks || opportunity.banks.length === 0 || !opportunity.applicantType) {
+        if (!allBanks || allBanks.length === 0 || !opportunity.applicantType) {
             throw new ValidationFailedError(
                 "Opportunity must have at least one bank and applicant type configured"
             );
@@ -65,10 +81,11 @@ class DocumentRequirementService {
             // Collect documents from all banks and deduplicate
             const currentDocumentNamesSet = new Set<string>();
 
-            for (const bank of opportunity.banks) {
+            for (const bank of allBanks) {
                 const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
                     bank.bankId,
-                    opportunity.applicantType,
+                    opportunity.applicantType as any,
+                    opportunity.loanType || null,
                     user.organizationId
                 );
                 bankDocs.forEach(doc => currentDocumentNamesSet.add(doc));
@@ -107,18 +124,20 @@ class DocumentRequirementService {
 
         // Fetch document list from BankDocumentConfig
         console.log("Fetching documents for:", {
-            banks: opportunity.banks.map(b => b.name),
+            banks: allBanks.map(b => b.name),
             applicantType: opportunity.applicantType,
+            loanType: opportunity.loanType,
             organizationId: user.organizationId,
         });
 
         // Collect documents from all banks and deduplicate
         const uniqueDocumentNames = new Set<string>();
 
-        for (const bank of opportunity.banks) {
+        for (const bank of allBanks) {
             const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
                 bank.bankId,
-                opportunity.applicantType,
+                opportunity.applicantType as any,
+                opportunity.loanType || null,
                 user.organizationId
             );
 

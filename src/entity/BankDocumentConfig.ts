@@ -42,6 +42,12 @@ export class BankDocumentConfig extends CustomBaseEntity {
     applicantType: ApplicantType;
 
     @Column({
+        type: "varchar",
+        nullable: true,
+    })
+    loanType: string;
+
+    @Column({
         type: "simple-json",
         nullable: false,
     })

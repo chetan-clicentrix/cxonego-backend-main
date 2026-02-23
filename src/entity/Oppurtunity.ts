@@ -12,6 +12,7 @@ import { Organisation } from "./Organisation";
 import { SharePointDocument } from "./SharePointDocument";
 import { encrypt } from "typeorm-encrypted";
 import { ActivityPlan } from "./ActivityPlan";
+import { OpportunityBatch } from "./OpportunityBatch";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -229,6 +230,14 @@ export class Oppurtunity extends CustomBaseEntity {
         nullable: true
     })
     loanAmount: string;
+
+    @ManyToOne(() => OpportunityBatch, batch => batch.opportunities, {
+        cascade: true,
+        onUpdate: "CASCADE",
+        nullable: true,
+    })
+    @JoinColumn({ name: "batchId" })
+    batch: OpportunityBatch;
 
     @BeforeInsert()
     @BeforeUpdate()

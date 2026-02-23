@@ -29,7 +29,7 @@ class BankDocumentConfigController {
 
     async getDocuments(request: AuthenticatedRequest, response: Response) {
         try {
-            const { bankId, applicantType } = request.query;
+            const { bankId, applicantType, loanType } = request.query;
 
             if (!bankId || !applicantType) {
                 return makeResponse(response, 400, false, "Bank ID and Applicant Type are required", null);
@@ -38,6 +38,7 @@ class BankDocumentConfigController {
             const documents = await bankDocConfigService.getDocumentsByBankAndType(
                 bankId as string,
                 applicantType as any,
+                (loanType as string) || null,
                 request.user.organizationId || ""
             );
 
@@ -163,7 +164,7 @@ class BankDocumentConfigController {
 
     async cloneConfig(request: AuthenticatedRequest, response: Response) {
         try {
-            const { sourceBankId, sourceApplicantType, targetBankId, targetApplicantType } = request.body;
+            const { sourceBankId, sourceApplicantType, sourceLoanType, targetBankId, targetApplicantType, targetLoanType } = request.body;
 
             if (!sourceBankId || !sourceApplicantType || !targetBankId || !targetApplicantType) {
                 return makeResponse(
@@ -180,8 +181,10 @@ class BankDocumentConfigController {
                     const config = await bankDocConfigService.cloneConfig(
                         sourceBankId,
                         sourceApplicantType,
+                        sourceLoanType || null,
                         targetBankId,
                         targetApplicantType,
+                        targetLoanType || null,
                         request.user,
                         transactionEntityManager
                     );
