@@ -3,6 +3,7 @@ import Redis from "ioredis";
 import { AppDataSource } from "../data-source";
 import { DocumentUpload, UploadStatus } from "../entity/DocumentUpload";
 import { SharePointService } from "../services/sharepoint.service";
+import { DocumentType } from "../entity/SharePointDocument";
 import * as fs from "fs";
 
 // Redis connection
@@ -27,7 +28,7 @@ const sharepointUploadWorker = new Worker(
             // Get upload record
             const upload = await uploadRepo.findOne({
                 where: { uploadId },
-                relations: ["uploadSession", "uploadSession.opportunity"],
+                relations: ["uploadSession", "uploadSession.opportunity", "requirement"],
             });
 
             if (!upload) {
@@ -52,6 +53,23 @@ const sharepointUploadWorker = new Worker(
             const opportunityId = upload.uploadSession.opportunity.opportunityId;
             const userId = upload.uploadSession.modifiedBy || "system-public-upload";
 
+            const reqDocType = upload.requirement?.documentType;
+            const documentName = upload.requirement?.documentName || undefined;
+
+            let sharepointDocType: DocumentType | undefined = undefined;
+            let customDocType: string | undefined = undefined;
+
+            if (reqDocType) {
+                // Check if the requirement DocumentType exists in SharePointDocument type enum
+                if (Object.values(DocumentType).includes(reqDocType as any)) {
+                    sharepointDocType = reqDocType as unknown as DocumentType;
+                } else {
+                    // For types like AADHAAR, PAN, map to OTHER and use customDocumentType
+                    sharepointDocType = DocumentType.OTHER;
+                    customDocType = reqDocType;
+                }
+            }
+
             await job.updateProgress(50);
 
             const sharepointDoc = await sharepointService.uploadFromTempFile(
@@ -59,7 +77,10 @@ const sharepointUploadWorker = new Worker(
                 upload.fileName,
                 opportunityId,
                 upload.uploadSessionId,
-                userId
+                userId,
+                sharepointDocType,
+                documentName,
+                customDocType
             );
 
             await job.updateProgress(90);

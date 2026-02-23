@@ -89,6 +89,7 @@ export class SharePointService {
             description?: string;
             documentType?: DocumentType;
             customDocumentType?: string;
+            documentName?: string;
             startTime?: Date;
             endTime?: Date;
         }
@@ -98,25 +99,34 @@ export class SharePointService {
             const user = await this.userRepository.findOne({ where: { userId }, relations: ['organisation'] });
             if (!user) throw new Error("User not found");
 
-            const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+            const opportunity = await this.opportunityRepository.findOne({
+                where: { opportunityId },
+                relations: ['organization', 'contact']
+            });
             if (!opportunity) throw new Error("Opportunity not found");
 
             // 2. Get Graph Client (Service Principal)
             const client = await this.getGraphClient();
             const siteId = await this.getSiteId();
 
-            // 3. Create Folder Structure: CxOneGo Documents / [Opportunity Title]
-            // decrypt opportunity title
-            const opportunityTitle = opportunity.title ? decrypt(opportunity.title) : '';
-            let displayName = opportunityTitle.trim();
-            if (!displayName) {
-                displayName = `Opportunity-${opportunity.opportunityId}`;
+            // 3. Create Folder Structure: cx1/{CustomerName}[/{DocumentName}]
+            let customerFolderName = 'Unknown-Customer';
+            if (opportunity.contact?.fullName) {
+                const decryptedName = decrypt(opportunity.contact.fullName);
+                customerFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
+            } else if (opportunity.contact) {
+                customerFolderName = `Contact-${opportunity.contact.contactId}`;
             }
-            const opportunityFolderName = displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const opportunityFolderName = customerFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
+
+            const docNamePath = metadata.documentName ? `/${metadata.documentName.replace(/[^\w\s-]/g, '_')}` : '';
+
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
+            // Build path dynamically
+            const folderPath = `${rootFolder}/${opportunityFolderName}${docNamePath}`;
 
             // Build the file path in SharePoint
-            const filePath = `${rootFolder}/${opportunityFolderName}/${file.originalname}`;
+            const filePath = `${folderPath}/${file.originalname}`;
 
             console.log(`Uploading file to SharePoint site: ${filePath}`);
 
@@ -143,7 +153,7 @@ export class SharePointService {
                 fileSize: file.size,
                 sharepointFileId: driveItem.id,
                 sharepointLink: webUrl,
-                sharepointFolderPath: `${rootFolder}/${opportunityFolderName}`,
+                sharepointFolderPath: folderPath,
                 opportunityFolderName: opportunityFolderName,
                 description: metadata.description,
                 documentType: metadata.documentType,
@@ -178,6 +188,7 @@ export class SharePointService {
         file: Express.Multer.File,
         metadata?: {
             description?: string;
+            documentType?: DocumentType;
         }
     ): Promise<SharePointDocument> {
         try {
@@ -188,7 +199,10 @@ export class SharePointService {
             const user = await this.userRepository.findOne({ where: { userId }, relations: ['organisation'] });
             if (!user) throw new Error("User not found");
 
-            const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+            const opportunity = await this.opportunityRepository.findOne({
+                where: { opportunityId },
+                relations: ['organization', 'contact']
+            });
             if (!opportunity) throw new Error("Opportunity not found");
 
             const action = await actionRepository.findOne({ where: { actionId } });
@@ -198,19 +212,25 @@ export class SharePointService {
             const client = await this.getGraphClient();
             const siteId = await this.getSiteId();
 
-            // 3. Create Folder Structure: CxOneGo Documents / [Opportunity Title] / Activity Plans / [Action Name]
-            const opportunityTitle = opportunity.title ? decrypt(opportunity.title) : '';
-            let displayName = opportunityTitle.trim();
-            if (!displayName) {
-                displayName = `Opportunity-${opportunity.opportunityId}`;
+            // 3. Create Folder Structure: cx1/{CustomerName}/{DocType}/Activity Plans/{ActionName}
+            let customerFolderName = 'Unknown-Customer';
+            if (opportunity.contact?.fullName) {
+                const decryptedName = decrypt(opportunity.contact.fullName);
+                customerFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
+            } else if (opportunity.contact) {
+                customerFolderName = `Contact-${opportunity.contact.contactId}`;
             }
-            const opportunityFolderName = displayName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const opportunityFolderName = customerFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
+
+            const docTypeFolderName = metadata?.documentType || 'OTHER';
             const actionName = action.actionName ? decrypt(action.actionName) : 'Unknown Action';
             const actionFolderName = actionName.replace(/[^\w\s-]/g, '_');
+
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
+            const folderPath = `${rootFolder}/${opportunityFolderName}/${docTypeFolderName}/Activity Plans/${actionFolderName}`;
 
             // Build the file path in SharePoint
-            const filePath = `${rootFolder}/${opportunityFolderName}/Activity Plans/${actionFolderName}/${file.originalname}`;
+            const filePath = `${folderPath}/${file.originalname}`;
 
             console.log(`Uploading activity plan file to SharePoint: ${filePath}`);
 
@@ -236,10 +256,10 @@ export class SharePointService {
                 fileSize: file.size,
                 sharepointFileId: driveItem.id,
                 sharepointLink: webUrl,
-                sharepointFolderPath: `${rootFolder}/${opportunityFolderName}/Activity Plans/${actionFolderName}`,
+                sharepointFolderPath: folderPath,
                 opportunityFolderName: opportunityFolderName,
                 description: metadata?.description || `Uploaded for activity: ${actionName}`,
-                documentType: DocumentType.OTHER,
+                documentType: metadata?.documentType || DocumentType.OTHER,
                 opportunity: opportunity,
                 uploadedBy: user,
                 organization: user.organisation,
@@ -267,7 +287,10 @@ export class SharePointService {
         fileName: string,
         opportunityId: string,
         uploadSessionId: string,
-        userId: string
+        userId: string,
+        documentType?: DocumentType,
+        documentName?: string,
+        customDocumentType?: string
     ): Promise<SharePointDocument> {
         try {
             // Read file from temp path
@@ -304,6 +327,9 @@ export class SharePointService {
             // Upload using existing uploadFile method
             const sharepointDoc = await this.uploadFile(userId, opportunityId, file, {
                 description: `Uploaded via session ${uploadSessionId}`,
+                documentType,
+                customDocumentType,
+                documentName
             });
 
             return sharepointDoc;
