@@ -188,20 +188,20 @@ export class UnifiedService {
             totalOpportunities, activeOpportunities, wonOpportunities, lostOpportunities,
             upcomingActivities, overdueActivities, completedActivities
         ] = await Promise.all([
-            leadRepo.count({ where: { owner: { userId: targetUserId } } as any }),
-            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'New' as any, createdAt: Between(startDate, now) } as any }),
-            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'Qualified' as any } as any }),
-            leadRepo.count({ where: { owner: { userId: targetUserId }, rating: 'Hot' as any } as any }),
-            oppRepo.count({ where: { owner: { userId: targetUserId } } as any }),
-            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Active' as any } as any }),
-            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Won' as any, actualCloseDate: Between(startDate, now) } as any }),
-            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Lost' as any, actualCloseDate: Between(startDate, now) } as any }),
-            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) } as any }),
-            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(new Date(0), now) } as any }),
-            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Completed' as any, actualEndDate: Between(startDate, now) } as any })
+            leadRepo.count({ where: { owner: { userId: targetUserId } }, loadEagerRelations: false } as any),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'New' as any, createdAt: Between(startDate, now) }, loadEagerRelations: false } as any),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'Qualified' as any }, loadEagerRelations: false } as any),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, rating: 'Hot' as any }, loadEagerRelations: false } as any),
+            oppRepo.count({ where: { owner: { userId: targetUserId } }, loadEagerRelations: false } as any),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Active' as any }, loadEagerRelations: false } as any),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Won' as any, actualCloseDate: Between(startDate, now) }, loadEagerRelations: false } as any),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Lost' as any, actualCloseDate: Between(startDate, now) }, loadEagerRelations: false } as any),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) }, loadEagerRelations: false } as any),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(new Date(0), now) }, loadEagerRelations: false } as any),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Completed' as any, actualEndDate: Between(startDate, now) }, loadEagerRelations: false } as any)
         ]);
 
-        const pipelineOpps = await oppRepo.find({ where: { owner: { userId: targetUserId }, status: 'Active' as any } as any });
+        const pipelineOpps = await oppRepo.find({ where: { owner: { userId: targetUserId }, status: 'Active' as any }, loadEagerRelations: false, select: ['estimatedRevenue'] } as any);
         const pipelineValue = pipelineOpps.reduce((sum, opp) => {
             const revenue = parseInt(this.safe(opp.estimatedRevenue) || '0');
             return sum + (isNaN(revenue) ? 0 : revenue);
