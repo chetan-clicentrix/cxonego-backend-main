@@ -577,7 +577,7 @@ export class UnifiedService {
 
         const oppRepo = AppDataSource.getRepository(Oppurtunity);
         const opp = await oppRepo.findOne({
-            where: { opportunityId, organizationId: ctx.orgId } as any,
+            where: { opportunityId, organization: { organisationId: ctx.orgId } } as any,
             relations: ['owner']
         });
 
@@ -620,7 +620,7 @@ export class UnifiedService {
             .leftJoinAndSelect('opp.banks', 'banks')
             .leftJoinAndSelect('opp.owner', 'owner')
             .leftJoinAndSelect('opp.contact', 'contact')
-            .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
+            .where('opp.organization = :orgId', { orgId: ctx.orgId })
             .andWhere('opp.status = :status', { status: 'Active' });
 
         if (stageFilter) query.andWhere('opp.stage = :stage', { stage: stageFilter });
@@ -672,7 +672,7 @@ export class UnifiedService {
 
         const leadRepo = AppDataSource.getRepository(Lead);
         const lead = await leadRepo.findOne({
-            where: { leadId, organizationId: ctx.orgId } as any
+            where: { leadId, organization: { organisationId: ctx.orgId } } as any
         });
 
         if (!lead) throw new Error(`Lead not found or not in your organization: ${leadId}`);
@@ -703,7 +703,7 @@ export class UnifiedService {
 
         const leadRepo = AppDataSource.getRepository(Lead);
         const lead = await leadRepo.findOne({
-            where: { leadId, organizationId: ctx.orgId } as any,
+            where: { leadId, organization: { organisationId: ctx.orgId } } as any,
             relations: ['company', 'contact', 'owner', 'organization']
         });
 
