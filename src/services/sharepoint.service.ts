@@ -101,7 +101,7 @@ export class SharePointService {
 
             const opportunity = await this.opportunityRepository.findOne({
                 where: { opportunityId },
-                relations: ['organization', 'contact']
+                relations: ['organization', 'contact', 'company']
             });
             if (!opportunity) throw new Error("Opportunity not found");
 
@@ -109,15 +109,17 @@ export class SharePointService {
             const client = await this.getGraphClient();
             const siteId = await this.getSiteId();
 
-            // 3. Create Folder Structure: cx1/{CustomerName}[/{DocumentName}]
-            let customerFolderName = 'Unknown-Customer';
-            if (opportunity.contact?.fullName) {
+            // 3. Create Folder Structure: cx1/{ClientName}[/{DocumentName}]
+            let clientFolderName = 'Unknown-Client';
+            if (opportunity.company?.accountName) {
+                const decryptedName = decrypt(opportunity.company.accountName);
+                clientFolderName = decryptedName.trim() || `Client-${opportunity.company.accountId}`;
+            } else if (opportunity.contact?.fullName) {
+                // Fallback to contact if no company is associated
                 const decryptedName = decrypt(opportunity.contact.fullName);
-                customerFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
-            } else if (opportunity.contact) {
-                customerFolderName = `Contact-${opportunity.contact.contactId}`;
+                clientFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
             }
-            const opportunityFolderName = customerFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const opportunityFolderName = clientFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
 
             const docNamePath = metadata.documentName ? `/${metadata.documentName.replace(/[^\w\s-]/g, '_')}` : '';
 
@@ -201,7 +203,7 @@ export class SharePointService {
 
             const opportunity = await this.opportunityRepository.findOne({
                 where: { opportunityId },
-                relations: ['organization', 'contact']
+                relations: ['organization', 'contact', 'company']
             });
             if (!opportunity) throw new Error("Opportunity not found");
 
@@ -212,22 +214,25 @@ export class SharePointService {
             const client = await this.getGraphClient();
             const siteId = await this.getSiteId();
 
-            // 3. Create Folder Structure: cx1/{CustomerName}/{DocType}/Activity Plans/{ActionName}
-            let customerFolderName = 'Unknown-Customer';
-            if (opportunity.contact?.fullName) {
+            // 3. Create Folder Structure: cx1/{ClientName}[/Activity Plans/{ActionName}]
+            let clientFolderName = 'Unknown-Client';
+            if (opportunity.company?.accountName) {
+                const decryptedName = decrypt(opportunity.company.accountName);
+                clientFolderName = decryptedName.trim() || `Client-${opportunity.company.accountId}`;
+            } else if (opportunity.contact?.fullName) {
+                // Fallback to contact if no company is associated
                 const decryptedName = decrypt(opportunity.contact.fullName);
-                customerFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
-            } else if (opportunity.contact) {
-                customerFolderName = `Contact-${opportunity.contact.contactId}`;
+                clientFolderName = decryptedName.trim() || `Contact-${opportunity.contact.contactId}`;
             }
-            const opportunityFolderName = customerFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
+            const opportunityFolderName = clientFolderName.replace(/[^\w\s-]/g, '_'); // Sanitize
 
-            const docTypeFolderName = metadata?.documentType || 'OTHER';
+            const docTypeFolderName = metadata?.documentType === 'OTHER' || !metadata?.documentType ? '' : `/${metadata.documentType}`;
             const actionName = action.actionName ? decrypt(action.actionName) : 'Unknown Action';
             const actionFolderName = actionName.replace(/[^\w\s-]/g, '_');
 
             const rootFolder = SharePointConfig.ROOT_FOLDER_NAME;
-            const folderPath = `${rootFolder}/${opportunityFolderName}/${docTypeFolderName}/Activity Plans/${actionFolderName}`;
+            // Build path dynamically
+            const folderPath = `${rootFolder}/${opportunityFolderName}${docTypeFolderName}/Activity Plans/${actionFolderName}`;
 
             // Build the file path in SharePoint
             const filePath = `${folderPath}/${file.originalname}`;
