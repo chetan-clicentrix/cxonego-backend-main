@@ -874,7 +874,8 @@ export class UnifiedService {
         const userRepo = AppDataSource.getRepository(User);
         const users = await userRepo.find({
             where: { organisation: { organisationId: ctx.orgId }, isActive: true },
-            select: ["userId", "firstName", "lastName", "email"]
+            select: ["userId", "firstName", "lastName", "email"],
+            loadEagerRelations: false
         });
 
         return {
