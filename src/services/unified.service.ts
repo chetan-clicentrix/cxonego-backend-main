@@ -188,20 +188,20 @@ export class UnifiedService {
             totalOpportunities, activeOpportunities, wonOpportunities, lostOpportunities,
             upcomingActivities, overdueActivities, completedActivities
         ] = await Promise.all([
-            leadRepo.count({ where: { ownerId: targetUserId } as any }),
-            leadRepo.count({ where: { ownerId: targetUserId, status: 'New' as any, createdAt: Between(startDate, now) } as any }),
-            leadRepo.count({ where: { ownerId: targetUserId, status: 'Qualified' as any } as any }),
-            leadRepo.count({ where: { ownerId: targetUserId, rating: 'Hot' as any } as any }),
-            oppRepo.count({ where: { ownerId: targetUserId } as any }),
-            oppRepo.count({ where: { ownerId: targetUserId, status: 'Active' as any } as any }),
-            oppRepo.count({ where: { ownerId: targetUserId, status: 'Won' as any, actualCloseDate: Between(startDate, now) } as any }),
-            oppRepo.count({ where: { ownerId: targetUserId, status: 'Lost' as any, actualCloseDate: Between(startDate, now) } as any }),
-            actRepo.count({ where: { ownerId: targetUserId, activityStatus: 'Open' as any, dueDate: Between(now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) } as any }),
-            actRepo.count({ where: { ownerId: targetUserId, activityStatus: 'Open' as any, dueDate: Between(new Date(0), now) } as any }),
-            actRepo.count({ where: { ownerId: targetUserId, activityStatus: 'Completed' as any, actualEndDate: Between(startDate, now) } as any })
+            leadRepo.count({ where: { owner: { userId: targetUserId } } as any }),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'New' as any, createdAt: Between(startDate, now) } as any }),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, status: 'Qualified' as any } as any }),
+            leadRepo.count({ where: { owner: { userId: targetUserId }, rating: 'Hot' as any } as any }),
+            oppRepo.count({ where: { owner: { userId: targetUserId } } as any }),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Active' as any } as any }),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Won' as any, actualCloseDate: Between(startDate, now) } as any }),
+            oppRepo.count({ where: { owner: { userId: targetUserId }, status: 'Lost' as any, actualCloseDate: Between(startDate, now) } as any }),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) } as any }),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Open' as any, dueDate: Between(new Date(0), now) } as any }),
+            actRepo.count({ where: { owner: { userId: targetUserId }, activityStatus: 'Completed' as any, actualEndDate: Between(startDate, now) } as any })
         ]);
 
-        const pipelineOpps = await oppRepo.find({ where: { ownerId: targetUserId, status: 'Active' as any } as any });
+        const pipelineOpps = await oppRepo.find({ where: { owner: { userId: targetUserId }, status: 'Active' as any } as any });
         const pipelineValue = pipelineOpps.reduce((sum, opp) => {
             const revenue = parseInt(this.safe(opp.estimatedRevenue) || '0');
             return sum + (isNaN(revenue) ? 0 : revenue);
@@ -291,9 +291,22 @@ export class UnifiedService {
         const activity = new Activity({} as Activity);
         activity.activityId = uuidv4();
         activity.subject = subject;
-        activity.activityType = activityType as any;
+
+        // Map AI types to strict ENUM fields
+        let mappedType = activityType;
+        if (activityType === 'CALL') mappedType = 'Phone Call Outbound';
+        if (activityType === 'MEETING') mappedType = 'Meeting';
+        if (activityType === 'EMAIL') mappedType = 'Email Outbound';
+        if (activityType === 'TASK') mappedType = 'Task';
+
+        let mappedPriority = priority;
+        if (priority === 'HIGH') mappedPriority = 'High';
+        if (priority === 'NORMAL') mappedPriority = 'Normal';
+        if (priority === 'LOW') mappedPriority = 'Low';
+
+        activity.activityType = mappedType as any;
         activity.activityStatus = 'Open' as any;
-        activity.activityPriority = priority as any;
+        activity.activityPriority = mappedPriority as any;
         activity.dueDate = parsed.date;
         activity.description = description;
 
@@ -498,7 +511,7 @@ export class UnifiedService {
 
     async getPipelineByStage(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { stage: stageFilter, loanType, ownerId, unassignedOnly, minRevenue, limit = 20 } = params;
+        const { stage: stageFilter, loanType, ownerId, limit = 20 } = params;
 
         const oppRepo = AppDataSource.getRepository(Oppurtunity);
         const query = oppRepo.createQueryBuilder('opp')
@@ -509,30 +522,16 @@ export class UnifiedService {
             .andWhere('opp.status = :status', { status: 'Active' });
 
         if (stageFilter) query.andWhere('opp.stage = :stage', { stage: stageFilter });
-
-        if (unassignedOnly) {
-            query.andWhere('opp.ownerId IS NULL');
-        } else if (ownerId === 'mine') {
-            query.andWhere('opp.ownerId = :userId', { userId: ctx.userId });
-        } else if (ownerId) {
-            query.andWhere('opp.ownerId = :userId', { userId: ownerId });
-        }
+        if (ownerId === 'mine') query.andWhere('opp.ownerId = :userId', { userId: ctx.userId });
+        else if (ownerId) query.andWhere('opp.ownerId = :userId', { userId: ownerId });
 
         query.orderBy('opp.estimatedCloseDate', 'ASC').limit(Number(limit));
 
         let opps = await query.getMany();
 
-        // Filter by loanType (encrypted field) and minRevenue (JS filtering due to encryption)
-        if (loanType || minRevenue) {
-            opps = opps.filter(o => {
-                let match = true;
-                if (loanType) match = match && this.safe(o.loanType).toLowerCase().includes(loanType.toLowerCase());
-                if (minRevenue) {
-                    const revenue = parseInt(this.safe(o.estimatedRevenue) || this.safe(o.loanAmount) || '0');
-                    match = match && (revenue >= parseInt(minRevenue));
-                }
-                return match;
-            });
+        // Filter by loanType (encrypted field, post-query)
+        if (loanType) {
+            opps = opps.filter(o => this.safe(o.loanType).toLowerCase().includes(loanType.toLowerCase()));
         }
 
         const stageCounts: Record<string, number> = {};
@@ -559,53 +558,8 @@ export class UnifiedService {
                 estimatedCloseDate: o.estimatedCloseDate,
                 applicantType: o.applicantType,
                 banks: (o.banks || []).map((b: any) => b.bankName || b.name).filter(Boolean),
-                owner: o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : 'Unassigned',
-                ownerId: o.owner?.userId
+                owner: o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : 'Unassigned'
             }))
-        };
-    }
-
-    async getManagerInsights(params: any, ctx: ContextOptions) {
-        this.requireOrg(ctx);
-        const { minRevenue = 0 } = params;
-
-        const userRepo = AppDataSource.getRepository(User);
-        const oppRepo = AppDataSource.getRepository(Oppurtunity);
-
-        // 1. Find High-Value Unassigned Files
-        const unassignedOpps = await oppRepo.createQueryBuilder('opp')
-            .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
-            .andWhere('opp.ownerId IS NULL')
-            .andWhere('opp.status = :status', { status: 'Active' })
-            .getMany();
-
-        const filteredUnassigned = unassignedOpps.filter(o => {
-            const rev = parseInt(this.safe(o.estimatedRevenue) || this.safe(o.loanAmount) || '0');
-            return rev >= minRevenue;
-        }).map(o => ({
-            opportunityId: o.opportunityId,
-            title: this.safe(o.title),
-            revenue: this.safe(o.estimatedRevenue) || this.safe(o.loanAmount)
-        }));
-
-        // 2. Find Sales Team Workload
-        const users = await userRepo.find({
-            where: { organisation: { organisationId: ctx.orgId }, isActive: true } as any,
-            relations: ['opportunity']
-        });
-
-        const userWorkload = users.map(u => ({
-            userId: u.userId,
-            name: `${u.firstName} ${u.lastName}`,
-            activeFilesCount: (u.opportunity || []).filter(o => o.status === 'Active').length
-        })).sort((a, b) => a.activeFilesCount - b.activeFilesCount);
-
-        return {
-            highValueUnassigned: filteredUnassigned,
-            suggestedOwners: userWorkload.slice(0, 5), // Top 5 least busy
-            message: filteredUnassigned.length > 0
-                ? `Found ${filteredUnassigned.length} high-value unassigned files. Suggested owners are sorted by least workload.`
-                : "No high-value unassigned files found."
         };
     }
 
@@ -862,7 +816,7 @@ export class UnifiedService {
         // (phone is encrypted, so we encrypt the search value)
         const encryptedPhone = encryption(phone);
         const existing = await leadRepo.findOne({
-            where: { phone: encryptedPhone, organizationId: ctx.orgId } as any
+            where: { phone: encryptedPhone, organization: { organisationId: ctx.orgId } } as any
         });
         if (existing) {
             return {
