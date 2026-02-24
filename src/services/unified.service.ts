@@ -1273,7 +1273,7 @@ export class UnifiedService {
             filePath,
             fileName,
             message: `Export generated with ${opps.length} records.`,
-            downloadUrl: `${process.env.API_URL || process.env.FRONTEND_URL || 'http://localhost:80'}/temp_exports/${fileName}` // Absolute URL for standard access
+            downloadUrl: `https://cx1.clicentrix.com/temp_exports/${fileName}`
         };
     }
 
