@@ -55,16 +55,43 @@ export class UnifiedService {
     // EXISTING TOOLS (hardened)
     // ═══════════════════════════════════════════════════════════════════════════════
 
+    // ─── Universal Data Engine (Enhanced smartSearch) ──────────────────────────────
     async smartSearch(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { query, entityTypes = ['all'], filters = {}, limit = 10 } = params;
+        const { query, entityTypes = ['all'], filters = {}, groupBy, limit = 10 } = params;
 
-        if (!query && Object.keys(filters).length === 0) {
-            throw new Error("Provide a search query (name/phone/email) or at least one filter (status, rating, stage, loanType).");
+        if (!query && Object.keys(filters).length === 0 && !groupBy) {
+            throw new Error("Provide a search query, filters, or a groupBy attribute.");
         }
 
         const { orgId, userId } = ctx;
-        const results: any = { leads: [], opportunities: [] };
+        const results: any = { leads: [], opportunities: [], accounts: [], contacts: [], activities: [] };
+
+        // Helper to apply dynamic filters to a QueryBuilder
+        const applyDynamicFilters = (qb: any, entityAlias: string) => {
+            Object.keys(filters).forEach(key => {
+                if (key === 'ownerId' && filters[key] === 'mine') {
+                    qb.andWhere(`${entityAlias}.ownerId = :userId`, { userId });
+                    return;
+                }
+
+                // Only apply filter if it's a known column or if we want to force it (TypeORM will error if invalid, but we try our best)
+                // For simplicity in this powerful tool, we try to apply all passed filters.
+                const value = filters[key];
+                const paramName = `${entityAlias}_${key}`;
+
+                if (Array.isArray(value)) {
+                    qb.andWhere(`${entityAlias}.${key} IN (:...${paramName})`, { [paramName]: value });
+                } else if (typeof value === 'string' && value.includes('>')) {
+                    // Basic support for things like "loanAmount > 50000" if the LLM passes it directly (though schema says string/number)
+                    qb.andWhere(`${entityAlias}.${key} > :${paramName}`, { [paramName]: value.replace('>', '').trim() });
+                } else if (typeof value === 'string' && value.includes('<')) {
+                    qb.andWhere(`${entityAlias}.${key} < :${paramName}`, { [paramName]: value.replace('<', '').trim() });
+                } else {
+                    qb.andWhere(`${entityAlias}.${key} = :${paramName}`, { [paramName]: value });
+                }
+            });
+        };
 
         // ── Search Leads ──
         if (entityTypes.includes('all') || entityTypes.includes('lead')) {
@@ -74,47 +101,52 @@ export class UnifiedService {
                 .leftJoinAndSelect('lead.company', 'company')
                 .where('lead.organizationId = :orgId', { orgId });
 
-            if (filters.ownerId === 'mine') leadQuery.andWhere('lead.ownerId = :userId', { userId });
-            if (filters.status) leadQuery.andWhere('lead.status = :status', { status: filters.status });
-            if (filters.rating) leadQuery.andWhere('lead.rating = :rating', { rating: filters.rating });
-            if (filters.city) leadQuery.andWhere('lead.city = :city', { city: filters.city });
+            applyDynamicFilters(leadQuery, 'lead');
 
-            let allLeads = await leadQuery.getMany();
+            if (groupBy) {
+                // If groupBy is requested, return aggregated data
+                const aggregated = await leadQuery
+                    .select(`lead.${groupBy}`, 'groupKey')
+                    .addSelect('COUNT(lead.leadId)', 'count')
+                    .groupBy(`lead.${groupBy}`)
+                    .getRawMany();
+                results.leads = { aggregated: true, data: aggregated };
+            } else {
+                let allLeads = await leadQuery.getMany();
 
-            if (query) {
-                allLeads = allLeads.filter(lead =>
-                    this.matchesQuery(lead.fullName, query) ||
-                    this.matchesQuery(lead.phone, query) ||
-                    this.matchesQuery(lead.email, query) ||
-                    this.matchesQuery(lead.city, query) ||
-                    this.matchesQuery(lead.loanType, query)
-                );
+                if (query) {
+                    allLeads = allLeads.filter(lead =>
+                        this.matchesQuery(lead.fullName, query) ||
+                        this.matchesQuery(lead.phone, query) ||
+                        this.matchesQuery(lead.email, query) ||
+                        this.matchesQuery(lead.city, query) ||
+                        this.matchesQuery(lead.zone, query) ||
+                        this.matchesQuery(lead.taluka, query) ||
+                        this.matchesQuery(lead.loanType, query)
+                    );
+                }
+
+                results.leads = allLeads.slice(0, limit).map(l => ({
+                    leadId: l.leadId,
+                    fullName: this.safe(l.fullName),
+                    phone: this.safe(l.phone),
+                    email: this.safe(l.email),
+                    loanType: this.safe(l.loanType),
+                    loanAmount: this.safe(l.loanAmount),
+                    zone: this.safe(l.zone),
+                    taluka: this.safe(l.taluka),
+                    village: this.safe(l.village),
+                    status: l.status,
+                    rating: l.rating,
+                    leadSource: this.safe(l.leadSource),
+                    city: this.safe(l.city),
+                    state: this.safe(l.state),
+                    owner: l.owner ? { userId: l.owner.userId, name: `${l.owner.firstName} ${l.owner.lastName}` } : null
+                }));
             }
-
-            // Filter by loanType if provided
-            if (filters.loanType) {
-                allLeads = allLeads.filter(l => this.safe(l.loanType).toLowerCase().includes(filters.loanType.toLowerCase()));
-            }
-
-            results.leads = allLeads.slice(0, limit).map(l => ({
-                leadId: l.leadId,
-                fullName: this.safe(l.fullName),
-                phone: this.safe(l.phone),
-                email: this.safe(l.email),
-                loanType: this.safe(l.loanType),
-                loanAmount: this.safe(l.loanAmount),
-                zone: this.safe(l.zone),
-                taluka: this.safe(l.taluka),
-                village: this.safe(l.village),
-                status: l.status,
-                rating: l.rating,
-                leadSource: this.safe(l.leadSource),
-                city: this.safe(l.city),
-                owner: l.owner ? { userId: l.owner.userId, name: `${l.owner.firstName} ${l.owner.lastName}` } : null
-            }));
         }
 
-        // ── Search Opportunities ──
+        // ── Search Proposals (Opportunities) ──
         if (entityTypes.includes('all') || entityTypes.includes('opportunity')) {
             const oppRepo = AppDataSource.getRepository(Oppurtunity);
             const oppQuery = oppRepo.createQueryBuilder('opp')
@@ -124,38 +156,194 @@ export class UnifiedService {
                 .leftJoinAndSelect('opp.banks', 'banks')
                 .where('opp.organizationId = :orgId', { orgId });
 
-            if (filters.ownerId === 'mine') oppQuery.andWhere('opp.ownerId = :userId', { userId });
-            if (filters.stage) oppQuery.andWhere('opp.stage = :stage', { stage: filters.stage });
-            if (filters.status) oppQuery.andWhere('opp.status = :status', { status: filters.status });
-
-            let allOpps = await oppQuery.getMany();
-
-            if (query) {
-                allOpps = allOpps.filter(opp =>
-                    this.matchesQuery(opp.title, query) ||
-                    (opp.company && this.matchesQuery(opp.company.accountName, query)) ||
-                    (opp.contact && (this.matchesQuery(opp.contact.fullName, query) || this.matchesQuery(opp.contact.phone, query)))
-                );
+            // Handle bank filter specially due to ManyToMany relation
+            if (filters.bank) {
+                oppQuery.andWhere('banks.bankId = :bankOrName OR banks.name LIKE :bankNameLike', {
+                    bankOrName: filters.bank,
+                    bankNameLike: `%${filters.bank}%`
+                });
+                const tempFilters = { ...filters };
+                delete tempFilters.bank;
+                // apply remaining dynamically
+                Object.assign(filters, tempFilters); // Note: we're mutating the object but it's fine for this context
             }
 
-            if (filters.loanType) {
-                allOpps = allOpps.filter(o => this.safe(o.loanType).toLowerCase().includes(filters.loanType.toLowerCase()));
-            }
+            applyDynamicFilters(oppQuery, 'opp');
 
-            results.opportunities = allOpps.slice(0, limit).map(o => ({
-                opportunityId: o.opportunityId,
-                title: this.safe(o.title),
-                stage: o.stage,
-                status: o.status,
-                loanType: this.safe(o.loanType),
-                loanAmount: this.safe(o.loanAmount),
-                estimatedRevenue: this.safe(o.estimatedRevenue),
-                estimatedCloseDate: o.estimatedCloseDate,
-                banks: (o.banks || []).map((b: any) => b.bankName || b.name).filter(Boolean),
-                applicantType: o.applicantType,
-                owner: o.owner ? { userId: o.owner.userId, name: `${o.owner.firstName} ${o.owner.lastName}` } : null
-            }));
+            if (groupBy) {
+                if (groupBy === 'bank' || groupBy === 'banks') {
+                    // Special complex group by for many-to-many banks
+                    const aggregated = await oppQuery
+                        .select('banks.name', 'groupKey')
+                        .addSelect('COUNT(DISTINCT opp.opportunityId)', 'count')
+                        .groupBy('banks.name')
+                        .getRawMany();
+                    results.opportunities = { aggregated: true, data: aggregated };
+                } else {
+                    const aggregated = await oppQuery
+                        .select(`opp.${groupBy}`, 'groupKey')
+                        .addSelect('COUNT(opp.opportunityId)', 'count')
+                        .groupBy(`opp.${groupBy}`)
+                        .getRawMany();
+                    results.opportunities = { aggregated: true, data: aggregated };
+                }
+            } else {
+                let allOpps = await oppQuery.getMany();
+
+                if (query) {
+                    allOpps = allOpps.filter(opp =>
+                        this.matchesQuery(opp.title, query) ||
+                        this.matchesQuery(opp.loanType, query) ||
+                        (opp.company && this.matchesQuery(opp.company.accountName, query)) ||
+                        (opp.contact && (this.matchesQuery(opp.contact.fullName, query) || this.matchesQuery(opp.contact.phone, query)))
+                    );
+                }
+
+                results.opportunities = allOpps.slice(0, limit).map(o => ({
+                    opportunityId: o.opportunityId,
+                    title: this.safe(o.title),
+                    stage: o.stage,
+                    status: o.status,
+                    loanType: this.safe(o.loanType),
+                    loanAmount: this.safe(o.loanAmount),
+                    estimatedRevenue: this.safe(o.estimatedRevenue),
+                    estimatedCloseDate: o.estimatedCloseDate,
+                    applicantType: o.applicantType,
+                    banks: (o.banks || []).map((b: any) => b.bankName || b.name).filter(Boolean),
+                    client: o.company ? { accountId: o.company.accountId, name: this.safe(o.company.accountName) } : null,
+                    owner: o.owner ? { userId: o.owner.userId, name: `${o.owner.firstName} ${o.owner.lastName}` } : null
+                }));
+            }
         }
+
+        // ── Search Clients (Accounts) ──
+        if (entityTypes.includes('all') || entityTypes.includes('account')) {
+            const accRepo = AppDataSource.getRepository(Account);
+            const accQuery = accRepo.createQueryBuilder('acc')
+                .leftJoinAndSelect('acc.owner', 'owner')
+                .where('acc.organizationId = :orgId', { orgId });
+
+            applyDynamicFilters(accQuery, 'acc');
+
+            if (groupBy) {
+                const aggregated = await accQuery
+                    .select(`acc.${groupBy}`, 'groupKey')
+                    .addSelect('COUNT(acc.accountId)', 'count')
+                    .groupBy(`acc.${groupBy}`)
+                    .getRawMany();
+                results.accounts = { aggregated: true, data: aggregated };
+            } else {
+                let allAccs = await accQuery.getMany();
+
+                if (query) {
+                    allAccs = allAccs.filter(acc =>
+                        this.matchesQuery(acc.accountName, query) ||
+                        this.matchesQuery(acc.phone, query) ||
+                        this.matchesQuery(acc.industry, query) ||
+                        this.matchesQuery(acc.city, query)
+                    );
+                }
+
+                results.accounts = allAccs.slice(0, limit).map(a => ({
+                    accountId: a.accountId,
+                    accountName: this.safe(a.accountName),
+                    phone: this.safe(a.phone),
+                    website: this.safe(a.website),
+                    industry: this.safe(a.industry),
+                    annualRevenue: this.safe(a.annualRevenue),
+                    city: this.safe(a.city),
+                    owner: a.owner ? { userId: a.owner.userId, name: `${a.owner.firstName} ${a.owner.lastName}` } : null
+                }));
+            }
+        }
+
+        // ── Search Contacts ──
+        if (entityTypes.includes('all') || entityTypes.includes('contact')) {
+            const contactRepo = AppDataSource.getRepository(Contact);
+            const contactQuery = contactRepo.createQueryBuilder('con')
+                .leftJoinAndSelect('con.owner', 'owner')
+                .leftJoinAndSelect('con.company', 'company')
+                .where('con.organizationId = :orgId', { orgId });
+
+            applyDynamicFilters(contactQuery, 'con');
+
+            if (groupBy) {
+                const aggregated = await contactQuery
+                    .select(`con.${groupBy}`, 'groupKey')
+                    .addSelect('COUNT(con.contactId)', 'count')
+                    .groupBy(`con.${groupBy}`)
+                    .getRawMany();
+                results.contacts = { aggregated: true, data: aggregated };
+            } else {
+                let allCons = await contactQuery.getMany();
+
+                if (query) {
+                    allCons = allCons.filter(con =>
+                        this.matchesQuery(con.fullName, query) ||
+                        this.matchesQuery(con.phone, query) ||
+                        this.matchesQuery(con.email, query) ||
+                        (con.company && this.matchesQuery(con.company.accountName, query))
+                    );
+                }
+
+                results.contacts = allCons.slice(0, limit).map(c => ({
+                    contactId: c.contactId,
+                    fullName: this.safe(c.fullName),
+                    phone: this.safe(c.phone),
+                    email: this.safe(c.email),
+                    client: c.company ? { accountId: c.company.accountId, name: this.safe(c.company.accountName) } : null,
+                    owner: c.owner ? { userId: c.owner.userId, name: `${c.owner.firstName} ${c.owner.lastName}` } : null
+                }));
+            }
+        }
+
+        // ── Search Activities ──
+        if (entityTypes.includes('all') || entityTypes.includes('activity')) {
+            const actRepo = AppDataSource.getRepository(Activity);
+            const actQuery = actRepo.createQueryBuilder('act')
+                .leftJoinAndSelect('act.owner', 'owner')
+                .leftJoinAndSelect('act.lead', 'lead')
+                .leftJoinAndSelect('act.opportunity', 'opportunity')
+                .where('act.organizationId = :orgId', { orgId });
+
+            applyDynamicFilters(actQuery, 'act');
+
+            if (groupBy) {
+                const aggregated = await actQuery
+                    .select(`act.${groupBy}`, 'groupKey')
+                    .addSelect('COUNT(act.activityId)', 'count')
+                    .groupBy(`act.${groupBy}`)
+                    .getRawMany();
+                results.activities = { aggregated: true, data: aggregated };
+            } else {
+                let allActs = await actQuery.getMany();
+
+                if (query) {
+                    allActs = allActs.filter(act =>
+                        this.matchesQuery(act.subject, query) ||
+                        this.matchesQuery(act.description, query)
+                    );
+                }
+
+                results.activities = allActs.slice(0, limit).map(a => ({
+                    activityId: a.activityId,
+                    subject: a.subject,
+                    type: a.activityType,
+                    status: a.activityStatus,
+                    priority: a.activityPriority,
+                    dueDate: a.dueDate,
+                    relatedLead: a.lead ? { leadId: a.lead.leadId, name: this.safe(a.lead.fullName) } : null,
+                    relatedProposal: a.opportunity ? { opportunityId: a.opportunity.opportunityId, title: this.safe(a.opportunity.title) } : null,
+                    owner: a.owner ? { userId: a.owner.userId, name: `${a.owner.firstName} ${a.owner.lastName}` } : null
+                }));
+            }
+        }
+
+        // Clean up empty result arrays to save tokens for the LLM
+        Object.keys(results).forEach(key => {
+            if (Array.isArray(results[key]) && results[key].length === 0) delete results[key];
+            else if (results[key].aggregated && results[key].data.length === 0) delete results[key];
+        });
 
         return results;
     }
@@ -166,7 +354,7 @@ export class UnifiedService {
             throw new Error("Auth context missing: userId required for dashboard. Provide userId in params for manager view.");
         }
 
-        const { timeRange = 'week' } = params;
+        const { timeRange = 'week', groupBy } = params;
         const targetUserId = params.userId || ctx.userId;
 
         const now = new Date();
@@ -177,12 +365,56 @@ export class UnifiedService {
             case 'month': startDate.setMonth(now.getMonth() - 1); break;
             case 'quarter': startDate.setMonth(now.getMonth() - 3); break;
             case 'year': startDate.setFullYear(now.getFullYear() - 1); break;
+            case 'all': startDate = new Date(0); break;
         }
 
         const leadRepo = AppDataSource.getRepository(Lead);
         const oppRepo = AppDataSource.getRepository(Oppurtunity);
         const actRepo = AppDataSource.getRepository(Activity);
 
+        // If groupBy is provided, return grouped analytics
+        if (groupBy) {
+            let aggregatedData: any[] = [];
+
+            if (['bank', 'banks'].includes(groupBy)) {
+                // Bank-wise pipeline breakdown
+                const oppQuery = oppRepo.createQueryBuilder('opp')
+                    .leftJoinAndSelect('opp.banks', 'banks')
+                    .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
+                    .andWhere('opp.status = :status', { status: 'Active' });
+
+                if (targetUserId !== 'all') oppQuery.andWhere('opp.ownerId = :userId', { userId: targetUserId });
+
+                aggregatedData = await oppQuery
+                    .select('banks.name', 'groupKey')
+                    .addSelect('COUNT(DISTINCT opp.opportunityId)', 'count')
+                    .addSelect('SUM(CAST(opp.estimatedRevenue AS DECIMAL))', 'totalValue')
+                    .groupBy('banks.name')
+                    .getRawMany();
+
+            } else {
+                // Generic grouping for opportunities (stage, loanType, etc.)
+                const oppQuery = oppRepo.createQueryBuilder('opp')
+                    .where('opp.organizationId = :orgId', { orgId: ctx.orgId });
+
+                if (targetUserId !== 'all') oppQuery.andWhere('opp.ownerId = :userId', { userId: targetUserId });
+
+                aggregatedData = await oppQuery
+                    .select(`opp.${groupBy}`, 'groupKey')
+                    .addSelect('COUNT(opp.opportunityId)', 'count')
+                    .groupBy(`opp.${groupBy}`)
+                    .getRawMany();
+            }
+
+            return {
+                timeRange,
+                groupBy,
+                aggregated: true,
+                data: aggregatedData
+            };
+        }
+
+        // Standard metrics
         const [
             totalLeads, newLeads, qualifiedLeads, hotLeads,
             totalOpportunities, activeOpportunities, wonOpportunities, lostOpportunities,
@@ -207,11 +439,19 @@ export class UnifiedService {
             return sum + (isNaN(revenue) ? 0 : revenue);
         }, 0);
 
+        const wonOpps = await oppRepo.find({ where: { owner: { userId: targetUserId }, status: 'Won' as any, actualCloseDate: Between(startDate, now) }, loadEagerRelations: false, select: ['loanAmount', 'estimatedRevenue'] } as any);
+        let disbursedVolume = 0;
+        wonOpps.forEach(opp => {
+            let r = parseInt(this.safe(opp.loanAmount) || this.safe(opp.estimatedRevenue) || '0');
+            if (!isNaN(r)) disbursedVolume += r;
+        });
+
         return {
             timeRange,
             leads: { total: totalLeads, new: newLeads, qualified: qualifiedLeads, hot: hotLeads },
             opportunities: { total: totalOpportunities, active: activeOpportunities, won: wonOpportunities, lost: lostOpportunities, pipelineValue },
             activities: { upcoming: upcomingActivities, overdue: overdueActivities, completed: completedActivities },
+            financials: { pipelineValue, disbursedVolume },
             summary: {
                 conversionRate: totalLeads > 0 ? ((qualifiedLeads / totalLeads) * 100).toFixed(2) : "0.00",
                 winRate: (wonOpportunities + lostOpportunities) > 0 ? ((wonOpportunities / (wonOpportunities + lostOpportunities)) * 100).toFixed(2) : "0.00"
@@ -1033,7 +1273,7 @@ export class UnifiedService {
             filePath,
             fileName,
             message: `Export generated with ${opps.length} records.`,
-            downloadUrl: `/temp_exports/${fileName}` // Mock URL for the agent to report
+            downloadUrl: `${process.env.API_URL || process.env.FRONTEND_URL || 'http://localhost:80'}/temp_exports/${fileName}` // Absolute URL for standard access
         };
     }
 

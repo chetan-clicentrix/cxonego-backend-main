@@ -14,6 +14,7 @@ import router from "./routes/router";
 import * as swaggerJSDoc from "swagger-jsdoc";
 import * as swaggerUi from "swagger-ui-express";
 import * as cookieParser from "cookie-parser";
+import * as path from "path";
 import options from "./common/swaggerOptions";
 import { buildResponse } from "./common/utils";
 import { authMiddleware } from "./middlewares/firebase.middleware";
@@ -192,6 +193,9 @@ const limiter = rateLimit({
 
 
 app.use("/api", limiter);
+
+// Serve exported Excel files statically
+app.use("/temp_exports", express.static(path.join(process.cwd(), "temp_exports")));
 
 app.use("/api/v1", router);
 

@@ -456,34 +456,31 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
         tools: [
             {
                 name: "smartSearch",
-                description: "Search leads or opportunities by name/phone/email/loanType/zone. Returns loan fields (loanType, loanAmount, zone, taluka).",
+                description: "Universal Data Engine: Search across Leads, Proposals (Opportunities), Clients (Accounts), Contacts, and Activities. Returns data rows or aggregated analytical data if 'groupBy' is used.",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        query: { type: "string" },
-                        entityTypes: { type: "array", items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact"] } },
+                        query: { type: "string", description: "Search term for name, phone, email, etc." },
+                        entityTypes: { type: "array", items: { type: "string", enum: ["all", "lead", "opportunity", "account", "contact", "activity"] }, description: "Entities to search. 'all' searches everything." },
                         filters: {
                             type: "object",
-                            properties: {
-                                ownerId: { type: "string" },
-                                status: { type: "string" },
-                                rating: { type: "string", enum: ["Hot", "Warm", "Cold"] },
-                                stage: { type: "string", enum: PIPELINE_STAGES },
-                                loanType: { type: "string" }
-                            }
+                            description: "Dynamic filters. Keys can be any valid entity attribute (e.g., loanAmount, city, stage, bank, zone, applicantType). Values can be string, number, or array of strings.",
+                            additionalProperties: {}
                         },
+                        groupBy: { type: "string", description: "If provided, returns aggregated metrics grouped by this attribute instead of individual rows. E.g., 'stage', 'bank', 'leadSource', 'loanType'." },
                         limit: { type: "integer", default: 10 }
                     }
                 }
             },
             {
                 name: "getDashboard",
-                description: "Pipeline metrics for a user or team member. timeRange: today|week|month|quarter|year.",
+                description: "Advanced Analytics for DSA: Pipeline metrics, Disbursed Volume, and Bank-wise status for a user or team. Can optionally group data.",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year"], default: "week" },
-                        userId: { type: "string" }
+                        timeRange: { type: "string", enum: ["today", "week", "month", "quarter", "year", "all"], default: "week" },
+                        userId: { type: "string" },
+                        groupBy: { type: "string", description: "If provided, groups pipeline metrics by this dimension. E.g., 'stage', 'bank', 'loanType', 'leadSource'." }
                     }
                 }
             },
