@@ -1214,60 +1214,89 @@ export class UnifiedService {
 
     async exportPipelineToExcel(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { timeRange = 'this month', loanType } = params;
+        const { data, fileNamePrefix = 'export' } = params;
 
-        // Fetch data
-        const oppRepo = AppDataSource.getRepository(Oppurtunity);
-        const where: any = { organization: { organisationId: ctx.orgId }, status: 'Active' };
-        if (loanType) where.loanType = encryption(loanType);
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            throw new Error("No data provided for export.");
+        }
 
-        const opps = await oppRepo.find({ where, relations: ['owner', 'banks'] });
+        const templatePath = path.join(process.cwd(), 'src/templates/Export_Template.xlsx');
+        if (!fs.existsSync(templatePath)) {
+            throw new Error(`Template file not found at ${templatePath}.`);
+        }
 
         const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Pipeline Data');
+        await workbook.xlsx.readFile(templatePath);
 
-        sheet.columns = [
-            { header: 'Opportunity ID', key: 'id', width: 20 },
-            { header: 'Title', key: 'title', width: 30 },
-            { header: 'Stage', key: 'stage', width: 20 },
-            { header: 'Loan Type', key: 'loanType', width: 20 },
-            { header: 'Amount (INR)', key: 'amount', width: 15 },
-            { header: 'Owner', key: 'owner', width: 20 },
-            { header: 'Banks', key: 'banks', width: 30 },
-            { header: 'Created At', key: 'createdAt', width: 20 }
-        ];
+        // --- 1. POPULATE RAW DATA SHEET ---
+        const rawSheet = workbook.getWorksheet('RawData');
+        if (!rawSheet) throw new Error("Template must contain a 'RawData' worksheet");
 
-        opps.forEach(o => {
-            sheet.addRow({
-                id: o.opportunityId,
-                title: this.safe(o.title),
-                stage: o.stage,
-                loanType: this.safe(o.loanType),
-                amount: parseFloat(this.safe(o.loanAmount) || this.safe(o.estimatedRevenue) || '0'),
-                owner: o.owner ? `${this.safe(o.owner.firstName)} ${this.safe(o.owner.lastName)}` : 'Unassigned',
-                banks: (o.banks || []).map((b: any) => b.bankName || b.name).join(', '),
-                createdAt: o.createdAt
+        // Dynamically detect columns from the first object
+        const sampleObj = data[0];
+        const columns = Object.keys(sampleObj).map(key => ({
+            header: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(), // CamelCase to Title Case
+            key: key,
+            width: 20
+        }));
+
+        // Define columns starting at row 1
+        rawSheet.columns = columns;
+
+        // Add all rows
+        data.forEach(item => {
+            const rowData: any = {};
+            columns.forEach(col => {
+                let val = item[col.key];
+                // Simple object flattening for objects like { name: 'Foo' }
+                if (val && typeof val === 'object' && !Array.isArray(val)) {
+                    val = val.name || val.title || val.fullName || val.accountName || JSON.stringify(val);
+                }
+                // Convert arrays to comma strings
+                if (Array.isArray(val)) {
+                    val = val.join(', ');
+                }
+                rowData[col.key] = val;
             });
+            rawSheet.addRow(rowData);
         });
 
-        // Add Summary sheet with analysis
-        const summarySheet = workbook.addWorksheet('Analysis');
-        summarySheet.addRow(['Pipeline Analysis Summary']);
-        summarySheet.getRow(1).font = { bold: true, size: 14 };
-        summarySheet.addRow(['Total Count', opps.length]);
-        const totalValue = opps.reduce((sum, o) => sum + parseFloat(this.safe(o.loanAmount) || this.safe(o.estimatedRevenue) || '0'), 0);
-        summarySheet.addRow(['Total Pipeline Value', totalValue]);
-        summarySheet.addRow([]);
-        summarySheet.addRow(['Stage Breakdown']);
-        summarySheet.getRow(5).font = { bold: true };
+        // --- 2. POPULATE ANALYSIS SHEET ---
+        // We will look for a grouping key. By default 'status', 'stage', or 'rating'
+        let groupKey = 'status';
+        if (data[0].hasOwnProperty('stage')) groupKey = 'stage';
+        else if (data[0].hasOwnProperty('rating') && !data[0].hasOwnProperty('status')) groupKey = 'rating';
 
-        const stageCounts: Record<string, number> = {};
-        opps.forEach(o => { stageCounts[o.stage] = (stageCounts[o.stage] || 0) + 1; });
-        Object.entries(stageCounts).forEach(([stage, count]) => {
-            summarySheet.addRow([stage, count]);
+        const mapCounts = new Map<string, number>();
+        const mapRevenue = new Map<string, number>();
+
+        data.forEach(item => {
+            const category = item[groupKey] || 'Unknown';
+            const val = parseFloat(item.loanAmount || item.estimatedRevenue || item.price || item.amount || '0');
+
+            mapCounts.set(category, (mapCounts.get(category) || 0) + 1);
+            if (!isNaN(val)) {
+                mapRevenue.set(category, (mapRevenue.get(category) || 0) + val);
+            }
         });
 
-        const fileName = `pipeline_export_${Date.now()}.xlsx`;
+        const analysisSheet = workbook.getWorksheet('Analysis');
+        if (analysisSheet) {
+            // Clear existing rows (keep headers if they exist on row 1, but we'll safer just overwrite row 2 onwards)
+            analysisSheet.spliceRows(2, analysisSheet.rowCount);
+
+            Array.from(mapCounts.entries()).forEach(([category, count]) => {
+                const revenue = mapRevenue.get(category) || 0;
+                analysisSheet.addRow({
+                    category: category,
+                    count: count,
+                    revenue: revenue
+                });
+            });
+        }
+
+        // --- 3. SAVE TO TEMP EXPORTS ---
+        const fileName = `${fileNamePrefix}_${Date.now()}.xlsx`;
         const tempDir = path.join(process.cwd(), 'temp_exports');
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
         const filePath = path.join(tempDir, fileName);
@@ -1278,7 +1307,7 @@ export class UnifiedService {
             success: true,
             filePath,
             fileName,
-            message: `Export generated with ${opps.length} records.`,
+            message: `Export generated with ${data.length} records.`,
             downloadUrl: `https://cx1.clicentrix.com/temp_exports/${fileName}`
         };
     }
