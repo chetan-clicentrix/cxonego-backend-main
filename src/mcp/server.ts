@@ -688,13 +688,18 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
             },
             {
                 name: "exportPipelineToExcel",
-                description: "Generate a professional XLSX pipeline dashboard/report. Returns a download link.",
+                description: "Generate a professional XLSX pipeline dashboard/report. Returns a download link. You MUST provide the raw JSON array of records to populate the Excel sheet.",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        loanType: { type: "string", enum: LOAN_TYPES },
-                        timeRange: { type: "string", description: "Description of window e.g. 'this month', 'all time'" }
-                    }
+                        data: {
+                            type: "array",
+                            items: { type: "object" },
+                            description: "The raw JSON array of records (Leads/Opportunities/etc) fetched from other agents."
+                        },
+                        fileNamePrefix: { type: "string", description: "Optional prefix for the generated file name" }
+                    },
+                    required: ["data"]
                 }
             },
             {
