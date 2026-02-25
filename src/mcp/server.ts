@@ -720,6 +720,66 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                         query: { type: "string", description: "Keyword or name to search for." }
                     }
                 }
+            },
+            {
+                name: "createOpportunity",
+                description: "Create a new opportunity directly without converting from a lead.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        title: { type: "string" },
+                        stageId: { type: "string", enum: PIPELINE_STAGES, default: "Document Collection" },
+                        loanType: { type: "string", enum: LOAN_TYPES },
+                        loanAmount: { type: "string", description: "Loan amount requested" },
+                        estimatedRevenue: { type: "string", description: "Estimated revenue from loan" },
+                        estimatedCloseDate: { type: "string", description: "YYYY-MM-DD" },
+                        accountId: { type: "string", description: "Account/Company ID to associate" },
+                        contactId: { type: "string", description: "Contact ID to associate" },
+                        banks: { type: "array", items: { type: "string" }, description: "Associated bank names" },
+                        description: { type: "string" }
+                    },
+                    required: ["title", "loanType"]
+                }
+            },
+            {
+                name: "updateLead",
+                description: "Update general fields and details of an existing Lead.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        leadId: { type: "string" },
+                        fullName: { type: "string" },
+                        phone: { type: "string" },
+                        email: { type: "string" },
+                        loanType: { type: "string", enum: LOAN_TYPES },
+                        loanAmount: { type: "string" },
+                        city: { type: "string" },
+                        state: { type: "string" },
+                        status: { type: "string", enum: ["New", "In Progress", "Qualified", "Closed"] },
+                        rating: { type: "string", enum: ["Hot", "Warm", "Cold"] },
+                        description: { type: "string" }
+                    },
+                    required: ["leadId"]
+                }
+            },
+            {
+                name: "updateOpportunity",
+                description: "Update general fields and details of an existing Opportunity.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        opportunityId: { type: "string" },
+                        title: { type: "string" },
+                        stage: { type: "string", enum: PIPELINE_STAGES },
+                        status: { type: "string", enum: ["Active", "Won", "Lost"] },
+                        loanType: { type: "string", enum: LOAN_TYPES },
+                        loanAmount: { type: "string" },
+                        estimatedRevenue: { type: "string" },
+                        estimatedCloseDate: { type: "string" },
+                        description: { type: "string" }
+                    },
+                    required: ["opportunityId"]
+                }
             }
         ]
     }));
@@ -749,6 +809,9 @@ function createMcpServer(context: { orgId?: string; userId?: string }): Server {
                 case "exportPipelineToExcel": result = await unifiedService.exportPipelineToExcel(args, context); break;
                 case "learnAgentSkill": result = await unifiedService.learnAgentSkill(args, context); break;
                 case "findAgentSkills": result = await unifiedService.findAgentSkills(args, context); break;
+                case "createOpportunity": result = await unifiedService.createOpportunity(args, context); break;
+                case "updateLead": result = await unifiedService.updateLead(args, context); break;
+                case "updateOpportunity": result = await unifiedService.updateOpportunity(args, context); break;
                 default: throw new Error(`Unknown tool: ${request.params.name}`);
             }
             return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };

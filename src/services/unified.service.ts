@@ -14,6 +14,9 @@ import { vectorService } from "./vector.service";
 import { In, Like, Between } from "typeorm";
 import { decrypt, encryption, statusType, stage, opportunityStatus } from "../common/utils";
 import { v4 as uuidv4 } from "uuid";
+import LeadService from "./lead.service";
+import opportunityService from "./oppurtunity.service";
+import ActivityService from "./activity.service";
 import * as ExcelJS from "exceljs";
 import { notificationService } from "./notification.service";
 import * as path from "path";
@@ -528,8 +531,9 @@ export class UnifiedService {
         if (!when) throw new Error("Activity time is required (e.g. 'tomorrow 3pm', 'in 2 hours').");
 
         const parsed = this.parseNaturalTime(when);
+        const activityService = new ActivityService();
         const activity = new Activity({} as Activity);
-        activity.activityId = uuidv4();
+        activity.activityId = await activityService.getActivityId(new Date());
         activity.subject = subject;
 
         // Map AI types to strict ENUM fields
@@ -951,8 +955,9 @@ export class UnifiedService {
 
         const oppRepo = AppDataSource.getRepository(Oppurtunity);
 
+        const oppService = new opportunityService();
         const opp = new Oppurtunity({} as Oppurtunity);
-        opp.opportunityId = uuidv4();
+        opp.opportunityId = await oppService.getOpportunityId(new Date());
         (opp as any).title = `${this.safe(lead.fullName)} - ${loanType}`;
         (opp as any).stage = 'Document Collection';
         (opp as any).status = 'Active';
@@ -1066,8 +1071,9 @@ export class UnifiedService {
             };
         }
 
+        const leadService = new LeadService();
         const lead = new Lead({} as Lead);
-        lead.leadId = uuidv4();
+        lead.leadId = await leadService.getLeadId(new Date());
         lead.fullName = fullName;
         lead.phone = phone;
         lead.email = email || '';
@@ -1365,6 +1371,137 @@ export class UnifiedService {
             total: topSkills.length,
             skills: topSkills,
             queryPerformed: query
+        };
+    }
+
+    async createOpportunity(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { title, stageId = 'Document Collection', loanType, loanAmount, estimatedRevenue, estimatedCloseDate, accountId, contactId, banks = [], description } = params;
+
+        if (!title) throw new Error("title is required.");
+        if (!loanType) throw new Error("loanType is required.");
+
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+
+        const oppService = new opportunityService();
+        const opp = new Oppurtunity({} as Oppurtunity);
+        opp.opportunityId = await oppService.getOpportunityId(new Date());
+
+        (opp as any).title = title;
+        (opp as any).stage = stageId;
+        (opp as any).status = 'Active';
+        (opp as any).loanType = loanType;
+        if (loanAmount) (opp as any).loanAmount = String(loanAmount);
+        if (estimatedRevenue) (opp as any).estimatedRevenue = String(estimatedRevenue);
+        if (description) (opp as any).description = description;
+        (opp as any).estimatedCloseDate = estimatedCloseDate ? new Date(estimatedCloseDate) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+        const owner = await AppDataSource.getRepository(User).findOne({ where: { userId: ctx.userId } });
+        const organization = await AppDataSource.getRepository(Organisation).findOne({ where: { organisationId: ctx.orgId! } });
+        if (owner) (opp as any).owner = owner;
+        if (organization) (opp as any).organization = organization;
+
+        if (accountId) {
+            const acc = await AppDataSource.getRepository(Account).findOne({ where: { accountId: accountId } });
+            if (acc) (opp as any).company = acc;
+        }
+        if (contactId) {
+            const con = await AppDataSource.getRepository(Contact).findOne({ where: { contactId: contactId } });
+            if (con) (opp as any).contact = con;
+        }
+
+        if (banks.length > 0) {
+            const bankRepo = AppDataSource.getRepository(Bank);
+            const bankEntities = await bankRepo.createQueryBuilder('bank')
+                .where('LOWER(bank.bankName) IN (:...names)', {
+                    names: banks.map((b: string) => b.toLowerCase())
+                })
+                .getMany();
+            (opp as any).banks = bankEntities;
+        }
+
+        const saved = await oppRepo.save(opp);
+
+        return {
+            opportunityId: saved.opportunityId,
+            title: this.safe(saved.title),
+            stage: (saved as any).stage,
+            loanType: this.safe(saved.loanType),
+            status: 'Active',
+            owner: owner ? `${owner.firstName} ${owner.lastName}` : 'You',
+            message: `Opportunity created successfully. ID: ${saved.opportunityId}`
+        };
+    }
+
+    async updateLead(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { leadId, ...updates } = params;
+        if (!leadId) throw new Error("leadId is required.");
+
+        const leadRepo = AppDataSource.getRepository(Lead);
+        const lead = await leadRepo.findOne({
+            where: { leadId, organization: { organisationId: ctx.orgId } } as any
+        });
+
+        if (!lead) throw new Error(`Lead not found or not in your organization: ${leadId}`);
+
+        const allowedFields = ['fullName', 'phone', 'email', 'title', 'loanType', 'loanAmount', 'city', 'state', 'country', 'zone', 'taluka', 'village', 'pincode', 'leadSource', 'rating', 'status', 'description'];
+
+        let updatedCount = 0;
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) {
+                (lead as any)[field] = updates[field];
+                updatedCount++;
+            }
+        }
+
+        if (updatedCount === 0) throw new Error("No valid fields provided to update.");
+
+        await leadRepo.save(lead);
+
+        return {
+            leadId,
+            message: `Lead successfully updated with ${updatedCount} fields.`,
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    async updateOpportunity(params: any, ctx: ContextOptions) {
+        this.requireOrg(ctx);
+        const { opportunityId, ...updates } = params;
+        if (!opportunityId) throw new Error("opportunityId is required.");
+
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+        const opp = await oppRepo.findOne({
+            where: { opportunityId, organization: { organisationId: ctx.orgId } } as any
+        });
+
+        if (!opp) throw new Error(`Opportunity not found or not in your organization: ${opportunityId}`);
+
+        const allowedFields = ['title', 'stage', 'status', 'loanType', 'loanAmount', 'estimatedRevenue', 'estimatedCloseDate', 'description', 'probability', 'nextStep'];
+
+        let updatedCount = 0;
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) {
+                if (field === 'estimatedCloseDate') {
+                    (opp as any)[field] = new Date(updates[field]);
+                } else if (field === 'loanAmount' || field === 'estimatedRevenue') {
+                    (opp as any)[field] = String(updates[field]);
+                } else {
+                    (opp as any)[field] = updates[field];
+                }
+                updatedCount++;
+            }
+        }
+
+        if (updatedCount === 0) throw new Error("No valid fields provided to update.");
+
+        await oppRepo.save(opp);
+
+        return {
+            opportunityId,
+            message: `Opportunity successfully updated with ${updatedCount} fields.`,
+            updatedAt: new Date().toISOString()
         };
     }
 }
