@@ -25,13 +25,13 @@ class DocumentRequirementService {
         const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
         const requirementRepo = transactionEntityManager.getRepository(DocumentRequirement);
 
-        // Get opportunity with bank details (eager loading should handle this)
+        // Get opportunity with bank details and batch details
         const opportunity = await opportunityRepo.findOne({
             where: {
                 opportunityId,
                 organization: { organisationId: user.organizationId },
             },
-            relations: ["banks"], // Explicitly load banks relation
+            relations: ["banks", "batch", "batch.opportunities", "batch.opportunities.banks"], // Load batch and sibling opportunities
         });
 
         if (!opportunity) {
@@ -44,12 +44,61 @@ class DocumentRequirementService {
             applicantType: opportunity.applicantType,
         });
 
-        // Check if banks and applicant type are set
-        if (!opportunity.banks || opportunity.banks.length === 0 || !opportunity.applicantType) {
+        // Gather all combinations from the batch (or just this opportunity)
+        let combinations: { bankId: string; applicantType: string; loanType: string | null }[] = [];
+        let allBanks: any[] = [];
+
+        if (opportunity.batch && opportunity.batch.batchId) {
+            // Eagerly query all opportunities in the same batch to ensure we have the most up-to-date list
+            const batchOpportunities = await opportunityRepo.find({
+                where: { batch: { batchId: opportunity.batch.batchId } },
+                relations: ["banks"]
+            });
+
+            batchOpportunities.forEach(opp => {
+                if (opp.banks && opp.applicantType) {
+                    opp.banks.forEach(b => {
+                        combinations.push({
+                            bankId: b.bankId,
+                            applicantType: opp.applicantType,
+                            loanType: opp.loanType || null,
+                        });
+                        allBanks.push(b);
+                    });
+                }
+            });
+
+            const uniqueCombos = new Map();
+            combinations.forEach(c => uniqueCombos.set(`${c.bankId}-${c.applicantType}-${c.loanType}`, c));
+            combinations = Array.from(uniqueCombos.values());
+
+            // Deduplicate bank array by ID for legacy code mapping
+            const bankMap = new Map();
+            allBanks.forEach(b => bankMap.set(b.bankId, b));
+            allBanks = Array.from(bankMap.values());
+        } else {
+            if (opportunity.banks && opportunity.applicantType) {
+                opportunity.banks.forEach(b => {
+                    combinations.push({
+                        bankId: b.bankId,
+                        applicantType: opportunity.applicantType,
+                        loanType: opportunity.loanType || null,
+                    });
+                    allBanks.push(b);
+                });
+            }
+        }
+
+        // Check if combinations are set
+        if (combinations.length === 0) {
+            console.log("No combinations found. allBanks: ", allBanks.length, opportunity.banks?.length);
             throw new ValidationFailedError(
                 "Opportunity must have at least one bank and applicant type configured"
             );
         }
+
+        console.log("Final Combinations for Document Generation:");
+        console.log(JSON.stringify(combinations, null, 2));
 
         // Check if requirements already exist for this opportunity
         const existingRequirements = await requirementRepo.find({
@@ -65,10 +114,11 @@ class DocumentRequirementService {
             // Collect documents from all banks and deduplicate
             const currentDocumentNamesSet = new Set<string>();
 
-            for (const bank of opportunity.banks) {
+            for (const combo of combinations) {
                 const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
-                    bank.bankId,
-                    opportunity.applicantType,
+                    combo.bankId,
+                    combo.applicantType as any,
+                    combo.loanType,
                     user.organizationId
                 );
                 bankDocs.forEach(doc => currentDocumentNamesSet.add(doc));
@@ -107,20 +157,27 @@ class DocumentRequirementService {
 
         // Fetch document list from BankDocumentConfig
         console.log("Fetching documents for:", {
-            banks: opportunity.banks.map(b => b.name),
+            banks: allBanks.map(b => b.name),
             applicantType: opportunity.applicantType,
+            loanType: opportunity.loanType,
             organizationId: user.organizationId,
         });
+
+        console.log("Fetching documents for combinations:", JSON.stringify(combinations, null, 2));
 
         // Collect documents from all banks and deduplicate
         const uniqueDocumentNames = new Set<string>();
 
-        for (const bank of opportunity.banks) {
+        for (const combo of combinations) {
+            console.log(`Calling getDocumentsByBankAndType -> Bank: ${combo.bankId}, AppType: ${combo.applicantType}, LoanType: ${combo.loanType}, Org: ${user.organizationId}`);
             const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
-                bank.bankId,
-                opportunity.applicantType,
+                combo.bankId,
+                combo.applicantType as any,
+                combo.loanType,
                 user.organizationId
             );
+
+            console.log(`Result from DB for Bank ${combo.bankId}:`, bankDocs);
 
             if (bankDocs && bankDocs.length > 0) {
                 bankDocs.forEach(doc => uniqueDocumentNames.add(doc));
