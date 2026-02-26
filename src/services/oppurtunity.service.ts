@@ -56,13 +56,22 @@ class opportunityService {
 
     for (let opportunity of oppurtunities) {
       opportunity = await opportunityDecryption(opportunity);
-      opportunity.company = await accountDecryption(opportunity.company);
-      opportunity.contact = await contactDecryption(opportunity.contact);
-      opportunity.owner = await userDecryption(opportunity.owner);
+      if (opportunity.company) {
+        opportunity.company = await accountDecryption(opportunity.company as Account);
+      }
+      if (opportunity.contact) {
+        opportunity.contact = await contactDecryption(opportunity.contact as Contact);
+      }
+      if (opportunity.Lead) {
+        opportunity.Lead = await leadDecryption(opportunity.Lead as Lead);
+      }
+      if (opportunity.owner) {
+        opportunity.owner = await userDecryption(opportunity.owner as User);
+      }
     }
     return oppurtunities;
   }
-  async getOpportunityId(date: Date) {
+  async getOpportunityId(date: Date, manager?: EntityManager) {
     const month = String(
       date.getMonth() + 1 >= 10
         ? date.getMonth() + 1
@@ -70,15 +79,20 @@ class opportunityService {
     );
     const year = String(date.getFullYear().toString().slice(-2));
 
-    const lastOppurtunity = await AppDataSource.getRepository(Oppurtunity)
+    const oppRepo = manager
+      ? manager.getRepository(Oppurtunity)
+      : AppDataSource.getRepository(Oppurtunity);
+
+    const lastOppurtunity = await oppRepo
       .createQueryBuilder("Oppurtunity")
       .withDeleted()
       .select()
       .orderBy("Oppurtunity.createdAt", "DESC")
+      .addOrderBy("Oppurtunity.opportunityId", "DESC")
       .getOne();
 
-    let OppurtunityNo = "00";
-    const yearFromRecord = String(lastOppurtunity?.opportunityId.slice(5, 7)); //OPP032402
+    let OppurtunityNo = "000";
+    const yearFromRecord = String(lastOppurtunity?.opportunityId.slice(5, 7));
     const oppurtunityNoFromRecord = String(
       lastOppurtunity?.opportunityId.substring(7)
     );
@@ -88,7 +102,7 @@ class opportunityService {
     }
 
     const OppurtunityId =
-      "OPP" + month + year + "0" + (Number(OppurtunityNo) + 1).toString();
+      "OPP" + month + year + (Number(OppurtunityNo) + 1).toString().padStart(3, '0');
 
     return OppurtunityId;
   }
@@ -472,6 +486,10 @@ class opportunityService {
         where: { accountId: String(payload.company) },
       });
       if (companydata) {
+        // Ensure data is decrypted before we modify and save it, to prevent double-encryption in hooks
+        if (typeof companydata.decrypt === 'function') {
+          companydata.decrypt();
+        }
         // Update Account with Category/Segment if provided in payload (e.g. from lead qualification)
         const extraPayload = payload as any;
         let updateNeeded = false;
@@ -485,6 +503,9 @@ class opportunityService {
         }
         if (updateNeeded) {
           await companyRepo.save(companydata);
+          if (typeof companydata.decrypt === 'function') {
+            companydata.decrypt();
+          }
         }
         payload.company = companydata;
       } else {
@@ -516,7 +537,7 @@ class opportunityService {
 
     const opportunityInstance = new Oppurtunity({
       ...payload,
-      opportunityId: await this.getOpportunityId(new Date()),
+      opportunityId: await this.getOpportunityId(new Date(), transactionEntityManager),
       isPrimary,
       proposalGroupId: null,   // will be set by createProposalGroup if needed
       proposalGroup: null,
