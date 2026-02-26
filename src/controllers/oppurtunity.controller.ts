@@ -105,6 +105,7 @@ export class OppurtunityController {
       const payload = request.body as Oppurtunity;
 
       // Extract and deduplicate bank IDs from the incoming payload
+      console.log("[OPPORTUNITY_CONTROLLER] Incoming payload banks:", payload.banks);
       const rawBankIds: string[] = Array.isArray(payload.banks)
         ? (payload.banks as any[]).map((b: any) =>
           typeof b === "string" ? b : b?.bankId

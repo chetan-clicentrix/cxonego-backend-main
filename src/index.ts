@@ -21,11 +21,11 @@ import * as cron from "./common/cron";
 import rateLimit from "express-rate-limit";
 
 // Start SharePoint upload worker
-import "./workers/sharepointUpload.worker";
+import sharepointUploadWorker from "./workers/sharepointUpload.worker";
 console.log("✓ SharePoint upload worker started");
 
 // Start Email notification worker
-import "./workers/emailNotification.worker";
+import emailNotificationWorker from "./workers/emailNotification.worker";
 console.log("✓ Email notification worker started");
 
 dotenv.config();
@@ -196,6 +196,25 @@ app.use("/api", limiter);
 app.use("/api/v1", router);
 
 app.use(errorMiddleware);
+const gracefulShutdown = async () => {
+  logger.info("Initiating graceful shutdown...");
+  try {
+    if (sharepointUploadWorker) {
+      await sharepointUploadWorker.close();
+    }
+    if (emailNotificationWorker) {
+      await emailNotificationWorker.close();
+    }
+    logger.info("Workers stopped gracefully.");
+    process.exit(0);
+  } catch (error) {
+    logger.error("Error during graceful shutdown", error);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
 
 app.listen(port, async () => {
   logger.info("App Started on port", { port });
