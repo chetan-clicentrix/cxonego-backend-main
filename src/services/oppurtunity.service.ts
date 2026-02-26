@@ -522,8 +522,15 @@ class opportunityService {
       // Provide offset to ensure completely new unique ID for each one
       const uniqueOpId = await this.getOpportunityId(new Date(), i);
 
+      let instanceData = { ...payload };
+      // For clones (i > 0), remove Lead to prevent 'Duplicate entry' on OneToOne constraint
+      if (i > 0) {
+        const { Lead, ...rest } = instanceData as any;
+        instanceData = rest;
+      }
+
       const opportunityInstance = new Oppurtunity({
-        ...payload,
+        ...instanceData,
         opportunityId: uniqueOpId,
         batch: batch,
         banks: [bank]
@@ -557,8 +564,9 @@ class opportunityService {
   ) {
     payload.modifiedBy = user.email;
     const oppurtunityRepo = transactionEntityManager.getRepository(Oppurtunity);
-    const opportunity = await oppurtunityRepo.findOneBy({
-      opportunityId: opportunityId,
+    const opportunity = await oppurtunityRepo.findOne({
+      where: { opportunityId: opportunityId },
+      relations: ["batch", "banks", "Lead", "company", "contact", "organization", "owner"],
     });
     if (!opportunity) {
       throw new ResourceNotFoundError("Opportunity not found");
@@ -622,14 +630,12 @@ class opportunityService {
     }
 
     // Handle banks array
+    let newBanksList: Bank[] = [];
     if (payload.banks && Array.isArray(payload.banks)) {
       const bankRepo = transactionEntityManager.getRepository(Bank);
       const bankIds = payload.banks.map(b => typeof b === 'string' ? b : (b as any).bankId).filter(Boolean);
       if (bankIds.length > 0) {
-        const banks = await bankRepo.findByIds(bankIds);
-        if (banks.length > 0) {
-          payload.banks = banks;
-        }
+        newBanksList = await bankRepo.findByIds(bankIds);
       }
     }
 
@@ -638,21 +644,98 @@ class opportunityService {
       payload.stage = stage.WON;
     }
 
-    // Use save() instead of update() for many-to-many relationships
-    // Merge the payload with the existing opportunity
-    Object.assign(opportunity, payload);
-    const updatedOpportunity = await oppurtunityRepo.save(opportunity);
-
     const auditId = String(user.auth_time) + user.userId;
-    await this.updateAuditLogHandler(
-      transactionEntityManager,
-      opportunity,
-      payload as any,
-      payload.modifiedBy,
-      auditId
-    );
 
-    return updatedOpportunity;
+    const existingBankIds = opportunity.banks?.map(b => b.bankId) || [];
+    const newBanksToAdd = newBanksList.filter(b => !existingBankIds.includes(b.bankId));
+
+    if (newBanksToAdd.length > 0) {
+      // 1. Update the original opportunity to retain its existing banks
+      let originalBanks = [...(opportunity.banks || [])];
+      let banksForNewProposals = [...newBanksToAdd];
+
+      // If the original proposal had NO banks, give it the first new bank
+      if (originalBanks.length === 0 && banksForNewProposals.length > 0) {
+        originalBanks.push(banksForNewProposals.shift()!);
+      }
+
+      const payloadCopy = { ...payload, banks: originalBanks };
+
+      const oldOpportunityRecord = { ...opportunity }; // save for audit
+      Object.assign(opportunity, payloadCopy);
+      const updatedOpportunity = await oppurtunityRepo.save(opportunity);
+
+      await this.updateAuditLogHandler(
+        transactionEntityManager,
+        oldOpportunityRecord as any,
+        payloadCopy as any,
+        payload.modifiedBy,
+        auditId
+      );
+
+      // Ensure the opportunity has a batch for grouping the clones
+      let currentBatch = opportunity.batch;
+      if (!currentBatch && banksForNewProposals.length > 0) {
+        const batchRepo = transactionEntityManager.getRepository(OpportunityBatch);
+        const batchIdVal = "BATCH-" + await this.getOpportunityId(new Date());
+        currentBatch = new OpportunityBatch({ batchId: batchIdVal, modifiedBy: user.email });
+        await batchRepo.save(currentBatch);
+
+        opportunity.batch = currentBatch;
+        await oppurtunityRepo.save(opportunity);
+      }
+
+      // 2. Create new opportunities for the remaining newly added banks
+      for (let i = 0; i < banksForNewProposals.length; i++) {
+        const bank = banksForNewProposals[i];
+
+        const uniqueOpId = await this.getOpportunityId(new Date(), i + 1);
+
+        // Clone data ignoring the ID and specific audit fields
+        const {
+          opportunityId: _ignoreId,
+          createdAt: _ignoreCreated,
+          updatedAt: _ignoreUpdated,
+          Lead: _ignoreLead, // Prevent Duplicate Entry for OneToOne constraint
+          ...clonedData
+        } = opportunity as any;
+
+        const newOpportunityInstance = new Oppurtunity({
+          ...clonedData,
+          opportunityId: uniqueOpId,
+          batch: currentBatch,
+          banks: [bank] // Assign only the single new bank
+        } as unknown as Oppurtunity);
+
+        const newOpportunity = await oppurtunityRepo.save(newOpportunityInstance);
+
+        await this.createAuditLogHandler(transactionEntityManager, newOpportunity, auditId);
+      }
+
+      return updatedOpportunity;
+
+    } else {
+      // Normal single update
+      if (newBanksList.length > 0) {
+        payload.banks = newBanksList;
+      } else {
+        payload.banks = opportunity.banks;
+      }
+
+      const oldOpportunityRecord = { ...opportunity };
+      Object.assign(opportunity, payload);
+      const updatedOpportunity = await oppurtunityRepo.save(opportunity);
+
+      await this.updateAuditLogHandler(
+        transactionEntityManager,
+        oldOpportunityRecord as any,
+        payload as any,
+        payload.modifiedBy,
+        auditId
+      );
+
+      return updatedOpportunity;
+    }
   }
   async deleteOppurtunity(
     opportunityId: string,
