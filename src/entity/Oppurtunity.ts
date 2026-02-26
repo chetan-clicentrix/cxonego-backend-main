@@ -150,8 +150,8 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({ length: 2500, nullable: true })
     wonLostDescription: string;
 
-    @OneToOne(() => Lead)
-    @JoinColumn()
+    @ManyToOne(() => Lead)
+    @JoinColumn({ name: "leadLeadId" })
     Lead: Lead;
 
     @ManyToOne(() => Account, (Account) => Account.oppurtunities, {

@@ -236,6 +236,7 @@ export class OppurtunityController {
           if (Object.prototype.hasOwnProperty.call(copiedObject, key)) {
             if (
               copiedObject[key] !== null &&
+              typeof copiedObject[key] === 'string' &&
               copiedObject[key].trim() === duplicateEntry.trim()
             ) {
               columnName = key;
@@ -439,6 +440,7 @@ export class OppurtunityController {
           if (Object.prototype.hasOwnProperty.call(copiedObject, key)) {
             if (
               copiedObject[key] !== null &&
+              typeof copiedObject[key] === 'string' &&
               copiedObject[key].trim() === duplicateEntry.trim()
             ) {
               columnName = key;

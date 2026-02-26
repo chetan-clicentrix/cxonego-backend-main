@@ -39,6 +39,22 @@ import { v4 as uuidv4 } from "uuid";
 
 class opportunityService {
   private activityPlanService = new ActivityPlanService();
+
+  private extractId(val: any, idKey: string): string | undefined {
+    if (!val) return undefined;
+    let idString: any;
+    if (typeof val === 'string') {
+      idString = val;
+    } else {
+      idString = val[idKey];
+    }
+
+    if (typeof idString === 'string') {
+      const parts = idString.split('/');
+      return parts.length > 1 ? parts[1].trim() : parts[0].trim();
+    }
+    return idString;
+  }
   async getAllOppurtunities(userInfo: userInfo) {
     const oppurtunities = await AppDataSource.getRepository(Oppurtunity)
       .createQueryBuilder("opportunity")
@@ -46,11 +62,12 @@ class opportunityService {
       .leftJoinAndSelect("opportunity.company", "account")
       .leftJoinAndSelect("opportunity.contact", "contact")
       .leftJoinAndSelect("opportunity.organization", "organization")
+      .leftJoinAndSelect("opportunity.proposalGroup", "proposalGroup")
       // .where("user.userId = :userId", { userId: userInfo.userId })
       .where("organization.organisationId = :organizationId", {
         organizationId: userInfo.organizationId,
       })
-      .select(["opportunity", "user.userId", "user.firstName", "user.lastName", "account", "contact"])
+      .select(["opportunity", "user.userId", "user.firstName", "user.lastName", "account", "contact", "proposalGroup"])
       .orderBy("opportunity.updatedAt", "DESC")
       .getMany();
 
@@ -137,6 +154,7 @@ class opportunityService {
         .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
+        .leftJoinAndSelect("Oppurtunity.proposalGroup", "proposalGroup")
         .where("Oppurtunity.ownerId=:userId", { userId: userId })
         .andWhere("Oppurtunity.organizationId=:organizationId", {
           organizationId: organizationId,
@@ -150,6 +168,7 @@ class opportunityService {
         .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
+        .leftJoinAndSelect("Oppurtunity.proposalGroup", "proposalGroup")
         .where("Oppurtunity.organizationId=:organizationId", {
           organizationId: organizationId,
         })
@@ -441,7 +460,7 @@ class opportunityService {
     user: userInfo,
     transactionEntityManager: EntityManager,
     singleBankId?: string,
-    isPrimary: boolean = false
+    isPrimary: boolean = true
   ) {
     // Use transactionEntityManager for ALL repos to avoid lock conflicts
     const userRepo = transactionEntityManager.getRepository(User);
@@ -459,8 +478,9 @@ class opportunityService {
     }
 
     if (payload.Lead) {
+      const leadId = this.extractId(payload.Lead, 'leadId');
       const lead = await transactionEntityManager.getRepository(Lead).findOne({
-        where: { leadId: String(payload.Lead) },
+        where: { leadId: String(leadId) },
       });
       if (lead) {
         payload.Lead = lead;
@@ -470,8 +490,9 @@ class opportunityService {
     }
 
     if (payload.contact) {
+      const contactId = this.extractId(payload.contact, 'contactId');
       const contact = await transactionEntityManager.getRepository(Contact).findOne({
-        where: { contactId: String(payload.contact) },
+        where: { contactId: String(contactId) },
       });
       if (contact) {
         payload.contact = contact;
@@ -482,8 +503,9 @@ class opportunityService {
 
     if (payload.company) {
       const companyRepo = transactionEntityManager.getRepository(Account);
+      const accountId = this.extractId(payload.company, 'accountId');
       const companydata = await companyRepo.findOne({
-        where: { accountId: String(payload.company) },
+        where: { accountId: String(accountId) },
       });
       if (companydata) {
         // Ensure data is decrypted before we modify and save it, to prevent double-encryption in hooks
@@ -661,8 +683,9 @@ class opportunityService {
 
     let lead;
     if (payload.Lead) {
+      const leadId = this.extractId(payload.Lead, 'leadId');
       lead = await AppDataSource.getRepository(Lead).findOne({
-        where: { leadId: String(payload.Lead) },
+        where: { leadId: String(leadId) },
       });
       if (!lead) {
         throw new ResourceNotFoundError("Lead not found");
@@ -672,8 +695,9 @@ class opportunityService {
 
     let company;
     if (payload.company) {
+      const accountId = this.extractId(payload.company, 'accountId');
       company = await AppDataSource.getRepository(Account).findOne({
-        where: { accountId: String(payload.company) },
+        where: { accountId: String(accountId) },
       });
       if (!company) {
         throw new ResourceNotFoundError("Account not found");
@@ -683,10 +707,11 @@ class opportunityService {
 
     let contact;
     if (payload.contact) {
+      const contactId = this.extractId(payload.contact, 'contactId');
       contact = await AppDataSource.getRepository(Contact).findOne({
-        where: { contactId: String(payload.contact) },
+        where: { contactId: String(contactId) },
       });
-      if (!company) {
+      if (!contact) {
         throw new ResourceNotFoundError("Contact not found");
       }
       if (contact) payload.contact = contact;
@@ -766,6 +791,7 @@ class opportunityService {
       where: {
         opportunityId: opportunityId,
       },
+      relations: ["Lead", "company", "banks", "contact", "owner", "organization", "proposalGroup"]
     });
 
     if (oppurtunity) {
@@ -786,6 +812,24 @@ class opportunityService {
       }
       if (oppurtunity.owner) {
         oppurtunity.owner = await userDecryption(oppurtunity.owner);
+      }
+
+      // If it belongs to a proposalGroup, collect ALL banks from siblings
+      // so the frontend edit form correctly displays the full list of banks.
+      // This prevents the frontend from accidentally wiping siblings on save.
+      if (oppurtunity.proposalGroupId) {
+        const opportunityRepo = AppDataSource.getRepository(Oppurtunity);
+        const siblings = await opportunityRepo.find({
+          where: { proposalGroupId: oppurtunity.proposalGroupId },
+          relations: ["banks"],
+        });
+        const allBanks = new Map<string, Bank>();
+        for (const sib of siblings) {
+          if (sib.banks && sib.banks.length > 0) {
+            sib.banks.forEach((b) => allBanks.set(b.bankId, b));
+          }
+        }
+        oppurtunity.banks = Array.from(allBanks.values());
       }
     }
     return oppurtunity;
