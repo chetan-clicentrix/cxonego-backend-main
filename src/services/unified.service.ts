@@ -70,23 +70,32 @@ export class UnifiedService {
         const { orgId, userId } = ctx;
         const results: any = { leads: [], opportunities: [], accounts: [], contacts: [], activities: [] };
 
-        // Helper to apply dynamic filters to a QueryBuilder
-        const applyDynamicFilters = (qb: any, entityAlias: string) => {
+        // Helper to apply dynamic filters to a QueryBuilder SAFELY
+        const applyDynamicFilters = (qb: any, entityAlias: string, validColumns: string[], encryptedColumns: string[] = []) => {
+            const postFilters: Record<string, any> = {};
+
             Object.keys(filters).forEach(key => {
                 if (key === 'ownerId' && filters[key] === 'mine') {
                     qb.andWhere(`${entityAlias}.ownerId = :userId`, { userId });
                     return;
                 }
 
-                // Only apply filter if it's a known column or if we want to force it (TypeORM will error if invalid, but we try our best)
-                // For simplicity in this powerful tool, we try to apply all passed filters.
+                // Protect against unknown columns
+                if (!validColumns.includes(key)) return;
+
                 const value = filters[key];
+
+                // If column is encrypted, we cannot query it in SQL. Save for post-fetch filtering.
+                if (encryptedColumns.includes(key)) {
+                    postFilters[key] = value;
+                    return;
+                }
+
                 const paramName = `${entityAlias}_${key}`;
 
                 if (Array.isArray(value)) {
                     qb.andWhere(`${entityAlias}.${key} IN (:...${paramName})`, { [paramName]: value });
                 } else if (typeof value === 'string' && value.includes('>')) {
-                    // Basic support for things like "loanAmount > 50000" if the LLM passes it directly (though schema says string/number)
                     qb.andWhere(`${entityAlias}.${key} > :${paramName}`, { [paramName]: value.replace('>', '').trim() });
                 } else if (typeof value === 'string' && value.includes('<')) {
                     qb.andWhere(`${entityAlias}.${key} < :${paramName}`, { [paramName]: value.replace('<', '').trim() });
@@ -94,6 +103,8 @@ export class UnifiedService {
                     qb.andWhere(`${entityAlias}.${key} = :${paramName}`, { [paramName]: value });
                 }
             });
+
+            return postFilters;
         };
 
         // ── Search Leads ──
@@ -104,10 +115,15 @@ export class UnifiedService {
                 .leftJoinAndSelect('lead.company', 'company')
                 .where('lead.organizationId = :orgId', { orgId });
 
-            applyDynamicFilters(leadQuery, 'lead');
+            const validLeadCols = ['leadId', 'fullName', 'phone', 'email', 'loanType', 'loanAmount', 'city', 'state', 'zone', 'taluka', 'village', 'pincode', 'status', 'rating', 'leadSource', 'ownerId'];
+            const encryptedLeadCols = ['fullName', 'phone', 'email', 'city', 'state', 'zone', 'taluka', 'village', 'pincode'];
+            const postFilters = applyDynamicFilters(leadQuery, 'lead', validLeadCols, encryptedLeadCols);
 
             if (groupBy) {
-                // If groupBy is requested, return aggregated data
+                // If groupBy is requested on an encrypted column, warn/abort because SQL GROUP BY fails on encrypted strings
+                if (encryptedLeadCols.includes(groupBy)) {
+                    throw new Error(`Cannot groupBy an encrypted column like '${groupBy}'. Try grouping by status, rating, or loanType.`);
+                }
                 const aggregated = await leadQuery
                     .select(`lead.${groupBy}`, 'groupKey')
                     .addSelect('COUNT(lead.leadId)', 'count')
@@ -117,6 +133,7 @@ export class UnifiedService {
             } else {
                 let allLeads = await leadQuery.getMany();
 
+                // 1. Apply Search Query
                 if (query) {
                     allLeads = allLeads.filter(lead =>
                         this.matchesQuery(lead.fullName, query) ||
@@ -127,6 +144,21 @@ export class UnifiedService {
                         this.matchesQuery(lead.taluka, query) ||
                         this.matchesQuery(lead.loanType, query)
                     );
+                }
+
+                // 2. Apply Post Filters (Encrypted columns skipped by SQL)
+                if (Object.keys(postFilters).length > 0) {
+                    allLeads = allLeads.filter(lead => {
+                        return Object.entries(postFilters).every(([key, value]) => {
+                            const leadVal = (lead as any)[key];
+                            if (Array.isArray(value)) {
+                                // Match exact decrypted value within array
+                                return value.some(v => this.safe(leadVal) === String(v));
+                            }
+                            // Fuzzy match
+                            return this.matchesQuery(leadVal, String(value));
+                        });
+                    });
                 }
 
                 results.leads = allLeads.slice(0, limit).map(l => ({
@@ -171,14 +203,20 @@ export class UnifiedService {
                 Object.assign(filters, tempFilters); // Note: we're mutating the object but it's fine for this context
             }
 
-            applyDynamicFilters(oppQuery, 'opp');
+            const validOppCols = ['opportunityId', 'title', 'stage', 'status', 'loanType', 'loanAmount', 'estimatedRevenue', 'ownerId', 'companyAccountId', 'contactContactId'];
+            const encryptedOppCols = ['title', 'loanAmount', 'estimatedRevenue'];
+            const postFilters = applyDynamicFilters(oppQuery, 'opp', validOppCols, encryptedOppCols);
 
             if (groupBy) {
+                if (encryptedOppCols.includes(groupBy)) {
+                    throw new Error(`Cannot groupBy an encrypted column like '${groupBy}'. Try grouping by stage, status, or loanType.`);
+                }
                 if (groupBy === 'bank' || groupBy === 'banks') {
                     // Special complex group by for many-to-many banks
                     const aggregated = await oppQuery
                         .select('banks.name', 'groupKey')
                         .addSelect('COUNT(DISTINCT opp.opportunityId)', 'count')
+                        .addSelect('SUM(CAST(opp.estimatedRevenue AS DECIMAL))', 'revenue') // Note: might fail if encrypted
                         .groupBy('banks.name')
                         .getRawMany();
                     results.opportunities = { aggregated: true, data: aggregated };
@@ -200,6 +238,16 @@ export class UnifiedService {
                         (opp.company && this.matchesQuery(opp.company.accountName, query)) ||
                         (opp.contact && (this.matchesQuery(opp.contact.fullName, query) || this.matchesQuery(opp.contact.phone, query)))
                     );
+                }
+
+                if (Object.keys(postFilters).length > 0) {
+                    allOpps = allOpps.filter(opp => {
+                        return Object.entries(postFilters).every(([key, value]) => {
+                            const oppVal = (opp as any)[key];
+                            if (Array.isArray(value)) return value.some(v => this.safe(oppVal) === String(v));
+                            return this.matchesQuery(oppVal, String(value));
+                        });
+                    });
                 }
 
                 results.opportunities = allOpps.slice(0, limit).map(o => ({
@@ -226,9 +274,14 @@ export class UnifiedService {
                 .leftJoinAndSelect('acc.owner', 'owner')
                 .where('acc.organizationId = :orgId', { orgId });
 
-            applyDynamicFilters(accQuery, 'acc');
+            const validAccCols = ['accountId', 'accountName', 'phone', 'email', 'website', 'industry', 'companyType', 'status', 'ownerId'];
+            const encryptedAccCols = ['accountName', 'phone', 'email', 'website', 'industry'];
+            const postFilters = applyDynamicFilters(accQuery, 'acc', validAccCols, encryptedAccCols);
 
             if (groupBy) {
+                if (encryptedAccCols.includes(groupBy)) {
+                    throw new Error(`Cannot groupBy an encrypted column like '${groupBy}'. Try grouping by status or companyType.`);
+                }
                 const aggregated = await accQuery
                     .select(`acc.${groupBy}`, 'groupKey')
                     .addSelect('COUNT(acc.accountId)', 'count')
@@ -245,6 +298,16 @@ export class UnifiedService {
                         this.matchesQuery(acc.industry, query) ||
                         this.matchesQuery(acc.city, query)
                     );
+                }
+
+                if (Object.keys(postFilters).length > 0) {
+                    allAccs = allAccs.filter(acc => {
+                        return Object.entries(postFilters).every(([key, value]) => {
+                            const accVal = (acc as any)[key];
+                            if (Array.isArray(value)) return value.some(v => this.safe(accVal) === String(v));
+                            return this.matchesQuery(accVal, String(value));
+                        });
+                    });
                 }
 
                 results.accounts = allAccs.slice(0, limit).map(a => ({
@@ -268,9 +331,14 @@ export class UnifiedService {
                 .leftJoinAndSelect('con.company', 'company')
                 .where('con.organizationId = :orgId', { orgId });
 
-            applyDynamicFilters(contactQuery, 'con');
+            const validContCols = ['contactId', 'firstName', 'lastName', 'phone', 'email', 'title', 'ownerId', 'accountAccountId'];
+            const encryptedContCols = ['firstName', 'lastName', 'phone', 'email', 'title'];
+            const postFilters = applyDynamicFilters(contactQuery, 'con', validContCols, encryptedContCols);
 
             if (groupBy) {
+                if (encryptedContCols.includes(groupBy)) {
+                    throw new Error(`Cannot groupBy an encrypted column like '${groupBy}'.`);
+                }
                 const aggregated = await contactQuery
                     .select(`con.${groupBy}`, 'groupKey')
                     .addSelect('COUNT(con.contactId)', 'count')
@@ -287,6 +355,16 @@ export class UnifiedService {
                         this.matchesQuery(con.email, query) ||
                         (con.company && this.matchesQuery(con.company.accountName, query))
                     );
+                }
+
+                if (Object.keys(postFilters).length > 0) {
+                    allCons = allCons.filter(con => {
+                        return Object.entries(postFilters).every(([key, value]) => {
+                            const conVal = (con as any)[key];
+                            if (Array.isArray(value)) return value.some(v => this.safe(conVal) === String(v));
+                            return this.matchesQuery(conVal, String(value));
+                        });
+                    });
                 }
 
                 results.contacts = allCons.slice(0, limit).map(c => ({
@@ -309,7 +387,8 @@ export class UnifiedService {
                 .leftJoinAndSelect('act.opportunity', 'opportunity')
                 .where('act.organizationId = :orgId', { orgId });
 
-            applyDynamicFilters(actQuery, 'act');
+            const validActCols = ['activityId', 'subject', 'activityType', 'status', 'priority', 'assignedToUserId'];
+            applyDynamicFilters(actQuery, 'act', validActCols);
 
             if (groupBy) {
                 const aggregated = await actQuery
