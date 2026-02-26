@@ -100,39 +100,108 @@ export class OppurtunityController {
     const copiedObject = { ...request.body };
     try {
       const payload = request.body as Oppurtunity;
-      const opportunity = await AppDataSource.transaction(
-        async (transactionEntityManager) => {
-          const opportunity = await oppurtunityServices.createOppurtunity(
-            payload,
-            request.user,
-            transactionEntityManager
-          );
-          return opportunity;
-        }
-      );
 
-      if (!opportunity) {
+      // Extract bank IDs from the incoming payload
+      const rawBanks: string[] = Array.isArray(payload.banks)
+        ? (payload.banks as any[]).map((b: any) =>
+          typeof b === "string" ? b : b?.bankId
+        ).filter(Boolean)
+        : [];
+
+      let createdOpportunities: Oppurtunity[] = [];
+
+      if (rawBanks.length > 1) {
+        // ── Multi-bank: create one proposal per bank ─────────────────────
+        for (let i = 0; i < rawBanks.length; i++) {
+          const bankId = rawBanks[i];
+          const isPrimary = i === 0; // first bank = primary
+
+          const opp = await AppDataSource.transaction(
+            async (transactionEntityManager) => {
+              return oppurtunityServices.createOppurtunity(
+                { ...payload } as Oppurtunity,
+                request.user,
+                transactionEntityManager,
+                bankId,
+                isPrimary
+              );
+            }
+          );
+          createdOpportunities.push(opp);
+        }
+
+        // Link all created proposals into one group (outside individual
+        // per-bank transactions — they are already committed at this point)
+        const group = await AppDataSource.transaction(
+          async (transactionEntityManager) => {
+            return oppurtunityServices.createProposalGroup(
+              createdOpportunities,
+              request.user.organizationId ?? "",
+              transactionEntityManager
+            );
+          }
+        );
+
+        // Fire post-create tasks for all proposals
+        for (const opp of createdOpportunities) {
+          oppurtunityServices
+            .postCreateOpportunityTasks(opp, request.user)
+            .catch((err) =>
+              console.error(
+                "[OPPORTUNITY_CONTROLLER] Post-create task error:",
+                err
+              )
+            );
+        }
+
         return makeResponse(
           response,
-          400,
-          false,
-          "Fail to create opportunity",
-          null
+          201,
+          true,
+          "Opportunities created successfully",
+          { opportunities: createdOpportunities, proposalGroupId: group.proposalGroupId }
+        );
+      } else {
+        // ── Single bank (or no bank): original flow ───────────────────────
+        const opportunity = await AppDataSource.transaction(
+          async (transactionEntityManager) => {
+            return oppurtunityServices.createOppurtunity(
+              payload,
+              request.user,
+              transactionEntityManager
+            );
+          }
+        );
+
+        if (!opportunity) {
+          return makeResponse(
+            response,
+            400,
+            false,
+            "Fail to create opportunity",
+            null
+          );
+        }
+
+        // Run post-create tasks (activity plan auto-assignment) AFTER the transaction
+        // commits to avoid MySQL lock wait timeout caused by nested DB connections.
+        oppurtunityServices
+          .postCreateOpportunityTasks(opportunity, request.user)
+          .catch((err) =>
+            console.error(
+              "[OPPORTUNITY_CONTROLLER] Post-create task error:",
+              err
+            )
+          );
+
+        return makeResponse(
+          response,
+          201,
+          true,
+          "Opportunity created successfully",
+          opportunity
         );
       }
-
-      // Run post-create tasks (activity plan auto-assignment) AFTER the transaction
-      // commits to avoid MySQL lock wait timeout caused by nested DB connections.
-      oppurtunityServices.postCreateOpportunityTasks(opportunity, request.user)
-        .catch(err => console.error('[OPPORTUNITY_CONTROLLER] Post-create task error:', err));
-
-      return makeResponse(
-        response,
-        201,
-        true,
-        "Opportunity created successfully",
-        opportunity
-      );
     } catch (error) {
       let errorMessage = error.message;
       if (errorMessage.includes("Duplicate entry")) {

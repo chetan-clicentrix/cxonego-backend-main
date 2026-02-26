@@ -69,7 +69,8 @@ class DocumentRequirementService {
                 const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
                     bank.bankId,
                     opportunity.applicantType,
-                    user.organizationId
+                    user.organizationId,
+                    opportunity.loanType
                 );
                 bankDocs.forEach(doc => currentDocumentNamesSet.add(doc));
             }
@@ -119,7 +120,8 @@ class DocumentRequirementService {
             const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
                 bank.bankId,
                 opportunity.applicantType,
-                user.organizationId
+                user.organizationId,
+                opportunity.loanType
             );
 
             if (bankDocs && bankDocs.length > 0) {

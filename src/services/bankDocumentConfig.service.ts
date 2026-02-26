@@ -47,15 +47,25 @@ class BankDocumentConfigService {
     async getDocumentsByBankAndType(
         bankId: string,
         applicantType: ApplicantType,
-        organizationId: string
+        organizationId: string,
+        loanType?: string
     ): Promise<string[]> {
         const configRepo = AppDataSource.getRepository(BankDocumentConfig);
+
+        const whereClause: any = {
+            bank: { bankId: bankId },
+            applicantType: applicantType,
+            organization: { organisationId: organizationId }
+        };
+
+        // If a specific loan type is requested, filter by it
+        // Otherwise it will just match the first config for this bank & applicant type
+        if (loanType) {
+            whereClause.loanType = loanType;
+        }
+
         const config = await configRepo.findOne({
-            where: {
-                bank: { bankId: bankId },
-                applicantType: applicantType,
-                organization: { organisationId: organizationId }
-            }
+            where: whereClause
         });
 
         return config ? config.requiredDocuments : [];

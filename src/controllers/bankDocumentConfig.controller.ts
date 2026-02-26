@@ -103,6 +103,7 @@ class BankDocumentConfigController {
     async updateConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
+
             const config = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
                     const config = await bankDocConfigService.updateConfig(

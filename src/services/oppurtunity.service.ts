@@ -34,6 +34,8 @@ import { ActivityPlanService } from "./activityPlan.service";
 import { Audit } from "../entity/Audit";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
+import { ProposalGroup } from "../entity/ProposalGroup";
+import { v4 as uuidv4 } from "uuid";
 
 class opportunityService {
   private activityPlanService = new ActivityPlanService();
@@ -409,10 +411,23 @@ class opportunityService {
     });
     return oppurtunity ? true : false;
   }
+  /**
+   * Create a single opportunity for ONE bank.
+   * The controller calls this once per bank, then calls createProposalGroup
+   * afterwards if multiple banks were selected.
+   *
+   * @param payload      - opportunity fields from request body
+   * @param singleBankId - the bankId this proposal is for (already resolved from the loop)
+   * @param isPrimary    - true for the first bank in the list
+   * @param user         - authenticated user
+   * @param tem          - transaction entity manager
+   */
   async createOppurtunity(
     payload: Oppurtunity,
     user: userInfo,
-    transactionEntityManager: EntityManager
+    transactionEntityManager: EntityManager,
+    singleBankId?: string,
+    isPrimary: boolean = false
   ) {
     // Use transactionEntityManager for ALL repos to avoid lock conflicts
     const userRepo = transactionEntityManager.getRepository(User);
@@ -477,10 +492,19 @@ class opportunityService {
       }
     }
 
-    // Handle banks array
-    if (payload.banks && Array.isArray(payload.banks)) {
+    // ── Single-bank assignment ───────────────────────────────────────────
+    // When called from the multi-bank loop, singleBankId is provided.
+    // When called the old single-call way (no singleBankId passed), fall back
+    // to the full banks array on the payload so legacy behaviour is preserved.
+    if (singleBankId) {
       const bankRepo = transactionEntityManager.getRepository(Bank);
-      const bankIds = payload.banks.map(b => typeof b === 'string' ? b : (b as any).bankId).filter(Boolean);
+      const bank = await bankRepo.findOne({ where: { bankId: singleBankId } });
+      if (bank) {
+        payload.banks = [bank];
+      }
+    } else if (payload.banks && Array.isArray(payload.banks)) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bankIds = (payload.banks as any[]).map(b => typeof b === 'string' ? b : b.bankId).filter(Boolean);
       if (bankIds.length > 0) {
         const banks = await bankRepo.findByIds(bankIds);
         if (banks.length > 0) {
@@ -488,10 +512,14 @@ class opportunityService {
         }
       }
     }
+    // ────────────────────────────────────────────────────────────────────
 
     const opportunityInstance = new Oppurtunity({
       ...payload,
       opportunityId: await this.getOpportunityId(new Date()),
+      isPrimary,
+      proposalGroupId: null,   // will be set by createProposalGroup if needed
+      proposalGroup: null,
     } as Oppurtunity);
 
     // Use transactionEntityManager to save — avoids opening a separate connection
@@ -511,6 +539,52 @@ class opportunityService {
     // We return the opportunityId so the controller can trigger it post-commit.
 
     return opportunity;
+  }
+
+  /**
+   * Links a list of opportunities together under one ProposalGroup.
+   * Only called when multiple banks were selected (opportunities.length > 1).
+   * The FIRST opportunity in the list is set as isPrimary = true.
+   */
+  async createProposalGroup(
+    opportunities: Oppurtunity[],
+    organizationId: string,
+    transactionEntityManager: EntityManager
+  ): Promise<ProposalGroup> {
+    const groupRepo = transactionEntityManager.getRepository(ProposalGroup);
+    const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
+
+    const group = new ProposalGroup({
+      proposalGroupId: uuidv4(),
+      organizationId,
+    });
+    const savedGroup = await groupRepo.save(group);
+
+    // Update each opportunity: link to group, mark first as primary
+    for (let i = 0; i < opportunities.length; i++) {
+      await opportunityRepo.update(opportunities[i].opportunityId, {
+        proposalGroupId: savedGroup.proposalGroupId,
+        isPrimary: i === 0,
+      });
+    }
+
+    return savedGroup;
+  }
+
+  /**
+   * Returns all sibling opportunities in the same ProposalGroup,
+   * EXCLUDING the given opportunityId.
+   */
+  async getSiblings(opportunityId: string): Promise<Oppurtunity[]> {
+    const opportunityRepo = AppDataSource.getRepository(Oppurtunity);
+    const opp = await opportunityRepo.findOne({ where: { opportunityId } });
+    if (!opp || !opp.proposalGroupId) return [];
+
+    return opportunityRepo
+      .createQueryBuilder('o')
+      .where('o.proposalGroupId = :groupId', { groupId: opp.proposalGroupId })
+      .andWhere('o.opportunityId != :oppId', { oppId: opportunityId })
+      .getMany();
   }
 
   async postCreateOpportunityTasks(opportunity: Oppurtunity, user: userInfo) {
