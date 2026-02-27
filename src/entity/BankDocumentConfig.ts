@@ -43,7 +43,8 @@ export class BankDocumentConfig extends CustomBaseEntity {
 
     @Column({
         type: "varchar",
-        nullable: true,
+        length: 255,
+        nullable: true, // Allow null for older existing records
     })
     loanType: string;
 
