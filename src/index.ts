@@ -37,6 +37,10 @@ morgan.token("host", function (req: express.Request, _res) {
 
 const app = express();
 
+// Trust the first proxy (Nginx) so express-rate-limit can correctly
+// identify real client IPs from the X-Forwarded-For header.
+app.set("trust proxy", 1);
+
 
 app.use(cookieParser());
 

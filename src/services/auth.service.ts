@@ -137,14 +137,15 @@ class AuthService {
         throw new ResourceNotFoundError("Invalid token provided.");
       }
 
-      const targetUserIndex = adminUser.invitedUsers.findIndex(
-        (user) => user?.id === userId
-      );
-
-      if (targetUserIndex != -1) {
-        adminUser.invitedUsers[targetUserIndex].isBlocked = isBlocked;
+      if (adminUser.invitedUsers) {
+        const targetUserIndex = adminUser.invitedUsers.findIndex(
+          (user) => user?.id === userId
+        );
+        if (targetUserIndex != -1) {
+          adminUser.invitedUsers[targetUserIndex].isBlocked = isBlocked;
+        }
+        await userRepository.save(adminUser);
       }
-      await userRepository.save(adminUser);
       await userRepository.save(currentUser);
       const user = await admin.auth().updateUser(userId, {
         disabled: isBlocked,

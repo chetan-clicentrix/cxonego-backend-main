@@ -316,11 +316,40 @@ class UserServices {
           );
         }
       }
+
+      const isAdmin = user.roles?.some((r) => r.roleName === roleNames.ADMIN);
+      if (isAdmin && (!user.invitedUsers || user.invitedUsers.length === 0)) {
+        const orgId = user.organisation?.organisationId;
+        if (orgId) {
+          const orgMembers = await AppDataSource.getRepository(User)
+            .createQueryBuilder("u")
+            .leftJoinAndSelect("u.roles", "role")
+            .where("u.organisationOrganisationId = :orgId", { orgId })
+            .andWhere("u.userId != :userId", { userId })
+            .select(["u.userId", "u.email", "u.firstName", "u.lastName", "role.roleName"])
+            .getMany();
+
+          user.invitedUsers = [];
+          for (const member of orgMembers) {
+            const decryptedMember = await userDecryption(member as User);
+            user.invitedUsers.push({
+              id: member.userId,
+              name: `${decryptedMember.firstName || ""} ${decryptedMember.lastName || ""}`.trim() || "N/A",
+              email: decrypt(member.email) || member.email,
+              role: member.roles?.[0]?.roleName || "SALESPERSON",
+              onboardingStatus: "ONBOARDED",
+              isBlocked: member.isBlocked || false,
+            });
+          }
+        }
+      }
+
       return user;
     } catch (error) {
       return;
     }
   }
+
   async getUsers(request: Request) {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
@@ -733,14 +762,12 @@ class UserServices {
       try {
         await userRepository.save(newUser);
       } catch (dbError: any) {
-        // Rollback: delete Firebase user if database save fails
         await admin.auth().deleteUser(firebaseUser.uid);
         throw new Error(`Database error: ${dbError.message}`);
       }
 
-      // 6. Update admin's invitedUsers array
       adminUser.invitedUsers = adminUser.invitedUsers || [];
-      adminUser.invitedUsers.push({
+      const newUserEntry = {
         id: firebaseUser.uid,
         name:
           payload.firstName && payload.lastName
@@ -748,9 +775,10 @@ class UserServices {
             : "N/A",
         email: payload.email,
         role: payload.role,
-        onboardingStatus: "ONBOARDED", // Directly onboarded
+        onboardingStatus: "ONBOARDED",
         isBlocked: false,
-      });
+      };
+      adminUser.invitedUsers.push(newUserEntry);
 
       await userRepository.save(adminUser);
 
@@ -951,14 +979,18 @@ class UserServices {
       if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
         throw new ValidationFailedError("Only Admin can update user role");
       }
-      const targetUserIndex = adminUser.invitedUsers.findIndex((user) => {
-        if (user.id === userId) {
-          return user;
-        }
-      });
 
-      if (targetUserIndex !== -1) {
-        adminUser.invitedUsers[targetUserIndex].role = role;
+      if (adminUser.invitedUsers) {
+        const targetUserIndex = adminUser.invitedUsers.findIndex((user) => {
+          if (user.id === userId) {
+            return user;
+          }
+        });
+
+        if (targetUserIndex !== -1) {
+          adminUser.invitedUsers[targetUserIndex].role = role;
+          await userRepository.save(adminUser);
+        }
       }
 
       const userInstance = await userRepository.findOneBy({ userId });
@@ -973,7 +1005,6 @@ class UserServices {
 
       userInstance.roles = [roleInstance];
       await userRepository.save(userInstance);
-      await userRepository.save(adminUser);
       return;
     }
   };
@@ -1015,7 +1046,7 @@ class UserServices {
       userId: userInfo.userId,
     });
 
-    if (adminUser) {
+    if (adminUser && adminUser.invitedUsers) {
       adminUser.invitedUsers = adminUser.invitedUsers.filter(
         (user) => user.id != userId
       );
@@ -1093,7 +1124,7 @@ class UserServices {
 
     if (admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
 
-    const isInvitationValid = admin.invitedUsers.some(cur => cur.email === userEmail);
+    const isInvitationValid = admin.invitedUsers?.some(cur => cur.email === userEmail) ?? false;
     return isInvitationValid;
   }
 }
