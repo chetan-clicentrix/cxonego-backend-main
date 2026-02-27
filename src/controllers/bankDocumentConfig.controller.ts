@@ -20,7 +20,12 @@ class BankDocumentConfigController {
     async getConfigsByBank(request: AuthenticatedRequest, response: Response) {
         try {
             const { bankId } = request.params;
-            const configs = await bankDocConfigService.getConfigsByBank(bankId, request.user);
+            const { loanType } = request.query;
+            const configs = await bankDocConfigService.getConfigsByBank(
+                bankId,
+                request.user,
+                loanType as string | undefined
+            );
             return makeResponse(response, 200, true, "Bank configurations", configs);
         } catch (error: any) {
             errorHandler(response, error.message);
@@ -29,7 +34,7 @@ class BankDocumentConfigController {
 
     async getDocuments(request: AuthenticatedRequest, response: Response) {
         try {
-            const { bankId, applicantType, loanType } = request.query;
+            const { bankId, applicantType } = request.query;
 
             if (!bankId || !applicantType) {
                 return makeResponse(response, 400, false, "Bank ID and Applicant Type are required", null);
@@ -38,7 +43,6 @@ class BankDocumentConfigController {
             const documents = await bankDocConfigService.getDocumentsByBankAndType(
                 bankId as string,
                 applicantType as any,
-                (loanType as string) || null,
                 request.user.organizationId || ""
             );
 
@@ -104,6 +108,7 @@ class BankDocumentConfigController {
     async updateConfig(request: AuthenticatedRequest, response: Response) {
         try {
             const { configId } = request.params;
+
             const config = await AppDataSource.transaction(
                 async (transactionEntityManager) => {
                     const config = await bankDocConfigService.updateConfig(
@@ -181,10 +186,10 @@ class BankDocumentConfigController {
                     const config = await bankDocConfigService.cloneConfig(
                         sourceBankId,
                         sourceApplicantType,
-                        sourceLoanType || null,
+                        sourceLoanType,
                         targetBankId,
                         targetApplicantType,
-                        targetLoanType || null,
+                        targetLoanType,
                         request.user,
                         transactionEntityManager
                     );
@@ -206,7 +211,7 @@ class BankDocumentConfigController {
 
     async bulkClone(request: AuthenticatedRequest, response: Response) {
         try {
-            const { sourceBankId, targetBankId, applicantTypes } = request.body;
+            const { sourceBankId, sourceLoanType, targetBankId, targetLoanType, applicantTypes } = request.body;
 
             if (!sourceBankId || !targetBankId || !applicantTypes || !Array.isArray(applicantTypes)) {
                 return makeResponse(
@@ -222,7 +227,9 @@ class BankDocumentConfigController {
                 async (transactionEntityManager) => {
                     const results = await bankDocConfigService.bulkCloneConfigs(
                         sourceBankId,
+                        sourceLoanType,
                         targetBankId,
+                        targetLoanType,
                         applicantTypes,
                         request.user,
                         transactionEntityManager

@@ -2,7 +2,7 @@ import { AppDataSource } from "../data-source";
 import { BankDocumentConfig } from "../entity/BankDocumentConfig";
 import { Bank } from "../entity/Bank";
 import { userInfo } from "../interfaces/types";
-import { EntityManager } from "typeorm";
+import { EntityManager, IsNull } from "typeorm";
 import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import { ApplicantType } from "../common/utils";
 import { v4 as uuidv4 } from "uuid";
@@ -26,18 +26,26 @@ class BankDocumentConfigService {
         return configs;
     }
 
-    async getConfigsByBank(bankId: string, userInfo: userInfo) {
+    async getConfigsByBank(bankId: string, userInfo: userInfo, loanTypeFilter?: string) {
         if (!userInfo.organizationId) {
             throw new ValidationFailedError("Organization ID is required");
         }
 
         const configRepo = AppDataSource.getRepository(BankDocumentConfig);
+
+        const whereClause: any = {
+            bank: { bankId: bankId },
+            organization: { organisationId: userInfo.organizationId }
+        };
+
+        if (loanTypeFilter) {
+            whereClause.loanType = loanTypeFilter;
+        }
+
         const configs = await configRepo.find({
-            where: {
-                bank: { bankId: bankId },
-                organization: { organisationId: userInfo.organizationId }
-            },
+            where: whereClause,
             order: {
+                loanType: "ASC",
                 applicantType: "ASC"
             }
         });
@@ -47,22 +55,21 @@ class BankDocumentConfigService {
     async getDocumentsByBankAndType(
         bankId: string,
         applicantType: ApplicantType,
-        loanType: string | null,
-        organizationId: string
+        organizationId: string,
+        loanType?: string
     ): Promise<string[]> {
         const configRepo = AppDataSource.getRepository(BankDocumentConfig);
+
         const whereClause: any = {
             bank: { bankId: bankId },
             applicantType: applicantType,
             organization: { organisationId: organizationId }
         };
 
-        // Add loanType if provided, otherwise check for null
+        // If a specific loan type is requested, filter by it
+        // Otherwise it will just match the first config for this bank & applicant type
         if (loanType) {
             whereClause.loanType = loanType;
-        } else {
-            // whereClause.loanType = IsNull(); // Needs import, using simple null
-            whereClause.loanType = null;
         }
 
         const config = await configRepo.findOne({
@@ -84,20 +91,13 @@ class BankDocumentConfigService {
         const configRepo = transactionEntityManager.getRepository(BankDocumentConfig);
 
         // Check if config already exists
-        const whereClause: any = {
-            bank: { bankId: payload.bank?.bankId },
-            applicantType: payload.applicantType,
-            organization: { organisationId: user.organizationId }
-        };
-
-        if (payload.loanType) {
-            whereClause.loanType = payload.loanType;
-        } else {
-            whereClause.loanType = null;
-        }
-
         const existingConfig = await configRepo.findOne({
-            where: whereClause
+            where: {
+                bank: { bankId: payload.bank?.bankId },
+                applicantType: payload.applicantType,
+                loanType: payload.loanType || IsNull(),
+                organization: { organisationId: user.organizationId }
+            }
         });
 
         if (existingConfig) {
@@ -196,10 +196,10 @@ class BankDocumentConfigService {
     async cloneConfig(
         sourceBankId: string,
         sourceApplicantType: ApplicantType,
-        sourceLoanType: string | null,
+        sourceLoanType: string | undefined,
         targetBankId: string,
         targetApplicantType: ApplicantType,
-        targetLoanType: string | null,
+        targetLoanType: string | undefined,
         user: userInfo,
         transactionEntityManager: EntityManager
     ) {
@@ -211,19 +211,13 @@ class BankDocumentConfigService {
         const bankRepo = transactionEntityManager.getRepository(Bank);
 
         // 1. Validate source exists
-        const sourceWhereClause: any = {
-            bank: { bankId: sourceBankId },
-            applicantType: sourceApplicantType,
-            organization: { organisationId: user.organizationId }
-        };
-        if (sourceLoanType) {
-            sourceWhereClause.loanType = sourceLoanType;
-        } else {
-            sourceWhereClause.loanType = null;
-        }
-
         const sourceConfig = await configRepo.findOne({
-            where: sourceWhereClause
+            where: {
+                bank: { bankId: sourceBankId },
+                applicantType: sourceApplicantType,
+                loanType: sourceLoanType || IsNull(),
+                organization: { organisationId: user.organizationId }
+            }
         });
 
         if (!sourceConfig) {
@@ -231,19 +225,13 @@ class BankDocumentConfigService {
         }
 
         // 2. Check if target already exists
-        const targetWhereClause: any = {
-            bank: { bankId: targetBankId },
-            applicantType: targetApplicantType,
-            organization: { organisationId: user.organizationId }
-        };
-        if (targetLoanType) {
-            targetWhereClause.loanType = targetLoanType;
-        } else {
-            targetWhereClause.loanType = null;
-        }
-
         const existingTarget = await configRepo.findOne({
-            where: targetWhereClause
+            where: {
+                bank: { bankId: targetBankId },
+                applicantType: targetApplicantType,
+                loanType: targetLoanType || IsNull(),
+                organization: { organisationId: user.organizationId }
+            }
         });
 
         if (existingTarget) {
@@ -282,7 +270,9 @@ class BankDocumentConfigService {
 
     async bulkCloneConfigs(
         sourceBankId: string,
+        sourceLoanType: string | undefined,
         targetBankId: string,
+        targetLoanType: string | undefined,
         applicantTypes: ApplicantType[],
         user: userInfo,
         transactionEntityManager: EntityManager
@@ -295,15 +285,13 @@ class BankDocumentConfigService {
 
         for (const applicantType of applicantTypes) {
             try {
-                // Warning: Bulk clone currently doesn't map loanType correctly if it's dynamic per array.
-                // You'd need a more complex array if bulk clone should support distinct loan types.
                 await this.cloneConfig(
                     sourceBankId,
                     applicantType,
-                    null, // Pass null as default for bulk clone
+                    sourceLoanType,
                     targetBankId,
                     applicantType,
-                    null, // Pass null as default for bulk clone
+                    targetLoanType,
                     user,
                     transactionEntityManager
                 );

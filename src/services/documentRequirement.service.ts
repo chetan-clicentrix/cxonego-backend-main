@@ -25,13 +25,13 @@ class DocumentRequirementService {
         const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
         const requirementRepo = transactionEntityManager.getRepository(DocumentRequirement);
 
-        // Get opportunity with bank details and batch details
+        // Get opportunity with bank details (eager loading should handle this)
         const opportunity = await opportunityRepo.findOne({
             where: {
                 opportunityId,
                 organization: { organisationId: user.organizationId },
             },
-            relations: ["banks", "batch", "batch.opportunities", "batch.opportunities.banks"], // Load batch and sibling opportunities
+            relations: ["banks"], // Explicitly load banks relation
         });
 
         if (!opportunity) {
@@ -44,61 +44,32 @@ class DocumentRequirementService {
             applicantType: opportunity.applicantType,
         });
 
-        // Gather all combinations from the batch (or just this opportunity)
-        let combinations: { bankId: string; applicantType: string; loanType: string | null }[] = [];
-        let allBanks: any[] = [];
-
-        if (opportunity.batch && opportunity.batch.batchId) {
-            // Eagerly query all opportunities in the same batch to ensure we have the most up-to-date list
-            const batchOpportunities = await opportunityRepo.find({
-                where: { batch: { batchId: opportunity.batch.batchId } },
+        // 1. Gather all banks from all siblings if this is a grouped proposal
+        let allBanks = opportunity.banks || [];
+        if (opportunity.proposalGroupId) {
+            const siblings = await opportunityRepo.find({
+                where: {
+                    proposalGroupId: opportunity.proposalGroupId,
+                    organization: { organisationId: user.organizationId }
+                },
                 relations: ["banks"]
             });
 
-            batchOpportunities.forEach(opp => {
-                if (opp.banks && opp.applicantType) {
-                    opp.banks.forEach(b => {
-                        combinations.push({
-                            bankId: b.bankId,
-                            applicantType: opp.applicantType,
-                            loanType: opp.loanType || null,
-                        });
-                        allBanks.push(b);
-                    });
+            const bankMap = new Map<string, any>();
+            for (const opp of siblings) {
+                if (opp.banks) {
+                    opp.banks.forEach(b => bankMap.set(b.bankId, b));
                 }
-            });
-
-            const uniqueCombos = new Map();
-            combinations.forEach(c => uniqueCombos.set(`${c.bankId}-${c.applicantType}-${c.loanType}`, c));
-            combinations = Array.from(uniqueCombos.values());
-
-            // Deduplicate bank array by ID for legacy code mapping
-            const bankMap = new Map();
-            allBanks.forEach(b => bankMap.set(b.bankId, b));
-            allBanks = Array.from(bankMap.values());
-        } else {
-            if (opportunity.banks && opportunity.applicantType) {
-                opportunity.banks.forEach(b => {
-                    combinations.push({
-                        bankId: b.bankId,
-                        applicantType: opportunity.applicantType,
-                        loanType: opportunity.loanType || null,
-                    });
-                    allBanks.push(b);
-                });
             }
+            allBanks = Array.from(bankMap.values());
         }
 
-        // Check if combinations are set
-        if (combinations.length === 0) {
-            console.log("No combinations found. allBanks: ", allBanks.length, opportunity.banks?.length);
+        // Check if banks and applicant type are set
+        if (allBanks.length === 0 || !opportunity.applicantType) {
             throw new ValidationFailedError(
                 "Opportunity must have at least one bank and applicant type configured"
             );
         }
-
-        console.log("Final Combinations for Document Generation:");
-        console.log(JSON.stringify(combinations, null, 2));
 
         // Check if requirements already exist for this opportunity
         const existingRequirements = await requirementRepo.find({
@@ -111,27 +82,31 @@ class DocumentRequirementService {
             );
 
             // Fetch the documents that SHOULD exist for current bank/applicant type
-            // Collect documents from all banks and deduplicate
-            const currentDocumentNamesSet = new Set<string>();
+            // Collect documents from all banks and append bank name if needed
+            const currentDocumentNamesList: string[] = [];
 
-            for (const combo of combinations) {
+            for (const bank of allBanks) {
                 const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
-                    combo.bankId,
-                    combo.applicantType as any,
-                    combo.loanType,
-                    user.organizationId
+                    bank.bankId,
+                    opportunity.applicantType,
+                    user.organizationId,
+                    opportunity.loanType
                 );
-                bankDocs.forEach(doc => currentDocumentNamesSet.add(doc));
-            }
 
-            const currentDocumentNames = Array.from(currentDocumentNamesSet);
+                bankDocs.forEach(doc => {
+                    const finalDocName = doc;
+                    if (!currentDocumentNamesList.includes(finalDocName)) {
+                        currentDocumentNamesList.push(finalDocName);
+                    }
+                });
+            }
 
             // Check if the existing requirements match the current configuration
             // Compare by checking if document names match
             const existingDocNames = existingRequirements
                 .map(req => req.documentName)
                 .sort();
-            const currentDocNames = currentDocumentNames.sort();
+            const currentDocNames = currentDocumentNamesList.sort();
 
             const hasChanged =
                 existingDocNames.length !== currentDocNames.length ||
@@ -159,36 +134,33 @@ class DocumentRequirementService {
         console.log("Fetching documents for:", {
             banks: allBanks.map(b => b.name),
             applicantType: opportunity.applicantType,
-            loanType: opportunity.loanType,
             organizationId: user.organizationId,
         });
 
-        console.log("Fetching documents for combinations:", JSON.stringify(combinations, null, 2));
+        // Collect documents from all banks
+        const documentNamesList: string[] = [];
 
-        // Collect documents from all banks and deduplicate
-        const uniqueDocumentNames = new Set<string>();
-
-        for (const combo of combinations) {
-            console.log(`Calling getDocumentsByBankAndType -> Bank: ${combo.bankId}, AppType: ${combo.applicantType}, LoanType: ${combo.loanType}, Org: ${user.organizationId}`);
+        for (const bank of allBanks) {
             const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
-                combo.bankId,
-                combo.applicantType as any,
-                combo.loanType,
-                user.organizationId
+                bank.bankId,
+                opportunity.applicantType,
+                user.organizationId,
+                opportunity.loanType
             );
 
-            console.log(`Result from DB for Bank ${combo.bankId}:`, bankDocs);
-
             if (bankDocs && bankDocs.length > 0) {
-                bankDocs.forEach(doc => uniqueDocumentNames.add(doc));
+                bankDocs.forEach(doc => {
+                    const finalDocName = doc;
+                    if (!documentNamesList.includes(finalDocName)) {
+                        documentNamesList.push(finalDocName);
+                    }
+                });
             }
         }
 
-        const documentNames = Array.from(uniqueDocumentNames);
+        console.log("Found documents:", documentNamesList);
 
-        console.log("Found documents:", documentNames);
-
-        if (!documentNames || documentNames.length === 0) {
+        if (!documentNamesList || documentNamesList.length === 0) {
             throw new ValidationFailedError(
                 "No document configuration found for this bank and applicant type"
             );
@@ -196,8 +168,9 @@ class DocumentRequirementService {
 
         // Create requirements
         const requirements: DocumentRequirement[] = [];
-        for (let i = 0; i < documentNames.length; i++) {
-            const docName = documentNames[i];
+        for (let i = 0; i < documentNamesList.length; i++) {
+            const docName = documentNamesList[i];
+
             const requirement = new DocumentRequirement({
                 requirementId: uuidv4(),
                 opportunityId,

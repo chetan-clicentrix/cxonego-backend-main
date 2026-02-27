@@ -11,17 +11,14 @@ export const BankDocumentConfigSchema = z.object({
         bankId: z.string()
     }),
     applicantType: z.nativeEnum(ApplicantType),
-    loanType: z.string().optional().nullable(),
     requiredDocuments: z.array(z.string()).min(1, "At least one document is required")
 });
 
 export const CloneConfigSchema = z.object({
     sourceBankId: z.string(),
     sourceApplicantType: z.nativeEnum(ApplicantType),
-    sourceLoanType: z.string().optional().nullable(),
     targetBankId: z.string(),
-    targetApplicantType: z.nativeEnum(ApplicantType),
-    targetLoanType: z.string().optional().nullable()
+    targetApplicantType: z.nativeEnum(ApplicantType)
 });
 
 export const BulkCloneConfigSchema = z.object({
