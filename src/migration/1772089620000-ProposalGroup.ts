@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class ProposalGroup1772100000000 implements MigrationInterface {
-    name = 'ProposalGroup1772100000000'
+export class ProposalGroup1772089620000 implements MigrationInterface {
+    name = 'ProposalGroup1772089620000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // 1. Create the proposal_group table
