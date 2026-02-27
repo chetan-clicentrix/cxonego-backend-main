@@ -66,7 +66,7 @@ export class Oppurtunity extends CustomBaseEntity {
     forecastCategory: forecastCategory;
 
     @Column({
-        nullable: false,
+        nullable: true,
     })
     estimatedRevenue: string;
 
