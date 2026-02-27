@@ -140,7 +140,7 @@ app.use(
       RegExp("/api/v1/sharepoint/status"),
       RegExp("/api/v1/email-poc/"),
       RegExp("/api/v1/users/invite"),
-      RegExp("/api/v1/users/update"),
+      RegExp("^/api/v1/users/update/"),
       RegExp("/api/v1/health"),
       RegExp("/api/v1/users/role"),
       RegExp("/api/v1/users/isInvitationRevoked"),
