@@ -345,7 +345,7 @@ export class ActivityPlanService {
         }
     }
 
-    async updateActionStatus(actionId: string, status: ActivityPlanActionStatus, remarks: string, user: any, comments?: string) {
+    async updateActionStatus(actionId: string, status: ActivityPlanActionStatus, remarks: string, user: any, comments?: string, actionData?: string) {
         const action = await this.actionRepository.findOne({ where: { actionId }, relations: ["plan"] });
         if (!action) throw new Error("Action not found");
 
@@ -362,6 +362,7 @@ export class ActivityPlanService {
         }
 
         if (remarks) action.remarks = remarks;
+        if (actionData) action.actionData = actionData; // Save the user-submitted form data
         action.modifiedBy = user.userId;
 
         // Capture the decrypted stage name BEFORE save() encrypts it again

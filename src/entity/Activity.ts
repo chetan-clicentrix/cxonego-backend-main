@@ -91,7 +91,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => Account, (Account) => Account.activity, {
         // onDelete:"CASCADE",
         onUpdate: "CASCADE",
-        eager: true
     })
     @JoinColumn({ name: "accountId" })
     company: Account;
@@ -99,7 +98,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => Contact, (Contact) => Contact.activity, {
         // onDelete:"CASCADE",
         onUpdate: "CASCADE",
-        eager: true
     })
     @JoinColumn({ name: "contactId" })
     contact: Contact;
@@ -107,7 +105,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => Lead, (Lead) => Lead.activity, {
         // onDelete:"CASCADE",
         onUpdate: "CASCADE",
-        eager: true
     })
     @JoinColumn({ name: "leadId" })
     lead: Lead;
@@ -115,7 +112,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => Oppurtunity, (Oppurtunity) => Oppurtunity.activity, {
         // onDelete:"CASCADE",
         onUpdate: "CASCADE",
-        eager: true
     })
     @JoinColumn({ name: "opportunityId" })
     // oppurtunity :Oppurtunity;
@@ -124,7 +120,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => User, (User) => User.activity, {
         // onDelete:"CASCADE",
         onUpdate: "CASCADE",
-        eager: true
     })
     @JoinColumn({ name: "ownerId" })
     owner: User;
@@ -141,7 +136,6 @@ export class Activity extends CustomBaseEntity {
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
         nullable: true,
-        eager: true
     })
     @JoinColumn({ name: "organizationId" })
     organization: Organisation;
@@ -155,7 +149,6 @@ export class Activity extends CustomBaseEntity {
     @ManyToOne(() => Case, (caseItem) => caseItem.activities, {
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
-        eager: true,
         nullable: true
     })
     @JoinColumn({ name: "caseId" })
