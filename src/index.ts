@@ -41,6 +41,11 @@ const app = express();
 // identify real client IPs from the X-Forwarded-For header.
 app.set("trust proxy", 1);
 
+// Disable ETags — this is a REST API server; all responses are dynamic.
+// Without this, Express returns 304 Not Modified for GET requests that
+// haven't changed, causing the browser to serve stale cached data.
+app.set("etag", false);
+
 
 app.use(cookieParser());
 
