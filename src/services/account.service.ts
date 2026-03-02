@@ -164,9 +164,11 @@ class AccountServices {
 
       const accounts = await accountsRepo.getMany();
 
-      for (let account of accounts) {
-        account = await accountDecryption(account);
-        if (account.owner) account.owner = await userDecryption(account.owner);
+      for (let i = 0; i < accounts.length; i++) {
+        accounts[i] = await accountDecryption(accounts[i]);
+        if (accounts[i].owner) {
+          accounts[i].owner = await userDecryption(accounts[i].owner);
+        }
       }
       let searchedData: Account[] = [];
       let skip = 0;

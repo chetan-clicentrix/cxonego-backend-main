@@ -44,7 +44,17 @@ class UploadSessionService {
             throw new ResourceNotFoundError("Opportunity not found");
         }
 
-        // Check if active session already exists and expire it so new requirements are generated
+        // ── Proposal group guard ─────────────────────────────────────────
+        // When an opportunity is part of a multi-bank group, only the primary
+        // proposal can generate a customer upload link.
+        if (opportunity.proposalGroupId && !opportunity.isPrimary) {
+            throw new ValidationFailedError(
+                "Generate Link is only available on the primary proposal of a group. Please use the primary bank's proposal."
+            );
+        }
+        // ────────────────────────────────────────────────────────────────
+
+        // Check if active session already exists
         const existingSession = await sessionRepo.findOne({
             where: {
                 opportunityId,

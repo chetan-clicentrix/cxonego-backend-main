@@ -6,7 +6,7 @@ export const OpportunitySchema = z.object({
     purchaseTimeFrame: z.enum(["1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const).nullable().optional(),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
-    estimatedRevenue: z.string(),
+    estimatedRevenue: z.string().nullable().optional(),
     actualRevenue: z.string().nullable().optional(),
     estimatedCloseDate: z.string(),
     actualCloseDate: z.string().nullable().optional(),
@@ -44,7 +44,7 @@ export const OpportunitySchemaWithDate = z.object({
     purchaseTimeFrame: z.enum(["1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
-    estimatedRevenue: z.string(),
+    estimatedRevenue: z.string().nullable().optional(),
     actualRevenue: z.string(),//front end ne number pathvat ahe string thvele tar chalty ka?
     estimatedCloseDate: z.date(),
     actualCloseDate: z.date(),
@@ -66,7 +66,7 @@ export const OpportunityUpdateSchema = z.object({
     purchaseTimeFrame: z.enum(["1-2 days", "2-5 days", "5-10 days", "10-15 days", "15-20 days", "20-25 days", "25-30 days", "1-1.5 months"] as const),
     purchaseProcess: z.enum(["Individual", "Committee"] as const),
     forecastCategory: z.enum(["Pipeline", "Best Case", "Committed", "Omitted", "Won", "Lost"] as const),
-    estimatedRevenue: z.string(),
+    estimatedRevenue: z.string().nullable().optional(),
     actualRevenue: z.string(),//front end ne number pathvat ahe string thvele tar chalty ka?
     estimatedCloseDate: z.string(),
     actualCloseDate: z.string(),

@@ -12,6 +12,7 @@ import { Organisation } from "./Organisation";
 import { SharePointDocument } from "./SharePointDocument";
 import { encrypt } from "typeorm-encrypted";
 import { ActivityPlan } from "./ActivityPlan";
+import { ProposalGroup } from "./ProposalGroup";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -65,7 +66,7 @@ export class Oppurtunity extends CustomBaseEntity {
     forecastCategory: forecastCategory;
 
     @Column({
-        nullable: false,
+        nullable: true,
     })
     estimatedRevenue: string;
 
@@ -149,8 +150,8 @@ export class Oppurtunity extends CustomBaseEntity {
     @Column({ length: 2500, nullable: true })
     wonLostDescription: string;
 
-    @OneToOne(() => Lead)
-    @JoinColumn()
+    @ManyToOne(() => Lead)
+    @JoinColumn({ name: "leadLeadId" })
     Lead: Lead;
 
     @ManyToOne(() => Account, (Account) => Account.oppurtunities, {
@@ -202,6 +203,22 @@ export class Oppurtunity extends CustomBaseEntity {
 
     @OneToMany(() => ActivityPlan, (plan) => plan.opportunity)
     activityPlans: ActivityPlan[];
+
+    // ─── Proposal Group (for multi-bank submissions) ─────────────────
+    @Column({ type: "varchar", length: 36, nullable: true })
+    proposalGroupId: string | null;
+
+    @ManyToOne(() => ProposalGroup, (pg) => pg.opportunities, {
+        nullable: true,
+        onDelete: "SET NULL",
+        onUpdate: "CASCADE",
+    })
+    @JoinColumn({ name: "proposalGroupId" })
+    proposalGroup: ProposalGroup | null;
+
+    @Column({ type: "boolean", default: false })
+    isPrimary: boolean;
+    // ─────────────────────────────────────────────────────────────────
 
     @ManyToMany(() => Bank, { nullable: true, eager: true })
     @JoinTable({

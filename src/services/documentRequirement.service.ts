@@ -44,8 +44,28 @@ class DocumentRequirementService {
             applicantType: opportunity.applicantType,
         });
 
+        // 1. Gather all banks from all siblings if this is a grouped proposal
+        let allBanks = opportunity.banks || [];
+        if (opportunity.proposalGroupId) {
+            const siblings = await opportunityRepo.find({
+                where: {
+                    proposalGroupId: opportunity.proposalGroupId,
+                    organization: { organisationId: user.organizationId }
+                },
+                relations: ["banks"]
+            });
+
+            const bankMap = new Map<string, any>();
+            for (const opp of siblings) {
+                if (opp.banks) {
+                    opp.banks.forEach(b => bankMap.set(b.bankId, b));
+                }
+            }
+            allBanks = Array.from(bankMap.values());
+        }
+
         // Check if banks and applicant type are set
-        if (!opportunity.banks || opportunity.banks.length === 0 || !opportunity.applicantType) {
+        if (allBanks.length === 0 || !opportunity.applicantType) {
             throw new ValidationFailedError(
                 "Opportunity must have at least one bank and applicant type configured"
             );
@@ -60,7 +80,50 @@ class DocumentRequirementService {
             // Always drop existing requirements to ensure it picks up changes 
             // from new banks properly
             console.log(
-                `Requirements already exist for opportunity ${opportunityId}. Deleting old requirements and creating new ones based on current banks.`
+                `Requirements already exist for opportunity ${opportunityId}. Checking if bank/applicant type changed.`
+            );
+
+            // Fetch the documents that SHOULD exist for current bank/applicant type
+            // Collect documents from all banks and append bank name if needed
+            const currentDocumentNamesList: string[] = [];
+
+            for (const bank of allBanks) {
+                const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
+                    bank.bankId,
+                    opportunity.applicantType,
+                    user.organizationId,
+                    opportunity.loanType
+                );
+
+                bankDocs.forEach(doc => {
+                    const finalDocName = doc;
+                    if (!currentDocumentNamesList.includes(finalDocName)) {
+                        currentDocumentNamesList.push(finalDocName);
+                    }
+                });
+            }
+
+            // Check if the existing requirements match the current configuration
+            // Compare by checking if document names match
+            const existingDocNames = existingRequirements
+                .map(req => req.documentName)
+                .sort();
+            const currentDocNames = currentDocumentNamesList.sort();
+
+            const hasChanged =
+                existingDocNames.length !== currentDocNames.length ||
+                existingDocNames.some((name, index) => name !== currentDocNames[index]);
+
+            if (!hasChanged) {
+                console.log(
+                    `Bank/applicant type unchanged for opportunity ${opportunityId}. Returning existing requirements.`
+                );
+                return existingRequirements;
+            }
+
+            // Configuration has changed - delete old requirements and create new ones
+            console.log(
+                `Bank/applicant type changed for opportunity ${opportunityId}. Deleting old requirements and creating new ones.`
             );
 
             await requirementRepo.remove(existingRequirements);
@@ -69,31 +132,35 @@ class DocumentRequirementService {
 
         // Fetch document list from BankDocumentConfig
         console.log("Fetching documents for:", {
-            banks: opportunity.banks.map(b => b.name),
+            banks: allBanks.map(b => b.name),
             applicantType: opportunity.applicantType,
             organizationId: user.organizationId,
         });
 
-        // Collect documents from all banks and deduplicate
-        const uniqueDocumentNames = new Set<string>();
+        // Collect documents from all banks
+        const documentNamesList: string[] = [];
 
-        for (const bank of opportunity.banks) {
+        for (const bank of allBanks) {
             const bankDocs = await this.bankDocService.getDocumentsByBankAndType(
                 bank.bankId,
                 opportunity.applicantType,
-                user.organizationId
+                user.organizationId,
+                opportunity.loanType
             );
 
             if (bankDocs && bankDocs.length > 0) {
-                bankDocs.forEach(doc => uniqueDocumentNames.add(doc));
+                bankDocs.forEach(doc => {
+                    const finalDocName = doc;
+                    if (!documentNamesList.includes(finalDocName)) {
+                        documentNamesList.push(finalDocName);
+                    }
+                });
             }
         }
 
-        const documentNames = Array.from(uniqueDocumentNames);
+        console.log("Found documents:", documentNamesList);
 
-        console.log("Found documents:", documentNames);
-
-        if (!documentNames || documentNames.length === 0) {
+        if (!documentNamesList || documentNamesList.length === 0) {
             throw new ValidationFailedError(
                 "No document configuration found for this bank and applicant type"
             );
@@ -101,8 +168,9 @@ class DocumentRequirementService {
 
         // Create requirements
         const requirements: DocumentRequirement[] = [];
-        for (let i = 0; i < documentNames.length; i++) {
-            const docName = documentNames[i];
+        for (let i = 0; i < documentNamesList.length; i++) {
+            const docName = documentNamesList[i];
+
             const requirement = new DocumentRequirement({
                 requirementId: uuidv4(),
                 opportunityId,

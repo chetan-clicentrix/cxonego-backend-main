@@ -44,7 +44,8 @@ import activityPlanRouter from "./activityPlan.routes";
 import activityPlanTemplateRouter from "./activityPlanTemplate.routes";
 import apiKeyRouter from "./apiKey.routes";
 import apiLeadRouter from "./api.lead.routes";
-
+import { mcpRouter } from "../mcp/server";
+import { apiKeyAuth } from "../middlewares/apiKey.middleware";
 const router = Router({ mergeParams: true });
 
 
@@ -88,6 +89,9 @@ router.use("/api-keys", apiKeyRouter);
 // API endpoints for automation (uses API key auth instead of Firebase)
 router.use("/api/lead", apiLeadRouter);
 
+// Model Context Protocol (MCP) Server for AI Agents
+// Uses API Key Auth to establish Identity before SSE connection
+router.use("/api/mcp", apiKeyAuth, mcpRouter);
 // Email Notification Module
 console.log("Registering email notification routes...");
 router.use("/email-notification", emailNotificationRouter);

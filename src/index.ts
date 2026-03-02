@@ -14,6 +14,7 @@ import router from "./routes/router";
 import * as swaggerJSDoc from "swagger-jsdoc";
 import * as swaggerUi from "swagger-ui-express";
 import * as cookieParser from "cookie-parser";
+import * as path from "path";
 import options from "./common/swaggerOptions";
 import { buildResponse } from "./common/utils";
 import { authMiddleware } from "./middlewares/firebase.middleware";
@@ -21,11 +22,11 @@ import * as cron from "./common/cron";
 import rateLimit from "express-rate-limit";
 
 // Start SharePoint upload worker
-import "./workers/sharepointUpload.worker";
+import sharepointUploadWorker from "./workers/sharepointUpload.worker";
 console.log("✓ SharePoint upload worker started");
 
 // Start Email notification worker
-import "./workers/emailNotification.worker";
+import emailNotificationWorker from "./workers/emailNotification.worker";
 console.log("✓ Email notification worker started");
 
 dotenv.config();
@@ -197,9 +198,31 @@ const limiter = rateLimit({
 
 app.use("/api", limiter);
 
+// Serve exported Excel files statically
+app.use("/temp_exports", express.static(path.join(process.cwd(), "temp_exports")));
+
 app.use("/api/v1", router);
 
 app.use(errorMiddleware);
+const gracefulShutdown = async () => {
+  logger.info("Initiating graceful shutdown...");
+  try {
+    if (sharepointUploadWorker) {
+      await sharepointUploadWorker.close();
+    }
+    if (emailNotificationWorker) {
+      await emailNotificationWorker.close();
+    }
+    logger.info("Workers stopped gracefully.");
+    process.exit(0);
+  } catch (error) {
+    logger.error("Error during graceful shutdown", error);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
 
 app.listen(port, async () => {
   logger.info("App Started on port", { port });
