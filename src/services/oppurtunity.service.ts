@@ -34,6 +34,7 @@ import { ActivityPlanService } from "./activityPlan.service";
 import { Audit } from "../entity/Audit";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
+import * as xlsx from "xlsx";
 
 class opportunityService {
   private activityPlanService = new ActivityPlanService();
@@ -1589,6 +1590,90 @@ class opportunityService {
       data: searchData,
     };
     return pagination;
+  }
+
+  async exportOpportunitiesToExcel(
+    userId: string,
+    role: Role[],
+    search: string | undefined,
+    purchaseTimeFrame: string[] | undefined,
+    forecastCategory: string[] | undefined,
+    probability: string[] | undefined,
+    stage: string[] | undefined,
+    status: string[] | undefined,
+    priority: string[] | undefined,
+    purchaseProcess: string[] | undefined,
+    createdAt: string,
+    updatedAt: string,
+    dateRange: DateRangeParamsType,
+    company: string | undefined,
+    contact: string | undefined,
+    organizationId: string | null,
+    view: string | null,
+    excludedColumns?: string[]
+  ) {
+    const result = await this.getAllOppurtunity(
+      userId,
+      role,
+      search,
+      1,
+      1000000,
+      purchaseTimeFrame,
+      forecastCategory,
+      probability,
+      stage,
+      status,
+      priority,
+      purchaseProcess,
+      createdAt,
+      updatedAt,
+      dateRange,
+      company,
+      contact,
+      organizationId,
+      view
+    );
+
+    const opportunities = result.data as Oppurtunity[];
+
+    const dataToExport = opportunities.map((opp) => {
+      const row: any = {
+        "Opportunity ID": opp.opportunityId,
+        "Title": opp.title,
+        "Stage": opp.stage,
+        "Status": opp.status,
+        "Priority": opp.priority,
+        "Loan Type": opp.loanType || "",
+        "Loan Amount": opp.loanAmount || "",
+        "Estimated Revenue": opp.estimatedRevenue || "",
+        "Actual Revenue": opp.actualRevenue || "",
+        "Forecast Category": opp.forecastCategory || "",
+        "Probability": opp.probability || "",
+        "Purchase Time Frame": opp.purchaseTimeFrame || "",
+        "Purchase Process": opp.purchaseProcess || "",
+        "Estimated Close Date": opp.estimatedCloseDate ? new Date(opp.estimatedCloseDate).toLocaleDateString() : "",
+        "Actual Close Date": opp.actualCloseDate ? new Date(opp.actualCloseDate).toLocaleDateString() : "",
+        "Company": opp.company ? (opp.company as any).accountName || "" : "",
+        "Contact": opp.contact ? (opp.contact as any).fullName || "" : "",
+        "Owner": opp.owner ? `${(opp.owner as any).firstName || ""} ${(opp.owner as any).lastName || ""}`.trim() : "",
+        "Created At": opp.createdAt ? new Date(opp.createdAt).toLocaleDateString() : "",
+      };
+
+      if (excludedColumns && excludedColumns.length > 0) {
+        excludedColumns.forEach((col) => {
+          delete row[col];
+        });
+      }
+
+      return row;
+    });
+
+    const worksheet = xlsx.utils.json_to_sheet(dataToExport);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Opportunities");
+
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    return buffer;
   }
 }
 
