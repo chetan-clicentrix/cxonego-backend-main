@@ -234,10 +234,10 @@ class opportunityService {
     if (dateRange) {
       if (dateRange.startDate && dateRange.endDate) {
         oppurtunityRepo.andWhere(
-          "DATE(Oppurtunity.updatedAt) BETWEEN :startDate AND :endDate",
+          "Oppurtunity.createdAt >= :startDate AND Oppurtunity.createdAt <= :endDate",
           {
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
+            startDate: `${dateRange.startDate} 00:00:00`,
+            endDate: `${dateRange.endDate} 23:59:59`,
           }
         );
       }
