@@ -891,7 +891,7 @@ export class UnifiedService {
         const { opportunityId, newStage, note } = params;
 
         if (!opportunityId) throw new Error("opportunityId is required.");
-        if (!newStage) throw new Error("newStage is required. Valid stages: Document Collection | Proposal Preparation | Login Desk | Query | Query Resolution | Approved | Disbursed | PDD | Won | Lost");
+        if (!newStage) throw new Error("newStage is required. Valid stages: Document collection | Proposal Preparation | Login Desk | Query | Query Resolution | Approved | Disbursed | PDD | Won | Lost");
 
         const validStages = Object.values(stage);
         if (!validStages.includes(newStage as stage)) {
@@ -1038,7 +1038,7 @@ export class UnifiedService {
         const opp = new Oppurtunity({} as Oppurtunity);
         opp.opportunityId = await oppService.getOpportunityId(new Date());
         (opp as any).title = `${this.safe(lead.fullName)} - ${loanType}`;
-        (opp as any).stage = 'Document Collection';
+        (opp as any).stage = 'Document collection';
         (opp as any).status = 'Active';
         (opp as any).loanType = loanType;
         (opp as any).loanAmount = String(estimatedRevenue);
@@ -1484,7 +1484,7 @@ export class UnifiedService {
 
     async createOpportunity(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { title, stageId = 'Document Collection', loanType, loanAmount, estimatedRevenue, estimatedCloseDate, accountId, contactId, banks = [], description } = params;
+        const { title, stageId = 'Document collection', loanType, loanAmount, estimatedRevenue, estimatedCloseDate, accountId, contactId, banks = [], description } = params;
 
         if (!title) throw new Error("title is required.");
         if (!loanType) throw new Error("loanType is required.");
