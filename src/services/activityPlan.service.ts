@@ -385,39 +385,43 @@ export class ActivityPlanService {
                     console.error('[ACTIVITY_PLAN] \u274c Could not find opportunity ID for plan:', planWithActions.planId);
                 }
 
-                console.log(`[ACTIVITY_PLAN] \ud83c\udfaf Action "${status}" status received for stage: ${decryptedStageName}`);
+                console.log(`[ACTIVITY_PLAN] 🎯 Action "${status}" status received for stage: ${decryptedStageName}`);
 
-                // 1. Find the first pending/in-progress task across the WHOLE plan to determine active stage
-                const nextPendingAction = planWithActions.actions
-                    .filter(a => a.status !== ActivityPlanActionStatus.COMPLETED && a.status !== ActivityPlanActionStatus.SKIPPED)
-                    .sort((a, b) => a.sequence - b.sequence)[0];
-
-                const crmStageValues = Object.values(stage);
-                let targetCRMStage = null;
-
-                if (nextPendingAction) {
-                    // Match the next pending action's stage name with CRM stage
-                    targetCRMStage = crmStageValues.find(
-                        s => s.toLowerCase().trim() === nextPendingAction.stageName.toLowerCase().trim()
+                if (status === ActivityPlanActionStatus.COMPLETED) {
+                    const actionsInCurrentStage = planWithActions.actions.filter(
+                        a => a.stageName.toLowerCase().trim() === decryptedStageName.toLowerCase().trim()
                     );
-                } else {
-                    // All actions completed! If we're closing the last action, 
-                    // ensure we're at least at the stage of the current action.
-                    const matchedStage = crmStageValues.find(
-                        s => s.toLowerCase().trim() === decryptedStageName.toLowerCase().trim()
-                    );
-                    targetCRMStage = matchedStage;
-                }
 
-                if (targetCRMStage) {
-                    console.log(`[ACTIVITY_PLAN] \ud83d\ude80 Updating opportunity "${oppId}" stage to "${targetCRMStage}" based on next activity: "${nextPendingAction?.actionName || 'Finalized'}"`);
-                    try {
-                        const updateRes = await this.opportunityRepository.update(oppId, {
-                            stage: targetCRMStage as any
-                        });
-                        console.log(`[ACTIVITY_PLAN] \u2705 Stage update result:`, updateRes);
-                    } catch (err) {
-                        console.error(`[ACTIVITY_PLAN] \u274c Failed to update opportunity stage:`, err);
+                    const allCompleted = actionsInCurrentStage.every(
+                        a => a.status === ActivityPlanActionStatus.COMPLETED || a.status === ActivityPlanActionStatus.SKIPPED
+                    );
+
+                    if (allCompleted && actionsInCurrentStage.length > 0) {
+                        const orderedStages = [
+                            "Document collection",
+                            "Proposal Preparation",
+                            "Login Desk",
+                            "Query",
+                            "Query Resolution",
+                            "Approved",
+                            "Disbursed",
+                            "PDD"
+                        ];
+
+                        const currentIndex = orderedStages.findIndex(s => s.toLowerCase() === decryptedStageName.toLowerCase().trim());
+
+                        if (currentIndex !== -1 && currentIndex < orderedStages.length - 1) {
+                            const nextStage = orderedStages[currentIndex + 1];
+
+                            console.log(`[ACTIVITY_PLAN] 🚀 All activities in "${decryptedStageName}" completed. Automatically advancing opportunity "${oppId}" stage to "${nextStage}"`);
+                            try {
+                                await this.opportunityRepository.update(oppId, {
+                                    stage: nextStage as any
+                                });
+                            } catch (err) {
+                                console.error(`[ACTIVITY_PLAN] ❌ Failed to update opportunity stage:`, err);
+                            }
+                        }
                     }
                 }
 

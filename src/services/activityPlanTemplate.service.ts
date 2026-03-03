@@ -1,8 +1,8 @@
 import { AppDataSource } from "../data-source";
 import { ActivityPlanTemplate } from "../entity/ActivityPlanTemplate";
 import { ActivityPlanTemplateAction } from "../entity/ActivityPlanTemplateAction";
-import { IsNull } from "typeorm";
-import { ActivityPlanActionType } from "../common/utils";
+import { IsNull, Not } from "typeorm";
+import { ActivityPlanActionType, encryption } from "../common/utils";
 
 export class ActivityPlanTemplateService {
     private templateRepository = AppDataSource.getRepository(ActivityPlanTemplate);
@@ -10,6 +10,10 @@ export class ActivityPlanTemplateService {
 
     async createTemplate(payload: any, user: any) {
         const { name, description, actions, organizationId, category, segment } = payload;
+        const orgId = organizationId || user.organizationId;
+
+        // Check for duplicate category and segment
+        await this.checkDuplicate(category, segment, orgId);
 
         const template = this.templateRepository.create({
             name,
@@ -75,6 +79,13 @@ export class ActivityPlanTemplateService {
         if (payload.segment !== undefined) template.segment = payload.segment;
         if (payload.isActive !== undefined) template.isActive = payload.isActive;
         template.modifiedBy = user.userId;
+
+        // Check for duplicate category and segment if they are being updated
+        if (payload.category !== undefined || payload.segment !== undefined) {
+            const catToCheck = payload.category !== undefined ? payload.category : template.category;
+            const segToCheck = payload.segment !== undefined ? payload.segment : template.segment;
+            await this.checkDuplicate(catToCheck, segToCheck, user.organizationId, templateId);
+        }
 
         await this.templateRepository.save(template);
 
@@ -149,5 +160,34 @@ export class ActivityPlanTemplateService {
         await this.templateActionRepository.save(actionsToSave);
 
         return await this.getTemplateById(targetTemplateId);
+    }
+
+    private async checkDuplicate(category: string, segment: string, orgId: string, excludeTemplateId?: string) {
+        const where: any = {
+            organization: { organisationId: orgId } as any
+        };
+
+        if (category) {
+            where.category = encryption(category);
+        } else {
+            where.category = IsNull();
+        }
+
+        if (segment) {
+            where.segment = encryption(segment);
+        } else {
+            where.segment = IsNull();
+        }
+
+        if (excludeTemplateId) {
+            where.templateId = Not(excludeTemplateId);
+        }
+
+        const existing = await this.templateRepository.findOne({ where });
+        if (existing) {
+            const catStr = category || "General";
+            const segStr = segment || "General";
+            throw new Error(`An activity plan template already exists for category "${catStr}" and segment "${segStr}".`);
+        }
     }
 }
