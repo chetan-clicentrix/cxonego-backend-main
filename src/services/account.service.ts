@@ -289,7 +289,7 @@ class AccountServices {
   }
   async getAccount(accountId: string) {
     try {
-      const account = await AppDataSource.getRepository(Account).findOne({
+      let account = await AppDataSource.getRepository(Account).findOne({
         where: {
           accountId: accountId,
         },
@@ -297,36 +297,7 @@ class AccountServices {
 
       if (!account) throw new ResourceNotFoundError("Account not found");
 
-      if (account?.accountName)
-        account.accountName = decrypt(account.accountName);
-      if (account?.description)
-        account.description = decrypt(account.description);
-      if (account?.country) account.country = decrypt(account.country);
-      if (account?.state) account.state = decrypt(account.state);
-      if (account?.city) account.city = decrypt(account.city);
-      if (account?.companySize)
-        account.companySize = decrypt(account.companySize);
-      if (account?.website) account.website = decrypt(account.website);
-      if (account?.industry) account.industry = decrypt(account.industry);
-      if (account?.businessType)
-        account.businessType = decrypt(account.businessType);
-      if (account?.CurrencyCode)
-        account.CurrencyCode = decrypt(account.CurrencyCode);
-      if (account?.annualRevenue)
-        account.annualRevenue = decrypt(account.annualRevenue);
-      if (account?.email) account.email = decrypt(account.email);
-      if (account?.phone) account.phone = decrypt(account.phone);
-      if (account?.countryCode)
-        account.countryCode = decrypt(account.countryCode);
-      if (account?.address) account.address = decrypt(account.address);
-      if (account?.area) account.area = decrypt(account.area);
-      if (account?.zone) account.zone = decrypt(account.zone);
-      if (account?.village) account.village = decrypt(account.village);
-      if (account?.pincode) account.pincode = decrypt(account.pincode);
-      if (account?.taluka) account.taluka = decrypt(account.taluka);
-      if (account?.clientCategory)
-        account.clientCategory = decrypt(account.clientCategory);
-      if (account?.segment) account.segment = decrypt(account.segment);
+      account = await accountDecryption(account);
 
       if (account) {
         account.organization = await orgnizationDecryption(
