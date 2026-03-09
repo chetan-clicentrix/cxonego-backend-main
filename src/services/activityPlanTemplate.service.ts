@@ -213,18 +213,28 @@ export class ActivityPlanTemplateService {
         return await this.getTemplateById(templateId);
     }
 
-    async getDefaultTemplate(organizationId: string) {
+    async getDefaultTemplate(organizationId?: string) {
+        // Try to find org-specific default first
+        if (organizationId) {
+            const orgDefault = await this.templateRepository.findOne({
+                where: {
+                    isDefault: true,
+                    organization: { organisationId: organizationId } as any
+                },
+                relations: ["actions"],
+                order: { actions: { sequence: "ASC" } } as any
+            });
+            if (orgDefault) return orgDefault;
+        }
+
+        // Fallback to global default
         return await this.templateRepository.findOne({
             where: {
                 isDefault: true,
-                organization: { organisationId: organizationId } as any
+                organization: IsNull()
             },
             relations: ["actions"],
-            order: {
-                actions: {
-                    sequence: "ASC"
-                }
-            }
+            order: { actions: { sequence: "ASC" } } as any
         });
     }
 

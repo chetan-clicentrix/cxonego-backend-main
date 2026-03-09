@@ -24,9 +24,20 @@ export class ActivityPlanService {
         });
         if (!opportunity) throw new Error("Opportunity not found");
 
-        const defaultTemplate = await templateService.getDefaultTemplate(opportunity.organization?.organisationId);
-        if (!defaultTemplate) throw new Error("No default template configured");
+        // Try to get org ID from opportunity, then fallback to user's org ID
+        const orgIdFromOpp = opportunity.organization?.organisationId || (opportunity as any).organizationId;
+        const orgId = orgIdFromOpp || user?.organizationId;
 
+        console.log(`[ACTIVITY_PLAN] Attempting to apply default template for Org: ${orgId} (from Opp: ${orgIdFromOpp}, from User: ${user?.organizationId})`);
+
+        const defaultTemplate = await templateService.getDefaultTemplate(orgId);
+        if (!defaultTemplate) {
+            console.error(`[ACTIVITY_PLAN] No default template found for Org: ${orgId}`);
+            const orgInfo = orgId ? `for Organization ID: ${orgId}` : "(No organization ID detected)";
+            throw new Error(`The system could not find a 'Default' activity plan template ${orgInfo}. Please go to 'Activity Plan Settings', select a template, and click 'Set as Default'.`);
+        }
+
+        console.log(`[ACTIVITY_PLAN] ✅ Applying default template: ${defaultTemplate.name}`);
         return await this.applyTemplate(opportunityId, defaultTemplate.templateId, user);
     }
 
