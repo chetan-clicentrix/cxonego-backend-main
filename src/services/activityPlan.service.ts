@@ -16,154 +16,22 @@ export class ActivityPlanService {
     private actionRepository = AppDataSource.getRepository(ActivityPlanAction);
     private opportunityRepository = AppDataSource.getRepository(Oppurtunity);
 
-    async createDefaultPlanForOpportunity(opportunityId: string, user: any) {
-        const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+    async applyDefaultTemplate(opportunityId: string, user: any) {
+        const templateService = new (require("./activityPlanTemplate.service").ActivityPlanTemplateService)();
+        const opportunity = await this.opportunityRepository.findOne({
+            where: { opportunityId },
+            relations: ["organization"]
+        });
         if (!opportunity) throw new Error("Opportunity not found");
 
-        const plan = new ActivityPlan({
-            name: "Retail-FTU Lead   Plan",
-            opportunity: opportunity,
-            organization: opportunity.organization,
-            status: ActivityPlanStatus.ACTIVE,
-            planId: undefined, // Let DB generate
-            lead: opportunity.Lead,
-            actions: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            deletedAt: null,
-            modifiedBy: user.userId
-        } as any);
+        const defaultTemplate = await templateService.getDefaultTemplate(opportunity.organization?.organisationId);
+        if (!defaultTemplate) throw new Error("No default template configured");
 
-        const actionsConfig = [
-            {
-                sequence: 1,
-                stageName: "Document collection",
-                actionName: "1st Call to Customer",
-                description: "First call should be go within 2 hours of lead allocation",
-                tatHours: 0,
-                tatDays: 0
-            },
-            {
-                sequence: 2,
-                stageName: "Document collection",
-                actionName: "2nd Call / Site Visit",
-                description: "Visit client place. MANDATORY: Upload Google Geotagged Photo.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 3,
-                stageName: "Document collection",
-                actionName: "Document Collection",
-                description: "Share pending list with client via Mail/WhatsApp.",
-                tatHours: 3,
-                tatDays: 0
-            },
-            {
-                sequence: 4,
-                stageName: "Document collection",
-                actionName: "Collect Pending Documents",
-                description: "Verify Asset Location and Original Documents",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 5,
-                stageName: "Proposal Preparation",
-                actionName: "Prepare proposal",
-                description: "Create Proposals for banks.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 6,
-                stageName: "Login Desk",
-                actionName: "Login Desk",
-                description: "Login desk to verify all received documents against checklist.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 7,
-                stageName: "Query",
-                actionName: "Query Understanding",
-                description: "If there are query Understand those queries.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 8,
-                stageName: "Query Resolution",
-                actionName: "Query resolution.",
-                description: "Query Resolution with client collect final documents and re-login.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 9,
-                stageName: "Approved",
-                actionName: "Get Approval from bank",
-                description: "when the loan is approved complete this activity",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 10,
-                stageName: "Disbursed",
-                actionName: "Get all docuuments and Disbure money",
-                description: null,
-                tatHours: 0,
-                tatDays: 1
-            }
-        ];
+        return await this.applyTemplate(opportunityId, defaultTemplate.templateId, user);
+    }
 
-        const savedPlan = await this.planRepository.save(plan);
-
-        let previousDueDate = new Date();
-
-        const actionsToSave = actionsConfig.map(config => {
-            let dueDate = new Date(previousDueDate);
-            if (config.tatHours > 0) dueDate.setHours(dueDate.getHours() + config.tatHours);
-            if (config.tatDays > 0) dueDate.setDate(dueDate.getDate() + config.tatDays);
-
-            previousDueDate = dueDate;
-
-            return new ActivityPlanAction({
-                plan: savedPlan,
-                sequence: config.sequence,
-                stageName: config.stageName,
-                actionName: config.actionName,
-                description: config.description,
-                tat: config.tatDays > 0 ? `${config.tatDays} Day(s)` : `${config.tatHours} Hour(s)`,
-                dueDate: dueDate,
-                status: ActivityPlanActionStatus.PENDING,
-                actionType: (config as any).actionType || ActivityPlanActionType.DEFAULT,
-                actionData: null,
-                actionId: undefined,
-                assignedTo: null,
-                completedAt: null,
-                remarks: null,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                deletedAt: null,
-                modifiedBy: user.userId
-            } as any);
-        });
-
-        await this.actionRepository.save(actionsToSave);
-        const planWithActions = await this.planRepository.findOne({
-            where: { planId: savedPlan.planId },
-            relations: ["actions", "actions.assignedTo"]
-        });
-
-        if (planWithActions && planWithActions.actions) {
-            planWithActions.actions.sort((a, b) => a.sequence - b.sequence);
-        }
-
-        // Trigger overdue check immediately
-        await this.checkAndNotifyOverdueActions(savedPlan.planId);
-
-        return planWithActions;
+    async generateDefaultPlanForOpportunity(opportunityId: string, user: any) {
+        return await this.applyDefaultTemplate(opportunityId, user);
     }
 
     async getPlansByOpportunity(opportunityId: string) {
@@ -327,17 +195,24 @@ export class ActivityPlanService {
             console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2713 Found ${templates.length} matching template(s)`);
 
             if (templates.length === 0) {
-                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u26a0\ufe0f No matching templates found for:', {
-                    category: account.clientCategory,
-                    segment: account.segment,
-                    organizationId: opportunity.organization?.organisationId
-                });
-            }
+                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ⚠️ No matching templates found for category/segment. Attempting fallback to default template.');
 
-            for (const template of templates) {
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udccb Applying template: ${template.name} (${template.templateId})`);
-                await this.applyTemplate(opportunity.opportunityId, template.templateId, user);
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2705 Template applied successfully`);
+                const templateService = new (require("./activityPlanTemplate.service").ActivityPlanTemplateService)();
+                const defaultTemplate = await templateService.getDefaultTemplate(opportunity.organization?.organisationId);
+
+                if (defaultTemplate) {
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] 📄 Applying default template: ${defaultTemplate.name} (${defaultTemplate.templateId})`);
+                    await this.applyTemplate(opportunity.opportunityId, defaultTemplate.templateId, user);
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✅ Default template applied successfully`);
+                } else {
+                    console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ❌ No default template found. No plan assigned.');
+                }
+            } else {
+                for (const template of templates) {
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] 📋 Applying matching template: ${template.name} (${template.templateId})`);
+                    await this.applyTemplate(opportunity.opportunityId, template.templateId, user);
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✅ Template applied successfully`);
+                }
             }
         } catch (error) {
             console.error('[ACTIVITY_PLAN_AUTO_ASSIGN] \u274c Error in autoAssignPlanToOpportunity:', error);
