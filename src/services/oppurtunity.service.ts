@@ -34,9 +34,27 @@ import { ActivityPlanService } from "./activityPlan.service";
 import { Audit } from "../entity/Audit";
 import { userInfo } from "../interfaces/types";
 import { Organisation } from "../entity/Organisation";
+import { ProposalGroup } from "../entity/ProposalGroup";
+import { v4 as uuidv4 } from "uuid";
 
 class opportunityService {
   private activityPlanService = new ActivityPlanService();
+
+  private extractId(val: any, idKey: string): string | undefined {
+    if (!val) return undefined;
+    let idString: any;
+    if (typeof val === 'string') {
+      idString = val;
+    } else {
+      idString = val[idKey];
+    }
+
+    if (typeof idString === 'string') {
+      const parts = idString.split('/');
+      return parts.length > 1 ? parts[1].trim() : parts[0].trim();
+    }
+    return idString;
+  }
   async getAllOppurtunities(userInfo: userInfo) {
     const oppurtunities = await AppDataSource.getRepository(Oppurtunity)
       .createQueryBuilder("opportunity")
@@ -44,23 +62,33 @@ class opportunityService {
       .leftJoinAndSelect("opportunity.company", "account")
       .leftJoinAndSelect("opportunity.contact", "contact")
       .leftJoinAndSelect("opportunity.organization", "organization")
+      .leftJoinAndSelect("opportunity.proposalGroup", "proposalGroup")
       // .where("user.userId = :userId", { userId: userInfo.userId })
       .where("organization.organisationId = :organizationId", {
         organizationId: userInfo.organizationId,
       })
-      .select(["opportunity", "user.userId", "user.firstName", "user.lastName", "account", "contact"])
+      .select(["opportunity", "user.userId", "user.firstName", "user.lastName", "account", "contact", "proposalGroup"])
       .orderBy("opportunity.updatedAt", "DESC")
       .getMany();
 
     for (let opportunity of oppurtunities) {
       opportunity = await opportunityDecryption(opportunity);
-      opportunity.company = await accountDecryption(opportunity.company);
-      opportunity.contact = await contactDecryption(opportunity.contact);
-      opportunity.owner = await userDecryption(opportunity.owner);
+      if (opportunity.company) {
+        opportunity.company = await accountDecryption(opportunity.company as Account);
+      }
+      if (opportunity.contact) {
+        opportunity.contact = await contactDecryption(opportunity.contact as Contact);
+      }
+      if (opportunity.Lead) {
+        opportunity.Lead = await leadDecryption(opportunity.Lead as Lead);
+      }
+      if (opportunity.owner) {
+        opportunity.owner = await userDecryption(opportunity.owner as User);
+      }
     }
     return oppurtunities;
   }
-  async getOpportunityId(date: Date) {
+  async getOpportunityId(date: Date, manager?: EntityManager) {
     const month = String(
       date.getMonth() + 1 >= 10
         ? date.getMonth() + 1
@@ -68,15 +96,20 @@ class opportunityService {
     );
     const year = String(date.getFullYear().toString().slice(-2));
 
-    const lastOppurtunity = await AppDataSource.getRepository(Oppurtunity)
+    const oppRepo = manager
+      ? manager.getRepository(Oppurtunity)
+      : AppDataSource.getRepository(Oppurtunity);
+
+    const lastOppurtunity = await oppRepo
       .createQueryBuilder("Oppurtunity")
       .withDeleted()
       .select()
       .orderBy("Oppurtunity.createdAt", "DESC")
+      .addOrderBy("Oppurtunity.opportunityId", "DESC")
       .getOne();
 
-    let OppurtunityNo = "00";
-    const yearFromRecord = String(lastOppurtunity?.opportunityId.slice(5, 7)); //OPP032402
+    let OppurtunityNo = "000";
+    const yearFromRecord = String(lastOppurtunity?.opportunityId.slice(5, 7));
     const oppurtunityNoFromRecord = String(
       lastOppurtunity?.opportunityId.substring(7)
     );
@@ -86,7 +119,7 @@ class opportunityService {
     }
 
     const OppurtunityId =
-      "OPP" + month + year + "0" + (Number(OppurtunityNo) + 1).toString();
+      "OPP" + month + year + (Number(OppurtunityNo) + 1).toString().padStart(3, '0');
 
     return OppurtunityId;
   }
@@ -118,9 +151,10 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
-        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
+        .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
+        .leftJoinAndSelect("Oppurtunity.proposalGroup", "proposalGroup")
         .where("Oppurtunity.ownerId=:userId", { userId: userId })
         .andWhere("Oppurtunity.organizationId=:organizationId", {
           organizationId: organizationId,
@@ -131,9 +165,10 @@ class opportunityService {
         .createQueryBuilder("Oppurtunity")
         .leftJoinAndSelect("Oppurtunity.Lead", "Lead")
         .leftJoinAndSelect("Oppurtunity.company", "Account")
-        .leftJoinAndSelect("Oppurtunity.bank", "Bank")
+        .leftJoinAndSelect("Oppurtunity.banks", "Bank")
         .leftJoinAndSelect("Oppurtunity.contact", "Contact")
         .leftJoinAndSelect("Oppurtunity.owner", "user")
+        .leftJoinAndSelect("Oppurtunity.proposalGroup", "proposalGroup")
         .where("Oppurtunity.organizationId=:organizationId", {
           organizationId: organizationId,
         })
@@ -409,18 +444,32 @@ class opportunityService {
     });
     return oppurtunity ? true : false;
   }
+  /**
+   * Create a single opportunity for ONE bank.
+   * The controller calls this once per bank, then calls createProposalGroup
+   * afterwards if multiple banks were selected.
+   *
+   * @param payload      - opportunity fields from request body
+   * @param singleBankId - the bankId this proposal is for (already resolved from the loop)
+   * @param isPrimary    - true for the first bank in the list
+   * @param user         - authenticated user
+   * @param tem          - transaction entity manager
+   */
   async createOppurtunity(
     payload: Oppurtunity,
     user: userInfo,
-    transactionEntityManager: EntityManager
+    transactionEntityManager: EntityManager,
+    singleBankId?: string,
+    isPrimary: boolean = true
   ) {
-    const userRepo = AppDataSource.getRepository(User);
+    // Use transactionEntityManager for ALL repos to avoid lock conflicts
+    const userRepo = transactionEntityManager.getRepository(User);
     const userData = await userRepo.findOne({ where: { userId: user.userId } });
     if (userData) {
       payload.owner = userData as User;
     }
 
-    const organizationRepo = AppDataSource.getRepository(Organisation);
+    const organizationRepo = transactionEntityManager.getRepository(Organisation);
     if (user.organizationId) {
       const orgnizationData = await organizationRepo.findOne({
         where: { organisationId: user.organizationId },
@@ -429,8 +478,9 @@ class opportunityService {
     }
 
     if (payload.Lead) {
-      const lead = await AppDataSource.getRepository(Lead).findOne({
-        where: { leadId: String(payload.Lead) },
+      const leadId = this.extractId(payload.Lead, 'leadId');
+      const lead = await transactionEntityManager.getRepository(Lead).findOne({
+        where: { leadId: String(leadId) },
       });
       if (lead) {
         payload.Lead = lead;
@@ -440,8 +490,9 @@ class opportunityService {
     }
 
     if (payload.contact) {
-      const contact = await AppDataSource.getRepository(Contact).findOne({
-        where: { contactId: String(payload.contact) },
+      const contactId = this.extractId(payload.contact, 'contactId');
+      const contact = await transactionEntityManager.getRepository(Contact).findOne({
+        where: { contactId: String(contactId) },
       });
       if (contact) {
         payload.contact = contact;
@@ -452,10 +503,15 @@ class opportunityService {
 
     if (payload.company) {
       const companyRepo = transactionEntityManager.getRepository(Account);
+      const accountId = this.extractId(payload.company, 'accountId');
       const companydata = await companyRepo.findOne({
-        where: { accountId: String(payload.company) },
+        where: { accountId: String(accountId) },
       });
       if (companydata) {
+        // Ensure data is decrypted before we modify and save it, to prevent double-encryption in hooks
+        if (typeof companydata.decrypt === 'function') {
+          companydata.decrypt();
+        }
         // Update Account with Category/Segment if provided in payload (e.g. from lead qualification)
         const extraPayload = payload as any;
         let updateNeeded = false;
@@ -469,6 +525,9 @@ class opportunityService {
         }
         if (updateNeeded) {
           await companyRepo.save(companydata);
+          if (typeof companydata.decrypt === 'function') {
+            companydata.decrypt();
+          }
         }
         payload.company = companydata;
       } else {
@@ -476,14 +535,41 @@ class opportunityService {
       }
     }
 
+    // ── Single-bank assignment ───────────────────────────────────────────
+    // When called from the multi-bank loop, singleBankId is provided.
+    // When called the old single-call way (no singleBankId passed), fall back
+    // to the full banks array on the payload so legacy behaviour is preserved.
+    if (singleBankId) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bank = await bankRepo.findOne({ where: { bankId: singleBankId } });
+      if (bank) {
+        payload.banks = [bank];
+      }
+    } else if (payload.banks && Array.isArray(payload.banks)) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bankIds = (payload.banks as any[]).map(b => typeof b === 'string' ? b : b.bankId).filter(Boolean);
+      if (bankIds.length > 0) {
+        const banks = await bankRepo.findByIds(bankIds);
+        if (banks.length > 0) {
+          payload.banks = banks;
+        }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     const opportunityInstance = new Oppurtunity({
       ...payload,
-      opportunityId: await this.getOpportunityId(new Date()),
+      opportunityId: await this.getOpportunityId(new Date(), transactionEntityManager),
+      isPrimary,
+      proposalGroupId: null,   // will be set by createProposalGroup if needed
+      proposalGroup: null,
     } as Oppurtunity);
-    const opportunity = await opportunityInstance.save();
 
-    // Auto-assign activity plans based on category/segment
-    await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user, transactionEntityManager);
+    // Use transactionEntityManager to save — avoids opening a separate connection
+    // that would conflict with the outer transaction's locks
+    const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
+    const opportunity = await opportunityRepo.save(opportunityInstance);
+
     const auditId = String(user.auth_time) + user.userId;
     await this.createAuditLogHandler(
       transactionEntityManager,
@@ -491,17 +577,69 @@ class opportunityService {
       auditId
     );
 
-    // if (payload.Lead) {
-    //   await transactionEntityManager
-    //     .getRepository(Lead)
-    //     .createQueryBuilder()
-    //     .update(Lead)
-    //     .set({ status: statusType.CLOSED })
-    //     .where("leadId = :leadId", { leadId: payload.Lead.leadId })
-    //     .execute();
-    // }
+    // NOTE: autoAssignPlanToOpportunity is intentionally called AFTER the transaction
+    // completes (from the controller) to avoid nested lock conflicts.
+    // We return the opportunityId so the controller can trigger it post-commit.
 
     return opportunity;
+  }
+
+  /**
+   * Links a list of opportunities together under one ProposalGroup.
+   * Only called when multiple banks were selected (opportunities.length > 1).
+   * The FIRST opportunity in the list is set as isPrimary = true.
+   */
+  async createProposalGroup(
+    opportunities: Oppurtunity[],
+    organizationId: string,
+    transactionEntityManager: EntityManager
+  ): Promise<ProposalGroup> {
+    const groupRepo = transactionEntityManager.getRepository(ProposalGroup);
+    const opportunityRepo = transactionEntityManager.getRepository(Oppurtunity);
+
+    const group = new ProposalGroup({
+      proposalGroupId: uuidv4(),
+      organizationId,
+    });
+    const savedGroup = await groupRepo.save(group);
+
+    // Update each opportunity: link to group, mark first as primary
+    for (let i = 0; i < opportunities.length; i++) {
+      await opportunityRepo.update(opportunities[i].opportunityId, {
+        proposalGroupId: savedGroup.proposalGroupId,
+        isPrimary: i === 0,
+      });
+    }
+
+    return savedGroup;
+  }
+
+  /**
+   * Returns all sibling opportunities in the same ProposalGroup,
+   * EXCLUDING the given opportunityId.
+   */
+  async getSiblings(opportunityId: string): Promise<Oppurtunity[]> {
+    const opportunityRepo = AppDataSource.getRepository(Oppurtunity);
+    const opp = await opportunityRepo.findOne({ where: { opportunityId } });
+    if (!opp || !opp.proposalGroupId) return [];
+
+    return opportunityRepo
+      .createQueryBuilder('o')
+      .where('o.proposalGroupId = :groupId', { groupId: opp.proposalGroupId })
+      .andWhere('o.opportunityId != :oppId', { oppId: opportunityId })
+      .getMany();
+  }
+
+  async postCreateOpportunityTasks(opportunity: Oppurtunity, user: userInfo) {
+    // This runs AFTER the transaction commits to avoid lock wait timeouts.
+    // autoAssignPlanToOpportunity uses its own DB connections and would
+    // deadlock if called inside the create transaction.
+    try {
+      await this.activityPlanService.autoAssignPlanToOpportunity(opportunity, user);
+    } catch (error) {
+      console.error('[OPPORTUNITY] Error in post-create tasks:', error);
+      // Don't throw — opportunity was already created successfully
+    }
   }
 
   async updateOppurtunity(
@@ -545,8 +683,9 @@ class opportunityService {
 
     let lead;
     if (payload.Lead) {
+      const leadId = this.extractId(payload.Lead, 'leadId');
       lead = await AppDataSource.getRepository(Lead).findOne({
-        where: { leadId: String(payload.Lead) },
+        where: { leadId: String(leadId) },
       });
       if (!lead) {
         throw new ResourceNotFoundError("Lead not found");
@@ -556,8 +695,9 @@ class opportunityService {
 
     let company;
     if (payload.company) {
+      const accountId = this.extractId(payload.company, 'accountId');
       company = await AppDataSource.getRepository(Account).findOne({
-        where: { accountId: String(payload.company) },
+        where: { accountId: String(accountId) },
       });
       if (!company) {
         throw new ResourceNotFoundError("Account not found");
@@ -567,13 +707,26 @@ class opportunityService {
 
     let contact;
     if (payload.contact) {
+      const contactId = this.extractId(payload.contact, 'contactId');
       contact = await AppDataSource.getRepository(Contact).findOne({
-        where: { contactId: String(payload.contact) },
+        where: { contactId: String(contactId) },
       });
-      if (!company) {
+      if (!contact) {
         throw new ResourceNotFoundError("Contact not found");
       }
       if (contact) payload.contact = contact;
+    }
+
+    // Handle banks array
+    if (payload.banks && Array.isArray(payload.banks)) {
+      const bankRepo = transactionEntityManager.getRepository(Bank);
+      const bankIds = payload.banks.map(b => typeof b === 'string' ? b : (b as any).bankId).filter(Boolean);
+      if (bankIds.length > 0) {
+        const banks = await bankRepo.findByIds(bankIds);
+        if (banks.length > 0) {
+          payload.banks = banks;
+        }
+      }
     }
 
     // Auto-mark as Won when stage is Disbursed
@@ -581,22 +734,21 @@ class opportunityService {
       payload.stage = stage.WON;
     }
 
-    const opportunityEntity = new Oppurtunity(payload);
+    // Use save() instead of update() for many-to-many relationships
+    // Merge the payload with the existing opportunity
+    Object.assign(opportunity, payload);
+    const updatedOpportunity = await oppurtunityRepo.save(opportunity);
 
-    const update = await oppurtunityRepo.update(
-      opportunityId,
-      opportunityEntity
-    );
     const auditId = String(user.auth_time) + user.userId;
     await this.updateAuditLogHandler(
       transactionEntityManager,
       opportunity,
-      opportunityEntity,
+      payload as any,
       payload.modifiedBy,
       auditId
     );
 
-    return update;
+    return updatedOpportunity;
   }
   async deleteOppurtunity(
     opportunityId: string,
@@ -639,6 +791,7 @@ class opportunityService {
       where: {
         opportunityId: opportunityId,
       },
+      relations: ["Lead", "company", "banks", "contact", "owner", "organization", "proposalGroup"]
     });
 
     if (oppurtunity) {
@@ -659,6 +812,24 @@ class opportunityService {
       }
       if (oppurtunity.owner) {
         oppurtunity.owner = await userDecryption(oppurtunity.owner);
+      }
+
+      // If it belongs to a proposalGroup, collect ALL banks from siblings
+      // so the frontend edit form correctly displays the full list of banks.
+      // This prevents the frontend from accidentally wiping siblings on save.
+      if (oppurtunity.proposalGroupId) {
+        const opportunityRepo = AppDataSource.getRepository(Oppurtunity);
+        const siblings = await opportunityRepo.find({
+          where: { proposalGroupId: oppurtunity.proposalGroupId },
+          relations: ["banks"],
+        });
+        const allBanks = new Map<string, Bank>();
+        for (const sib of siblings) {
+          if (sib.banks && sib.banks.length > 0) {
+            sib.banks.forEach((b) => allBanks.set(b.bankId, b));
+          }
+        }
+        oppurtunity.banks = Array.from(allBanks.values());
       }
     }
     return oppurtunity;

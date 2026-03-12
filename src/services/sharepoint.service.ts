@@ -159,12 +159,62 @@ export class SharePointService {
             document.encrypt();
 
             console.log('✓ Document metadata saved to database');
-            return await this.documentRepository.save(document);
+            const savedDoc = await this.documentRepository.save(document);
+
+            // Mirror to sibling proposals if part of a proposal group
+            if (opportunity.proposalGroupId) {
+                await this.mirrorDocumentToSiblings(savedDoc, opportunity.proposalGroupId, opportunity.opportunityId);
+            }
+
+            return savedDoc;
 
         } catch (error) {
             console.error("Error uploading file to SharePoint:", error);
             throw new Error(`Failed to upload file: ${error.message}`);
         }
+    }
+
+    /**
+     * Mirrors an uploaded document to all other sibling proposals in the same group.
+     * Assumes savedDoc already has encrypted fields, so it does not call encrypt() again.
+     */
+    private async mirrorDocumentToSiblings(
+        savedDoc: SharePointDocument,
+        groupId: string,
+        originalOpportunityId: string
+    ): Promise<void> {
+        const siblings = await this.opportunityRepository
+            .createQueryBuilder('o')
+            .where('o.proposalGroupId = :groupId', { groupId })
+            .andWhere('o.opportunityId != :originalId', { originalId: originalOpportunityId })
+            .getMany();
+
+        if (siblings.length === 0) return;
+
+        console.log(`Mirroring document to ${siblings.length} sibling proposals...`);
+
+        const siblingDocs = siblings.map(sibling => {
+            return new SharePointDocument({
+                fileName: savedDoc.fileName,
+                fileType: savedDoc.fileType,
+                fileSize: savedDoc.fileSize,
+                sharepointFileId: savedDoc.sharepointFileId,
+                sharepointLink: savedDoc.sharepointLink,
+                sharepointFolderPath: savedDoc.sharepointFolderPath,
+                opportunityFolderName: savedDoc.opportunityFolderName,
+                description: savedDoc.description,
+                documentType: savedDoc.documentType,
+                customDocumentType: savedDoc.customDocumentType,
+                startTime: savedDoc.startTime,
+                endTime: savedDoc.endTime,
+                opportunity: sibling,
+                uploadedBy: savedDoc.uploadedBy,
+                organization: savedDoc.organization
+            });
+        });
+
+        await this.documentRepository.save(siblingDocs);
+        console.log(`✓ Document mirrored successfully`);
     }
 
     /**

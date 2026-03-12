@@ -353,6 +353,7 @@ export function decrypt(encryptedData: string) {
     decrypted += decipher.final("utf8");
     return decrypted;
   } catch (error) {
+    // console.error(`[DECRYPT ERROR] Failed to decrypt: ${encryptedData}`, error);
     return encryptedData
   }
 }

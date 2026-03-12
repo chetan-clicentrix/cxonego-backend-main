@@ -22,6 +22,7 @@ export const OpportunitySchema = z.object({
     wonLostDescription: z.string().nullable().optional(),
     loanType: z.string().nullable().optional(),
     loanAmount: z.string().nullable().optional(),
+    banks: z.array(z.string()).nullable().optional(),
 });
 
 
@@ -56,6 +57,7 @@ export const OpportunitySchemaWithDate = z.object({
     priority: z.enum(["Low", "Medium", "High"] as const),
     loanType: z.string().nullable().optional(),
     loanAmount: z.string().nullable().optional(),
+    banks: z.array(z.any()).nullable().optional(),
 });
 
 export const OpportunityUpdateSchema = z.object({
@@ -79,6 +81,7 @@ export const OpportunityUpdateSchema = z.object({
     lostReason: z.enum(["Budget Constraint", "Competitive Selection", "Changed Needs/Priority", "Decision Making Delay", "No Purchase Intent", "Ineffective Sales Process", "Uncompetitive Pricing", "Product/Service Limitations", "Lack of Followup or Communication"] as const),
     loanType: z.string().nullable().optional(),
     loanAmount: z.string().nullable().optional(),
+    banks: z.array(z.string()).nullable().optional(),
 });
 
 

@@ -21,11 +21,11 @@ import * as cron from "./common/cron";
 import rateLimit from "express-rate-limit";
 
 // Start SharePoint upload worker
-import "./workers/sharepointUpload.worker";
+import sharepointUploadWorker from "./workers/sharepointUpload.worker";
 console.log("✓ SharePoint upload worker started");
 
 // Start Email notification worker
-import "./workers/emailNotification.worker";
+import emailNotificationWorker from "./workers/emailNotification.worker";
 console.log("✓ Email notification worker started");
 
 dotenv.config();
@@ -35,6 +35,7 @@ morgan.token("host", function (req: express.Request, _res) {
 });
 
 const app = express();
+
 
 app.use(cookieParser());
 
@@ -139,7 +140,7 @@ app.use(
       RegExp("/api/v1/sharepoint/status"),
       RegExp("/api/v1/email-poc/"),
       RegExp("/api/v1/users/invite"),
-      RegExp("/api/v1/users/update"),
+      RegExp("^/api/v1/users/update/"),
       RegExp("/api/v1/health"),
       RegExp("/api/v1/users/role"),
       RegExp("/api/v1/users/isInvitationRevoked"),
@@ -162,6 +163,8 @@ app.use(
       RegExp("/api/v1/api-doc/.*"),
       // API routes - use API key auth instead of Firebase
       RegExp("^/api/v1/api/"),
+      // User signup/upsert endpoint - must be public or handled without org check
+      RegExp("^/api/v1/users/?$"),
     ],
   })
 );
@@ -193,6 +196,25 @@ app.use("/api", limiter);
 app.use("/api/v1", router);
 
 app.use(errorMiddleware);
+const gracefulShutdown = async () => {
+  logger.info("Initiating graceful shutdown...");
+  try {
+    if (sharepointUploadWorker) {
+      await sharepointUploadWorker.close();
+    }
+    if (emailNotificationWorker) {
+      await emailNotificationWorker.close();
+    }
+    logger.info("Workers stopped gracefully.");
+    process.exit(0);
+  } catch (error) {
+    logger.error("Error during graceful shutdown", error);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
 
 app.listen(port, async () => {
   logger.info("App Started on port", { port });

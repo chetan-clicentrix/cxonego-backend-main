@@ -5,6 +5,7 @@ import { AppDataSource } from "../data-source";
 import { userInfo } from "../interfaces/types";
 import { DocumentUpload } from "../entity/DocumentUpload";
 
+import { Oppurtunity } from '../entity/Oppurtunity';
 const uploadSessionService = new UploadSessionService();
 const documentRequirementService = new DocumentRequirementService();
 
@@ -99,7 +100,20 @@ export const getUploadSessionDetails = async (req: Request, res: Response) => {
 export const getOpportunitySessions = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user as userInfo;
-        const { opportunityId } = req.params;
+        let { opportunityId } = req.params;
+
+        // --- SIBLING ALIASING LOGIC ---
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+        const reqOpp = await oppRepo.findOne({ where: { opportunityId } });
+        if (reqOpp && reqOpp.proposalGroupId && !reqOpp.isPrimary) {
+            const primaryOpp = await oppRepo.findOne({
+                where: { proposalGroupId: reqOpp.proposalGroupId, isPrimary: true }
+            });
+            if (primaryOpp) {
+                opportunityId = primaryOpp.opportunityId;
+            }
+        }
+
 
         const sessions = await uploadSessionService.getSessionsByOpportunity(
             opportunityId,
@@ -161,7 +175,20 @@ export const createRequirement = async (req: Request, res: Response) => {
 export const getOpportunityRequirements = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user as userInfo;
-        const { opportunityId } = req.params;
+        let { opportunityId } = req.params;
+
+        // --- SIBLING ALIASING LOGIC ---
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+        const reqOpp = await oppRepo.findOne({ where: { opportunityId } });
+        if (reqOpp && reqOpp.proposalGroupId && !reqOpp.isPrimary) {
+            const primaryOpp = await oppRepo.findOne({
+                where: { proposalGroupId: reqOpp.proposalGroupId, isPrimary: true }
+            });
+            if (primaryOpp) {
+                opportunityId = primaryOpp.opportunityId;
+            }
+        }
+
 
         const requirements = await documentRequirementService.getRequirementsByOpportunity(
             opportunityId,
@@ -260,7 +287,20 @@ export const deleteRequirement = async (req: Request, res: Response) => {
 export const getOpportunityUploads = async (req: Request, res: Response) => {
     try {
         const user = (req as any).user as userInfo;
-        const { opportunityId } = req.params;
+        let { opportunityId } = req.params;
+
+        // --- SIBLING ALIASING LOGIC ---
+        const oppRepo = AppDataSource.getRepository(Oppurtunity);
+        const reqOpp = await oppRepo.findOne({ where: { opportunityId } });
+        if (reqOpp && reqOpp.proposalGroupId && !reqOpp.isPrimary) {
+            const primaryOpp = await oppRepo.findOne({
+                where: { proposalGroupId: reqOpp.proposalGroupId, isPrimary: true }
+            });
+            if (primaryOpp) {
+                opportunityId = primaryOpp.opportunityId;
+            }
+        }
+
 
         if (!user.organizationId) {
             return res.status(400).json({

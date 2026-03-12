@@ -1,17 +1,19 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddGoogleTokensToUser1744100000000 implements MigrationInterface {
+export class BankDocumentConfigLoanType1772090797989 implements MigrationInterface {
+
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "user" 
-            ADD COLUMN "googleTokens" JSON NULL
+            ALTER TABLE \`bank_document_config\`
+            ADD COLUMN \`loanType\` varchar(255) NULL
         `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "user" 
-            DROP COLUMN "googleTokens"
+            ALTER TABLE \`bank_document_config\`
+            DROP COLUMN \`loanType\`
         `);
     }
-} 
+
+}
