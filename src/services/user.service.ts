@@ -6,7 +6,7 @@ import { roleNames, subscriptionStatus } from "../common/utils";
 import { EntityManager, In, UpdateResult } from "typeorm";
 import { EmailNotificationService } from "./emailNotification.service";
 import { EmailType } from "../entity/SentEmailLog";
-import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
+import { ForbiddenError, ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import { encryption } from "../common/utils";
 import { InviteUserType } from "../schemas/comman.schemas";
 import { Organisation } from "../entity/Organisation";
