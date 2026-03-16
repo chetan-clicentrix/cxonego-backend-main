@@ -8,7 +8,7 @@ import { roleNames } from "../common/utils";
 
 function hasPermission(requiredPermission: string[]) {
   return async (request: AuthenticatedRequest, _res: Response, next: NextFunction) => {
-    const roles = request.user.role;
+    const roles = request.user?.role || [];
     if (roles.length > 0) {
       for (let role of roles) {
         if (requiredPermission.includes(role.roleName)) {
@@ -20,7 +20,12 @@ function hasPermission(requiredPermission: string[]) {
           `User does not have permission ${requiredPermission}`
         )
       );
-
+    } else {
+      return next(
+        new ForbiddenError(
+          `User has no roles assigned.`
+        )
+      );
     }
   }
 }

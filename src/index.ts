@@ -173,8 +173,6 @@ app.use(
       RegExp("/api/v1/api-doc/.*"),
       // API routes - use API key auth instead of Firebase
       RegExp("^/api/v1/api/"),
-      // User signup/upsert endpoint - must be public or handled without org check
-      RegExp("^/api/v1/users/?$"),
     ],
   })
 );

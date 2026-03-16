@@ -318,7 +318,7 @@ class UserServices {
       }
 
       const isAdmin = user.roles?.some((r) => r.roleName === roleNames.ADMIN);
-      if (isAdmin && (!user.invitedUsers || user.invitedUsers.length === 0)) {
+      if (isAdmin) {
         const orgId = user.organisation?.organisationId;
         if (orgId) {
           const orgMembers = await AppDataSource.getRepository(User)
@@ -326,19 +326,27 @@ class UserServices {
             .leftJoinAndSelect("u.roles", "role")
             .where("u.organisationOrganisationId = :orgId", { orgId })
             .andWhere("u.userId != :userId", { userId })
-            .select(["u.userId", "u.email", "u.firstName", "u.lastName", "role.roleName"])
+            .select(["u.userId", "u.email", "u.firstName", "u.lastName", "u.isBlocked", "role.roleName"])
             .getMany();
 
-          user.invitedUsers = [];
+          // Keep existing pending invites
+          const existingInvites = user.invitedUsers || [];
+          const pendingInvites = existingInvites.filter(i => i.onboardingStatus === "PENDING");
+          
+          user.invitedUsers = [...pendingInvites];
+
           for (const member of orgMembers) {
+            // Avoid duplicates if a user is already in the list
+            if (user.invitedUsers.some(i => i.id === member.userId)) continue;
+
             const decryptedMember = await userDecryption(member as User);
             user.invitedUsers.push({
-              id: member.userId,
-              name: `${decryptedMember.firstName || ""} ${decryptedMember.lastName || ""}`.trim() || "N/A",
-              email: decrypt(member.email) || member.email,
-              role: member.roles?.[0]?.roleName || "SALESPERSON",
-              onboardingStatus: "ONBOARDED",
-              isBlocked: member.isBlocked || false,
+                id: member.userId,
+                name: `${decryptedMember.firstName || ""} ${decryptedMember.lastName || ""}`.trim() || "N/A",
+                email: decrypt(member.email) || member.email,
+                role: member.roles?.[0]?.roleName || "SALESPERSON",
+                onboardingStatus: "ONBOARDED",
+                isBlocked: member.isBlocked || false,
             });
           }
         }
@@ -358,17 +366,24 @@ class UserServices {
     const isBlocked: string | boolean =
       (request.query.isBlocked as string) || "";
 
+    const organizationId = (request as any).user?.organizationId;
+    if (!organizationId) {
+      console.warn("[UserService] organizationId missing in request.user for getUsers");
+      return { users: [], total: 0 };
+    }
+
     let query = AppDataSource.getRepository(User)
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.organisation", "organisation")
       .leftJoinAndSelect("organisation.subscriptions", "subscription")
       .leftJoinAndSelect("subscription.plan", "plan")
       .leftJoinAndSelect("user.roles", "role")
-      .where("user.organisation is not null");
+      .where("organisation.organisationId = :orgId", { orgId: organizationId });
+
     if (isBlocked === "true") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: true });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: true });
     } else if (isBlocked === "false") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: false });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: false });
     }
     query
       .select(["user", "role", "organisation", "subscription", "plan.planType"])
@@ -980,22 +995,24 @@ class UserServices {
         throw new ValidationFailedError("Only Admin can update user role");
       }
 
-      if (adminUser.invitedUsers) {
-        const targetUserIndex = adminUser.invitedUsers.findIndex((user) => {
-          if (user.id === userId) {
-            return user;
-          }
-        });
+      const targetUserIndex = adminUser.invitedUsers?.findIndex((user) => user.id === userId);
 
-        if (targetUserIndex !== -1) {
-          adminUser.invitedUsers[targetUserIndex].role = role;
-          await userRepository.save(adminUser);
-        }
+      if (targetUserIndex !== undefined && targetUserIndex !== -1) {
+        adminUser.invitedUsers[targetUserIndex].role = role;
+        await userRepository.save(adminUser);
       }
 
-      const userInstance = await userRepository.findOneBy({ userId });
+      const userInstance = await userRepository.findOne({
+        where: { userId },
+        relations: ["organisation"]
+      });
       if (!userInstance) {
         throw new ResourceNotFoundError("User not found");
+      }
+
+      const adminOrgId = (request as any).user?.organizationId;
+      if (userInstance.organisation?.organisationId !== adminOrgId) {
+        throw new ForbiddenError("You can only update users within your organization.");
       }
 
       const roleInstance = await roleRepository.findOneBy({ roleName: role });
