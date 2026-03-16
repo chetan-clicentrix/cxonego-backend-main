@@ -30,10 +30,10 @@ export class ActivityPlanController {
     async updateActionStatus(req: Request, res: Response) {
         try {
             const { actionId } = req.params;
-            const { status, remarks, comments } = req.body;
+            const { status, remarks, comments, actionData } = req.body;
             // @ts-ignore
             const user = req.user;
-            const action = await activityPlanService.updateActionStatus(actionId, status, remarks, user, comments);
+            const action = await activityPlanService.updateActionStatus(actionId, status, remarks, user, comments, actionData);
             res.status(200).send(buildResponse(action, "Action status updated successfully"));
         } catch (error) {
             res.status(500).send(buildResponse(null, "Failed to update action", error.message));
@@ -120,7 +120,11 @@ export class ActivityPlanController {
                 { description: req.body.description }
             );
 
-            res.status(201).send(buildResponse(document, "Document uploaded successfully to activity plan action"));
+            // Decrypt before returning so the UI receives the plain-text filename
+            const { sharepointDocumentDecryption } = await import("../services/decryption.service");
+            const decryptedDocument = await sharepointDocumentDecryption(document);
+
+            res.status(201).send(buildResponse(decryptedDocument, "Document uploaded successfully to activity plan action"));
         } catch (error) {
             res.status(500).send(buildResponse(null, "Failed to upload document", error.message));
         }

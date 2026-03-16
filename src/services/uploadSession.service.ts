@@ -63,7 +63,8 @@ class UploadSessionService {
         });
 
         if (existingSession && existingSession.expiresAt > new Date()) {
-            return existingSession;
+            existingSession.status = UploadSessionStatus.EXPIRED;
+            await sessionRepo.save(existingSession);
         }
 
         // Create new session

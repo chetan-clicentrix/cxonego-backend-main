@@ -14,6 +14,7 @@ import router from "./routes/router";
 import * as swaggerJSDoc from "swagger-jsdoc";
 import * as swaggerUi from "swagger-ui-express";
 import * as cookieParser from "cookie-parser";
+import * as path from "path";
 import options from "./common/swaggerOptions";
 import { buildResponse } from "./common/utils";
 import { authMiddleware } from "./middlewares/firebase.middleware";
@@ -35,6 +36,15 @@ morgan.token("host", function (req: express.Request, _res) {
 });
 
 const app = express();
+
+// Trust the first proxy (Nginx) so express-rate-limit can correctly
+// identify real client IPs from the X-Forwarded-For header.
+app.set("trust proxy", 1);
+
+// Disable ETags — this is a REST API server; all responses are dynamic.
+// Without this, Express returns 304 Not Modified for GET requests that
+// haven't changed, causing the browser to serve stale cached data.
+app.set("etag", false);
 
 
 app.use(cookieParser());
@@ -192,6 +202,9 @@ const limiter = rateLimit({
 
 
 app.use("/api", limiter);
+
+// Serve exported Excel files statically
+app.use("/temp_exports", express.static(path.join(process.cwd(), "temp_exports")));
 
 app.use("/api/v1", router);
 

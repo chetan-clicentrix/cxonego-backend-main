@@ -77,6 +77,8 @@ class DocumentRequirementService {
         });
 
         if (existingRequirements.length > 0) {
+            // Always drop existing requirements to ensure it picks up changes 
+            // from new banks properly
             console.log(
                 `Requirements already exist for opportunity ${opportunityId}. Checking if bank/applicant type changed.`
             );
@@ -123,8 +125,6 @@ class DocumentRequirementService {
             console.log(
                 `Bank/applicant type changed for opportunity ${opportunityId}. Deleting old requirements and creating new ones.`
             );
-            console.log(`Old documents: ${existingDocNames.join(', ')}`);
-            console.log(`New documents: ${currentDocNames.join(', ')}`);
 
             await requirementRepo.remove(existingRequirements);
             // Continue to create new requirements below
@@ -197,7 +197,7 @@ class DocumentRequirementService {
     private mapDocumentType(documentName: string): DocumentType {
         const nameLower = documentName.toLowerCase();
 
-        if (nameLower.includes("aadhaar") || nameLower.includes("aadhar")) {
+        if (nameLower.includes("aadhaar") || nameLower.includes("aadhar") || nameLower.includes("adhar")) {
             return DocumentType.AADHAAR;
         }
         if (nameLower.includes("pan")) {
@@ -212,7 +212,7 @@ class DocumentRequirementService {
         if (nameLower.includes("itr") || nameLower.includes("income tax")) {
             return DocumentType.ITR;
         }
-        if (nameLower.includes("business")) {
+        if (nameLower.includes("business") || nameLower.includes("gst")) {
             return DocumentType.BUSINESS_PROOF;
         }
         if (nameLower.includes("address")) {
