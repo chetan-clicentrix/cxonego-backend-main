@@ -163,7 +163,7 @@ export async function checkActivityCronJob() {
 
 // export async function sendActivityNotifications() {
 //   console.log('running cron job..');
-  
+
 //   const currentDateTime = new Date();
 //   currentDateTime.setSeconds(0, 0);
 //   const halfHourAfter = new Date(currentDateTime.getTime() + 30 * 60 * 1000);
@@ -172,13 +172,13 @@ export async function checkActivityCronJob() {
 //     currentDateTime,
 //     halfHourAfter
 //   );
-  
-  // if (!activityReminderData || activityReminderData.length === 0) {
-  //   console.log('no activities found');
-  //   return;
-  // }
-  // console.log('activities found', activityReminderData.length);
-  
+
+// if (!activityReminderData || activityReminderData.length === 0) {
+//   console.log('no activities found');
+//   return;
+// }
+// console.log('activities found', activityReminderData.length);
+
 //   for (const reminder of activityReminderData) {
 //     // console.log("reminder >>>>> is : ", reminder);
 
@@ -196,7 +196,7 @@ export async function checkActivityCronJob() {
 //       tokens.push(fcmWebtoken);
 //     }
 //     console.log("fcmWebtoken >>>>> is : ", fcmWebtoken);
-    
+
 //     if (fcmAndroidToken !== null) {
 //       tokens.push(fcmAndroidToken);
 //     }
@@ -254,7 +254,7 @@ function formatDateToIST(date: Date) {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "long",
-    day: "2-digit" ,
+    day: "2-digit",
   });
   const formattedDate = dateFormatter.format(date);
 
@@ -269,7 +269,7 @@ cron.schedule('*/60 * * * *', async () => {
   try {
     console.log('Fetching leads from India Mart...');
     const indiaMartService = new IndiaMartService();
-    
+
     const savedCount = await indiaMartService.processAndSaveLeads();
     console.log(`Successfully imported ${savedCount} leads from India Mart`);
   } catch (error) {

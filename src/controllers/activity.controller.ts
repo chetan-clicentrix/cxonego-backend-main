@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import ActivityServices from "../services/activity.service";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { makeResponse, decrypt } from "../common/utils";
 import { errorHandler } from "../common/errors";
 import { AppDataSource } from "../data-source";
@@ -10,7 +10,7 @@ import { Activity } from "../entity/Activity";
 
 const activityServices = new ActivityServices();
 class ActivityController {
-  async getAllActivity(request: CustomRequest, response: Response) {
+  async getAllActivity(request: AuthenticatedRequest, response: Response) {
     try {
       const activities = await activityServices.getAllActivity(request.user);
       return makeResponse(response, 200, true, "All Activities", activities);
@@ -19,7 +19,7 @@ class ActivityController {
     }
   }
 
-  async createActivity(request: CustomRequest, response: Response) {
+  async createActivity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     if (!request.body)
       return makeResponse(
@@ -80,7 +80,7 @@ class ActivityController {
     }
   }
 
-  async getActivityByactivityId(request: CustomRequest, response: Response) {
+  async getActivityByactivityId(request: AuthenticatedRequest, response: Response) {
     try {
       const activityId: string = request.params.activityId;
       if (!activityId) {
@@ -116,7 +116,7 @@ class ActivityController {
     }
   }
 
-  async getActivityByaccountId(request: CustomRequest, response: Response) {
+  async getActivityByaccountId(request: AuthenticatedRequest, response: Response) {
     try {
       const accountId: string = request.params.accountId;
       if (!accountId) {
@@ -185,7 +185,7 @@ class ActivityController {
     }
   }
 
-  async getActivityBycontactId(request: CustomRequest, response: Response) {
+  async getActivityBycontactId(request: AuthenticatedRequest, response: Response) {
     try {
       const contactId: string = request.params.contactId;
       if (!contactId) {
@@ -253,7 +253,7 @@ class ActivityController {
     }
   }
 
-  async getActivityByleadId(request: CustomRequest, response: Response) {
+  async getActivityByleadId(request: AuthenticatedRequest, response: Response) {
     try {
       const leadId: string = request.params.leadId;
       if (!leadId) {
@@ -316,7 +316,7 @@ class ActivityController {
     }
   }
 
-  async getActivityByOpportunityId(request: CustomRequest, response: Response) {
+  async getActivityByOpportunityId(request: AuthenticatedRequest, response: Response) {
     try {
       const opportunityId: string = request.params.opportunityId;
       if (!opportunityId) {
@@ -385,7 +385,7 @@ class ActivityController {
     }
   }
 
-  async getActivities(request: CustomRequest, response: Response) {
+  async getActivities(request: AuthenticatedRequest, response: Response) {
     try {
       let page: number | undefined = Number(request.query.page) || undefined;
       let limit: number | undefined = Number(request.query.limit) || undefined;
@@ -444,7 +444,7 @@ class ActivityController {
     }
   }
 
-  async updateActivity(request: CustomRequest, response: Response) {
+  async updateActivity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const activityId: string = request.params.activityId as string;
@@ -512,7 +512,7 @@ class ActivityController {
     }
   }
 
-  async deleteActivity(request: CustomRequest, response: Response) {
+  async deleteActivity(request: AuthenticatedRequest, response: Response) {
     try {
       const activity = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -539,7 +539,7 @@ class ActivityController {
     }
   }
 
-  async bulkDeleteActivity(request: CustomRequest, response: Response) {
+  async bulkDeleteActivity(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const email = request.user.email;

@@ -1,7 +1,7 @@
 import { AppDataSource } from "../data-source";
 import { Lead } from "../entity/Lead";
 import { Contact } from "../entity/Contact";
-import { decrypt, encryption, roleNames, statusType } from "../common/utils";
+import { decrypt, encryption, roleNames, statusType, stage as stageEnum } from "../common/utils";
 import {
   accountDecryption,
   activityDecryption,
@@ -221,7 +221,6 @@ class DashboardServices {
   async getLeadsDashboardData(
     ownerId: string,
     role: Role[],
-    country: string[] | undefined,
     state: string | undefined,
     city: string | undefined,
     leadSource: string[] | undefined,
@@ -232,16 +231,14 @@ class DashboardServices {
     limit: number | undefined,
     search: string | undefined,
     status: string | undefined,
-    organizationId: string | null
+    organizationId: string | null,
+    groupBy?: string,
+    loanType?: string[],
+    zone?: string,
+    village?: string,
+    taluka?: string
   ) {
     try {
-      const countryArray: string[] = [];
-      if (country) {
-        for (let i = 0; i < country.length; i++) {
-          countryArray.push(encryption(country[i]));
-        }
-      }
-
       const leadSourceArray: string[] = [];
       if (leadSource) {
         for (let i = 0; i < leadSource.length; i++) {
@@ -271,16 +268,10 @@ class DashboardServices {
           });
       }
 
-      if (country && country.length > 0) {
-        leadRepo.andWhere("lead.country IN (:country)", {
-          country: countryArray,
-        });
-      }
 
-      if (leadSource && leadSource.length > 0) {
-        leadRepo.andWhere("lead.leadSource IN (:leadSource)", {
-          leadSource: leadSourceArray,
-        });
+
+      if (status) {
+        leadRepo.andWhere("lead.status = :status", { status });
       }
 
       leadRepo.orderBy("lead.updatedAt", "DESC");
@@ -291,17 +282,6 @@ class DashboardServices {
         lead.company = await accountDecryption(lead.company as Account);
         lead.contact = await contactDecryption(lead.contact as Contact);
         lead.owner = await userDecryption(lead.owner as User);
-      }
-
-      if (city) {
-        leads = leads.filter((lead) =>
-          lead.city.toLowerCase().includes(city?.toLowerCase())
-        );
-      }
-      if (state) {
-        leads = leads.filter((lead) =>
-          lead.state.toLowerCase().includes(state?.toLowerCase())
-        );
       }
 
       if (dateRange) {
@@ -320,7 +300,7 @@ class DashboardServices {
         }
       }
 
-      if (state || city || salesPerson) {
+      if (state || city || salesPerson || leadSource || loanType || zone || village || taluka) {
         let firstName = "";
         let lastName = "";
         if (salesPerson) {
@@ -333,6 +313,12 @@ class DashboardServices {
             !state || lead.state?.toLowerCase().includes(state?.toLowerCase());
           const matchCity =
             !city || lead.city?.toLowerCase().includes(city?.toLowerCase());
+          const matchZone =
+            !zone || lead.zone?.toLowerCase().includes(zone?.toLowerCase());
+          const matchVillage =
+            !village || lead.village?.toLowerCase().includes(village?.toLowerCase());
+          const matchTaluka =
+            !taluka || lead.taluka?.toLowerCase().includes(taluka?.toLowerCase());
           const matchSalesPerson =
             !salesPerson ||
             lead.owner?.firstName
@@ -341,67 +327,74 @@ class DashboardServices {
             lead.owner?.lastName
               ?.toLowerCase()
               .includes(lastName?.toLowerCase());
+          const matchLeadSource = !leadSource || leadSource.length === 0 || leadSource.includes(lead.leadSource);
+          const matchLoanType = !loanType || loanType.length === 0 || loanType.includes(lead.loanType);
 
-          return matchState && matchCity && matchSalesPerson;
+          return matchState && matchCity && matchSalesPerson && matchLeadSource && matchLoanType && matchZone && matchVillage && matchTaluka;
         });
       }
 
-      //chart percentage count
-      const allCategories = ["New", "In Progress", "Closed", "Qualified"];
+      // Chart aggregation
+      const groupField = groupBy || "status";
       const countsMap = new Map<string, number>();
-      // Initialize countsMap with 0 for each category
-      allCategories.forEach((category) => {
-        countsMap.set(category, 0);
-      });
+      const countsMap2 = new Map<string, { count: number; revenue: number }>();
 
-      // Count the leads status-wise
-      leads.forEach((lead) => {
-        const status = lead.status;
-        if (countsMap.has(status)) {
-          countsMap.set(status, countsMap.get(status)! + 1);
-        } else {
-          countsMap.set(status, 1);
+      leads.forEach((lead: any) => {
+        let key = lead[groupField];
+
+        if (groupField === "owner") {
+          key = lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : "No Owner";
+        } else if (groupField === "company") {
+          key = lead.company ? lead.company.accountName : "No Account";
+        } else if (groupField === "contact") {
+          key = lead.contact ? lead.contact.fullName : "No Contact";
+        } else if (groupField === "state") {
+          key = lead.state || "No State";
+        } else if (groupField === "city") {
+          key = lead.city || "No Town/City";
+        } else if (groupField === "zone") {
+          key = lead.zone || "No Zone";
+        } else if (groupField === "village") {
+          key = lead.village || "No Village";
+        } else if (groupField === "taluka") {
+          key = lead.taluka || "No Taluka";
         }
+
+        if (!key) key = "Unknown";
+
+        // Percentage counts
+        countsMap.set(key, (countsMap.get(key) || 0) + 1);
+
+        // Category counts (with revenue)
+        const revenue = parseFloat(lead.price) || 0;
+        const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
+        countsMap2.set(key, {
+          count: currentBatch.count + 1,
+          revenue: currentBatch.revenue + revenue
+        });
       });
 
-      // Convert countsMap to an array of objects
-      let counts = Array.from(countsMap, ([status, count]) => ({
-        status,
+      // Convert maps to arrays
+      let counts = Array.from(countsMap, ([label, count]) => ({
+        status: label,
         count,
       }));
 
-      // Calculate total count
-      const totalCount = counts.reduce((total, { count }) => total + count, 0);
+      // Calculate total count for percentages
+      const totalCount = leads.length;
 
       // Calculate percentages
       const countsData = counts.map(({ status, count }) => ({
         status,
         percentage:
-          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : 0, // Check if totalCount is 0
+          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : "0",
       })) as statusdataType[];
 
-      //chart category count
-      const countsMap2 = new Map<string, number>();
-      // Initialize countsMap with 0 for each category
-      allCategories.forEach((category) => {
-        countsMap2.set(category, 0);
-      });
-
-      let catcountsData: { status: string; count: number }[] = [];
-      // Initialize countsMap with 0 for each category
-      leads.forEach((lead) => {
-        const status = lead.status;
-        if (countsMap2.has(status)) {
-          countsMap2.set(status, countsMap2.get(status)! + 1);
-        } else {
-          countsMap2.set(status, 1);
-        }
-      });
-      // Convert countsMap to an array of objects
-      catcountsData = Array.from(countsMap2, ([status, count]) => ({
-        status,
-        count,
-      })) as categorycountdataType[];
+      let catcountsData = Array.from(countsMap2, ([label, data]) => ({
+        status: label,
+        count: data.count,
+        revenue: data.revenue
+      })) as any;
       //total open leads
       const newLeadsCount = leads.reduce((count, lead) => {
         if (lead.status === "New") {
@@ -412,7 +405,7 @@ class DashboardServices {
 
       // Calculate lead qualification rate, based on closed leads, qualified leads are converted to closed automatically.
       const qualifiedLeadsCount = leads.reduce((count, lead) => {
-        if (lead.status === statusType.CLOSED) {
+        if (lead.status === statusType.QUALIFIED || lead.status === statusType.CLOSED) {
           return count + 1;
         }
         return count;
@@ -438,9 +431,6 @@ class DashboardServices {
         search != undefined ||
         status != undefined
       ) {
-        if (status !== undefined) {
-          leads = leads.filter((lead) => lead.status === status);
-        }
         let searchedData: Lead[] = [];
         let skip = 0;
 
@@ -448,13 +438,8 @@ class DashboardServices {
           skip = 1;
           searchedData = await leads.filter((lead) => {
             if (
-              (lead.firstName !== null &&
-                lead.firstName
-                  .toString()
-                  .toLowerCase()
-                  .includes(String(search).toLowerCase())) ||
-              (lead.lastName !== null &&
-                lead.lastName
+              (lead.fullName !== null &&
+                lead.fullName
                   .toString()
                   .toLowerCase()
                   .includes(String(search).toLowerCase())) ||
@@ -512,6 +497,21 @@ class DashboardServices {
                 lead.price
                   .toString()
                   .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.zone !== null &&
+                lead.zone
+                  .toString()
+                  .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.village !== null &&
+                lead.village
+                  .toString()
+                  .toLowerCase()
+                  .includes(String(search).toLowerCase())) ||
+              (lead.pincode !== null &&
+                lead.pincode
+                  .toString()
+                  .toLowerCase()
                   .includes(String(search).toLowerCase()))
             ) {
               return true;
@@ -521,18 +521,19 @@ class DashboardServices {
         if (searchedData.length === 0 && skip === 0) {
           searchedData = leads;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,
         };
 
         const datapagination = {
-          total_no_of_leads: searchedData.length,
+          total_no_of_leads: totalCount,
           lead_percentage_status: countsData,
           lead_count_status: catcountsData,
           leads_with_status_new: newLeadsCount,
@@ -605,11 +606,15 @@ class DashboardServices {
     page: number | undefined,
     limit: number | undefined,
     search: string | undefined,
-    stage: string | undefined,
+    stageFilter: string | undefined,
     revenueRange: RevenueRangeParamsType,
     wonReason: string[],
     lostReason: string[],
-    organizationId: string | null
+    organizationId: string | null,
+    groupBy?: string,
+    bankId?: string,
+    loanType?: string[],
+    applicantType?: string[]
   ) {
     try {
       const leadSourceArray: string[] = [];
@@ -627,6 +632,7 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
+          .leftJoinAndSelect("oppurtunity.banks", "bank")
           .where("oppurtunity.ownerId=:ownerId", { ownerId: ownerId })
           .andWhere("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
@@ -638,16 +644,13 @@ class DashboardServices {
           .leftJoinAndSelect("oppurtunity.contact", "contact")
           .leftJoinAndSelect("oppurtunity.Lead", "lead")
           .leftJoinAndSelect("oppurtunity.owner", "user")
+          .leftJoinAndSelect("oppurtunity.banks", "bank")
           .where("oppurtunity.organizationId=:organizationId", {
             organizationId: organizationId,
           });
       }
 
-      if (leadSource && leadSource.length > 0) {
-        opportunityRepo.andWhere("lead.leadSource IN (:leadSource)", {
-          leadSource: leadSourceArray,
-        });
-      }
+
 
       if (currency) {
         opportunityRepo.andWhere("oppurtunity.currency IN (:currency)", {
@@ -655,9 +658,9 @@ class DashboardServices {
         });
       }
 
-      if (stage) {
+      if (stageFilter) {
         opportunityRepo.andWhere("oppurtunity.stage LIKE :state", {
-          state: `%${stage}%`,
+          state: `%${stageFilter}%`,
         });
       }
 
@@ -672,6 +675,9 @@ class DashboardServices {
           lostReason: lostReason,
         });
       }
+
+      // Note: bankId filtering is handled after fetching due to many-to-many relationship
+      // We'll filter in-memory after the query
 
       opportunityRepo
         .andWhere("oppurtunity.status = :status", { status: "Active" }) //only active data show on whole dashboard
@@ -706,62 +712,118 @@ class DashboardServices {
         }
       }
 
-      //chart percentage count
-      const allCategories = [
-        "Analysis",
-        "Solutioning",
-        "Proposal",
-        "Negotiation",
-        "Won",
-        "Lost",
-      ];
-      const countsMap = new Map<string, number>();
-      allCategories.forEach((category) => {
-        countsMap.set(category, 0);
-      });
-
-      opportunities.forEach((oppurtunity) => {
-        const stage = oppurtunity.stage;
-        if (countsMap.has(stage)) {
-          countsMap.set(stage, countsMap.get(stage)! + 1);
+      // Filter by bankId if specified (must be done after fetching due to many-to-many)
+      if (bankId) {
+        if (bankId === "none") {
+          opportunities = opportunities.filter(opp => !opp.banks || opp.banks.length === 0);
         } else {
-          countsMap.set(stage, 1);
+          opportunities = opportunities.filter(opp =>
+            opp.banks && opp.banks.some(bank => bank.bankId === bankId)
+          );
         }
+      }
+
+      if (salesPerson || (leadSource && leadSource.length > 0)) {
+        let firstName = "";
+        let lastName = "";
+        const nameParts: string[] = salesPerson ? salesPerson.split(" ") : [];
+        firstName = nameParts[0] || "";
+        lastName = nameParts[1] || "";
+
+        opportunities = opportunities.filter((opportunity) => {
+          const matchSalesPerson =
+            !salesPerson ||
+            opportunity?.owner?.firstName
+              ?.toLowerCase()
+              .includes(firstName?.toLowerCase()) ||
+            opportunity?.owner?.lastName
+              ?.toLowerCase()
+              .includes(lastName?.toLowerCase());
+
+          const matchLeadSource = !leadSource || leadSource.length === 0 ||
+            (opportunity.Lead && leadSource.includes(opportunity.Lead.leadSource));
+
+          const matchLoanType = !loanType || loanType.length === 0 || loanType.includes(opportunity.loanType);
+          const matchApplicantType = !applicantType || applicantType.length === 0 || applicantType.includes(opportunity.applicantType);
+
+          return matchSalesPerson && matchLeadSource && matchLoanType && matchApplicantType;
+        });
+      }
+
+      // Chart aggregation
+      const groupField = groupBy || "stage";
+      const countsMap = new Map<string, number>();
+      const countsMap2 = new Map<string, { count: number; revenue: number }>();
+
+      opportunities.forEach((opportunity: any) => {
+        let keys: string[] = [];
+
+        if (groupField === "owner") {
+          keys = [opportunity.owner ? `${opportunity.owner.firstName} ${opportunity.owner.lastName}` : "No Owner"];
+        } else if (groupField === "company") {
+          keys = [opportunity.company ? opportunity.company.accountName : "No Account"];
+        } else if (groupField === "contact") {
+          keys = [opportunity.contact ? opportunity.contact.fullName : "No Contact"];
+        } else if (groupField === "leadSource") {
+          keys = [opportunity.Lead ? opportunity.Lead.leadSource : "No Source"];
+        } else if (groupField === "bank") {
+          // Handle multiple banks by accurately counting for each bank
+          if (opportunity.banks && opportunity.banks.length > 0) {
+            keys = opportunity.banks.map((b: any) => b.name);
+          } else {
+            keys = ["No Bank"];
+          }
+        } else if (groupField === "loanType") {
+          keys = [opportunity.loanType || "No Loan Type"];
+        } else if (groupField === "applicantType") {
+          keys = [opportunity.applicantType || "No Applicant Type"];
+        } else {
+          // Default case (e.g. stage)
+          keys = [opportunity[groupField] || "Unknown"];
+        }
+
+        keys.forEach(key => {
+          if (!key) key = "Unknown";
+
+          // Percentage counts
+          countsMap.set(key, (countsMap.get(key) || 0) + 1);
+
+          // Category counts (with revenue)
+          const probability = parseInt(opportunity.probability, 10);
+          const estimatedRevenue = parseFloat(opportunity.estimatedRevenue);
+          const calculatedRevenue = !isNaN(probability) && !isNaN(estimatedRevenue)
+            ? (estimatedRevenue * probability) / 100
+            : 0;
+
+          const currentBatch = countsMap2.get(key) || { count: 0, revenue: 0 };
+          countsMap2.set(key, {
+            count: currentBatch.count + 1,
+            revenue: currentBatch.revenue + calculatedRevenue
+          });
+        });
       });
 
-      let counts = Array.from(countsMap, ([stage, count]) => ({
-        stage,
+      // Convert maps to arrays
+      let counts = Array.from(countsMap, ([label, count]) => ({
+        stage: label,
         count,
       }));
 
-      const totalCount = counts.reduce((total, { count }) => total + count, 0);
+      // Calculate total count for percentages
+      const totalCount = opportunities.length;
 
+      // Calculate percentages
       const countsData = counts.map(({ stage, count }) => ({
         stage,
         percentage:
-          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : 0, // Check if totalCount is 0
+          totalCount !== 0 ? ((count / totalCount) * 100).toFixed(2) : "0",
       })) as stagedataType[];
 
-      //chart category count
-      const countsMap2 = new Map<string, number>();
-      allCategories.forEach((category) => {
-        countsMap2.set(category, 0);
-      });
-
-      let catcountsData: { stage: string; count: number }[] = [];
-
-      opportunities.forEach((opportunity) => {
-        const stage = opportunity.stage;
-        if (countsMap2.has(stage)) {
-          countsMap2.set(stage, countsMap2.get(stage)! + 1);
-        } else {
-          countsMap2.set(stage, 1);
-        }
-      });
-      catcountsData = Array.from(countsMap2, ([stage, count]) => ({
-        stage,
-        count,
-      })) as categoryStageOpportunityDataType[];
+      let catcountsData = Array.from(countsMap2, ([label, data]) => ({
+        stage: label,
+        count: data.count,
+        revenue: data.revenue
+      })) as any;
 
       let monthlyRevenue: { [monthName: string]: number } = {};
       const currentYear = new Date().getFullYear();
@@ -847,12 +909,12 @@ class DashboardServices {
         page != undefined ||
         limit != undefined ||
         search != undefined ||
-        stage != undefined ||
-        stage != ""
+        stageFilter != undefined ||
+        stageFilter != ""
       ) {
-        if (stage !== undefined && stage != "") {
+        if (stageFilter !== undefined && stageFilter != "") {
           opportunities = opportunities.filter(
-            (opportunity) => opportunity.stage === stage
+            (opportunity) => opportunity.stage === stageFilter
           );
         }
         let searchedData: Oppurtunity[] = [];
@@ -927,12 +989,8 @@ class DashboardServices {
                 opportunity?.wonLostDescription
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase())) ||
-              (opportunity?.contact?.firstName !== null &&
-                opportunity?.contact?.firstName
-                  ?.toLowerCase()
-                  .includes(String(search).toLowerCase())) ||
-              (opportunity?.contact?.lastName !== null &&
-                opportunity?.contact?.lastName
+              (opportunity?.contact?.fullName !== null &&
+                opportunity?.contact?.fullName
                   ?.toLowerCase()
                   .includes(String(search).toLowerCase())) ||
               (opportunity?.owner?.firstName !== null &&
@@ -946,44 +1004,26 @@ class DashboardServices {
               (opportunity?.priority !== null &&
                 opportunity?.priority
                   ?.toLowerCase()
-                  .includes(String(search).toLowerCase()))
+                  .includes(String(search).toLowerCase())) ||
+              (opportunity?.banks && opportunity.banks.some(b =>
+                b?.name?.toLowerCase().includes(String(search).toLowerCase())))
             ) {
               return true;
             }
           });
         }
 
-        if (salesPerson) {
-          let firstName = "";
-          let lastName = "";
-          if (salesPerson) {
-            const nameParts: string[] = salesPerson.split(" ");
-            firstName = nameParts[0];
-            lastName = nameParts[1];
-          }
-          skip = 1;
-          searchedData = await opportunities.filter((opportunity) => {
-            const matchSalesPerson =
-              !salesPerson ||
-              opportunity?.owner?.firstName
-                ?.toLowerCase()
-                .includes(firstName?.toLowerCase()) ||
-              opportunity?.owner?.lastName
-                ?.toLowerCase()
-                .includes(lastName?.toLowerCase());
-            return matchSalesPerson;
-          });
-        }
 
         if (searchedData.length === 0 && skip === 0) {
           searchedData = opportunities;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
 
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,
@@ -1365,12 +1405,13 @@ class DashboardServices {
         if (searchedData.length === 0 && skip === 0) {
           searchedData = activities;
         }
+        const totalFilteredCount = searchedData.length;
         if (page != undefined && limit != undefined) {
           searchedData = searchedData.slice((page - 1) * limit, page * limit);
         }
 
         const pagination = {
-          total: searchedData.length,
+          total: totalFilteredCount,
           page: page,
           limit: limit,
           data: searchedData,

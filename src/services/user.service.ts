@@ -4,8 +4,9 @@ import { User } from "../entity/User";
 import { Role } from "../entity/Role";
 import { roleNames, subscriptionStatus } from "../common/utils";
 import { EntityManager, In, UpdateResult } from "typeorm";
-import EmailManager from "./email-manager.service";
-import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
+import { EmailNotificationService } from "./emailNotification.service";
+import { EmailType } from "../entity/SentEmailLog";
+import { ForbiddenError, ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import { encryption } from "../common/utils";
 import { InviteUserType } from "../schemas/comman.schemas";
 import { Organisation } from "../entity/Organisation";
@@ -16,14 +17,17 @@ import {
   userDecryption,
 } from "./decryption.service";
 import { Request } from "express";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { decrypt } from "../common/utils";
 import {
   IsIinvitationRevokedSchemaType,
   UpdateUserProfileSchemaType,
   UpdateUserRoleSchemaType,
+  CreateUserDirectlySchemaType,
 } from "../schemas/user.schemas";
 import { CustomRequest, userInfo } from "../interfaces/types";
 import { Subscription } from "../entity/Subscription";
+import * as admin from "firebase-admin";
 
 class UserServices {
   async updateProfile(
@@ -148,7 +152,7 @@ class UserServices {
 
         if (adminUser) {
           adminUser?.invitedUsers?.forEach((invite) => {
-            if (invite.email === payload.email) {
+            if (invite.email.toLowerCase() === payload.email.toLowerCase()) {
               invite.name = payload.firstName + " " + payload.lastName;
               invite.onboardingStatus = "ONBOARDED";
               invite.id = userId;
@@ -161,8 +165,8 @@ class UserServices {
 
       return update;
     } catch (error) {
-      console.log(error);
-      throw new Error("Fail to update user");
+      console.error("Error in updateProfile:", error);
+      throw error;
     }
   }
 
@@ -171,13 +175,37 @@ class UserServices {
       const userRepository = AppDataSource.getRepository(User);
       const roleRepository = AppDataSource.getRepository(Role);
 
-      const userIsExists = await userRepository.findOne({
-        // relations: ["organisation"],
-        where: { email: encryption(payload.email) },
+      let userIsExists = await userRepository.findOne({
+        where: { userId: payload.userId },
       });
 
+      if (!userIsExists) {
+        userIsExists = await userRepository.findOne({
+          where: { email: encryption(payload.email) },
+        });
+      }
+
+      if (!userIsExists) {
+        userIsExists = await userRepository.findOne({
+          where: { email: encryption(payload.email.toLowerCase()) },
+        });
+      }
+
       if (userIsExists) {
-        // console.log("userExist : ",userIsExists);
+        // If user exists but userId is different (e.g. legacy user or different auth provider), check if we need to update the ID
+        if (userIsExists.userId !== payload.userId) {
+          const oldUserId = userIsExists.userId;
+          // Updating primary key requires QueryBuilder or explicit update
+          await userRepository
+            .createQueryBuilder()
+            .update(User)
+            .set({ userId: payload.userId })
+            .where("userId = :id", { id: oldUserId })
+            .execute();
+
+          userIsExists.userId = payload.userId;
+        }
+        userIsExists = await userDecryption(userIsExists);
         return userIsExists;
       }
 
@@ -252,7 +280,7 @@ class UserServices {
         for (const subscription of user.organisation.subscriptions) {
           if (
             subscription.subscription_status ===
-              subscriptionStatus.SUBSCRIPTION_ACTIVE &&
+            subscriptionStatus.SUBSCRIPTION_ACTIVE &&
             subscription.endDateTime
           ) {
             const endDateTime = new Date(subscription.endDateTime);
@@ -288,11 +316,48 @@ class UserServices {
           );
         }
       }
+
+      const isAdmin = user.roles?.some((r) => r.roleName === roleNames.ADMIN);
+      if (isAdmin) {
+        const orgId = user.organisation?.organisationId;
+        if (orgId) {
+          const orgMembers = await AppDataSource.getRepository(User)
+            .createQueryBuilder("u")
+            .leftJoinAndSelect("u.roles", "role")
+            .where("u.organisationOrganisationId = :orgId", { orgId })
+            .andWhere("u.userId != :userId", { userId })
+            .select(["u.userId", "u.email", "u.firstName", "u.lastName", "u.isBlocked", "role.roleName"])
+            .getMany();
+
+          // Keep existing pending invites
+          const existingInvites = user.invitedUsers || [];
+          const pendingInvites = existingInvites.filter(i => i.onboardingStatus === "PENDING");
+          
+          user.invitedUsers = [...pendingInvites];
+
+          for (const member of orgMembers) {
+            // Avoid duplicates if a user is already in the list
+            if (user.invitedUsers.some(i => i.id === member.userId)) continue;
+
+            const decryptedMember = await userDecryption(member as User);
+            user.invitedUsers.push({
+                id: member.userId,
+                name: `${decryptedMember.firstName || ""} ${decryptedMember.lastName || ""}`.trim() || "N/A",
+                email: decrypt(member.email) || member.email,
+                role: member.roles?.[0]?.roleName || "SALESPERSON",
+                onboardingStatus: "ONBOARDED",
+                isBlocked: member.isBlocked || false,
+            });
+          }
+        }
+      }
+
       return user;
     } catch (error) {
       return;
     }
   }
+
   async getUsers(request: Request) {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
@@ -301,17 +366,24 @@ class UserServices {
     const isBlocked: string | boolean =
       (request.query.isBlocked as string) || "";
 
+    const organizationId = (request as any).user?.organizationId;
+    if (!organizationId) {
+      console.warn("[UserService] organizationId missing in request.user for getUsers");
+      return { users: [], total: 0 };
+    }
+
     let query = AppDataSource.getRepository(User)
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.organisation", "organisation")
       .leftJoinAndSelect("organisation.subscriptions", "subscription")
       .leftJoinAndSelect("subscription.plan", "plan")
       .leftJoinAndSelect("user.roles", "role")
-      .where("user.organisation is not null");
+      .where("organisation.organisationId = :orgId", { orgId: organizationId });
+
     if (isBlocked === "true") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: true });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: true });
     } else if (isBlocked === "false") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: false });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: false });
     }
     query
       .select(["user", "role", "organisation", "subscription", "plan.planType"])
@@ -532,8 +604,20 @@ class UserServices {
     const subject =
       "Join Us on CXOneGo – Revolutionize Your Customer Relationship Management!";
 
+    // Initialize email service
+    const emailService = new EmailNotificationService();
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
     if (invites.length > 0) {
       for (let invite of invites) {
+
+        const inviteLink = `${frontendUrl}/sign-up?email=${encodeURIComponent(
+          invite.email
+        )}&company=${encodeURIComponent(invite.company)}&role=${encodeURIComponent(
+          invite.role
+        )}&organizationId=${invite.organizationId}`;
+
+
         const htmlTemplate = `
         <head>
         <title>CXOneGo Invitation</title>
@@ -547,18 +631,12 @@ class UserServices {
             I hope this message finds you well!
           </p>
           <p style="margin: 20px 0;">
-            ${adminName} has invited you to join as <strong>${
-          invite?.role
-        }</strong> in organization <strong>${
-          invite?.company
-        } on CXOneGo. Please click on the button below to accept the invitation.
+            ${adminName} has invited you to join as <strong>${invite?.role
+          }</strong> in organization <strong>${invite?.company
+          } on CXOneGo. Please click on the button below to accept the invitation.
                 
                 <br> <br> 
-                <a href="http://localhost:5173/sign-up?email=${
-                  invite?.email
-                }&company=${invite?.company}&role=${
-          invite?.role
-        }&organizationId=${invite?.organizationId}"><Button>Accept</Button></a>
+                <a href="${inviteLink}"><Button>Accept</Button></a>
         <br>
         Once you click on Accept Link, you will be prompted to register yourself, first go through registration steps then you will be able to login with your credentials.
                 <br> <br> 
@@ -571,19 +649,30 @@ class UserServices {
                 </html>             
                 `;
 
-        const emailManager = new EmailManager();
-        // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="https://cxonego-frontend.vercel.app/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        // await emailManager.sendEmail([invite?.email],`${invite?.company} has invited you to collaborate on the ${invite?.company}-workspace/CXOneGo`,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue <br><br> <a href="http://localhost:5173/sign-up/?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        //    =useable= await emailManager.sendEmail([invite?.email],subject,`Hi ${invite?.email.split("@")[0]}, <br> ${invite?.company} - we are thrilled to invite you as a ${invite?.role} to explore the innovative CXoneGo platform, designed to revolutionize your customer experience strategy.<br><br> click on accept button to continue; <br><br> <a href="https://stage.d2zp02j1k6pdkx.amplifyapp.com/sign-up?email=${invite?.email}&company=${invite?.company}&role=${invite?.role}&organizationId=${invite?.organizationId}"><Button>Accept</Button></a> <br><br>Best regards,<br>CxoOneGo Team`);
-        await emailManager.sendEmail([invite?.email], subject, htmlTemplate);
+        // Send invitation email using Microsoft Email Service
+        try {
+          const emailResult = await emailService.sendEmail({
+            to: invite.email,
+            subject: subject,
+            bodyHtml: htmlTemplate,
+            emailType: EmailType.CUSTOM,
+            sentById: hostUserId,
+            organizationId: invite.organizationId
+          });
+          console.log(`✓ Email queued successfully: Job ID ${emailResult.jobId}`);
+        } catch (emailError: any) {
+          console.error(`Failed to queue invitation email for ${invite.email}:`, emailError.message);
+          // Continue with user invitation even if email fails
+        }
+
 
         const duplicateEntry =
           adminUserInstance.invitedUsers === null
             ? false
             : adminUserInstance.invitedUsers.some(
-                (user) =>
-                  user.email === invite?.email && user.role === invite?.role
-              );
+              (user) =>
+                user.email === invite?.email && user.role === invite?.role
+            );
 
         if (!duplicateEntry) {
           const newInvite = {
@@ -606,10 +695,118 @@ class UserServices {
       }
     }
     return {
-      message: `${newInvites} new user(s) have been invited successfully, you have ${
-        maxNoOfUsers - alreadyInvitedUsers - newInvites
-      } invites left.`,
+      message: `${newInvites} new user(s) have been invited successfully, you have ${maxNoOfUsers - alreadyInvitedUsers - newInvites
+        } invites left.`,
     };
+  }
+
+  async createUserDirectly(
+    payload: CreateUserDirectlySchemaType,
+    adminUserId: string
+  ) {
+    try {
+      // 1. Verify admin permissions
+      const userRepository = AppDataSource.getRepository(User);
+      const adminUser = await userRepository.findOne({
+        where: { userId: adminUserId },
+        relations: ["roles", "organisation"],
+      });
+
+      if (!adminUser) {
+        throw new ResourceNotFoundError("Admin user not found");
+      }
+
+      if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
+        throw new ValidationFailedError("Only admins can create users directly");
+      }
+
+      // 2. Verify organization exists
+      const orgRepository = AppDataSource.getRepository(Organisation);
+      const organization = await orgRepository.findOne({
+        where: { organisationId: payload.organizationId },
+      });
+
+      if (!organization) {
+        throw new ResourceNotFoundError("Organization not found");
+      }
+
+      // 3. Create user in Firebase
+      let firebaseUser;
+      try {
+        firebaseUser = await admin.auth().createUser({
+          email: payload.email,
+          password: payload.password,
+          emailVerified: true, // Auto-verify email for admin-created users
+        });
+      } catch (firebaseError: any) {
+        if (firebaseError.code === "auth/email-already-exists") {
+          throw new ValidationFailedError("Email already exists");
+        }
+        throw new Error(`Firebase error: ${firebaseError.message}`);
+      }
+
+      // 4. Get role from database
+      const roleRepository = AppDataSource.getRepository(Role);
+      const role = await roleRepository.findOne({
+        where: { roleName: payload.role },
+      });
+
+      if (!role) {
+        // Rollback: delete Firebase user if role not found
+        await admin.auth().deleteUser(firebaseUser.uid);
+        throw new ResourceNotFoundError("Role not found");
+      }
+
+      // 5. Create user in database
+      const newUser = new User();
+      newUser.userId = firebaseUser.uid;
+      newUser.email = encryption(payload.email);
+      newUser.emailVerified = true;
+      newUser.isActive = true;
+      newUser.privacy_consent_given = "Yes";
+      newUser.privacy_consent_signed_date = new Date();
+      newUser.organisation = organization;
+      newUser.roles = [role];
+
+      if (payload.firstName) newUser.firstName = encryption(payload.firstName);
+      if (payload.lastName) newUser.lastName = encryption(payload.lastName);
+      if (payload.phone) newUser.phone = encryption(payload.phone);
+      if (payload.jobtitle) newUser.jobtitle = encryption(payload.jobtitle);
+      if (payload.countryCode) newUser.countryCode = encryption(payload.countryCode);
+
+      try {
+        await userRepository.save(newUser);
+      } catch (dbError: any) {
+        await admin.auth().deleteUser(firebaseUser.uid);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+
+      adminUser.invitedUsers = adminUser.invitedUsers || [];
+      const newUserEntry = {
+        id: firebaseUser.uid,
+        name:
+          payload.firstName && payload.lastName
+            ? `${payload.firstName} ${payload.lastName}`
+            : "N/A",
+        email: payload.email,
+        role: payload.role,
+        onboardingStatus: "ONBOARDED",
+        isBlocked: false,
+      };
+      adminUser.invitedUsers.push(newUserEntry);
+
+      await userRepository.save(adminUser);
+
+      return {
+        userId: firebaseUser.uid,
+        email: payload.email,
+        role: payload.role,
+        message: "User created successfully and can now log in",
+      };
+    } catch (error) {
+      console.error("Error in createUserDirectly:", error);
+      throw error;
+    }
   }
   async partiallyUpadateUser(
     userId: string,
@@ -780,32 +977,42 @@ class UserServices {
     };
   }
 
-  updateUserRole = async (request: CustomRequest) => {
+  updateUserRole = async (request: AuthenticatedRequest) => {
     const { userId, role }: UpdateUserRoleSchemaType = request.body;
 
     const userInfo = request.user;
+    if (!userInfo) {
+      throw new ValidationFailedError("User information not found");
+    }
     const userRepository = AppDataSource.getRepository(User);
     const roleRepository = AppDataSource.getRepository(Role);
-    const adminUser = await userRepository.findOneBy({
-      userId: userInfo.userId,
+    const adminUser = await userRepository.findOne({
+      where: { userId: userInfo.userId },
+      relations: ["roles"],
     });
     if (adminUser) {
       if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
         throw new ValidationFailedError("Only Admin can update user role");
       }
-      const targetUserIndex = adminUser.invitedUsers.findIndex((user) => {
-        if (user.id === userId) {
-          return user;
-        }
-      });
 
-      if (targetUserIndex !== -1) {
+      const targetUserIndex = adminUser.invitedUsers?.findIndex((user) => user.id === userId);
+
+      if (targetUserIndex !== undefined && targetUserIndex !== -1) {
         adminUser.invitedUsers[targetUserIndex].role = role;
+        await userRepository.save(adminUser);
       }
 
-      const userInstance = await userRepository.findOneBy({ userId });
+      const userInstance = await userRepository.findOne({
+        where: { userId },
+        relations: ["organisation"]
+      });
       if (!userInstance) {
         throw new ResourceNotFoundError("User not found");
+      }
+
+      const adminOrgId = (request as any).user?.organizationId;
+      if (userInstance.organisation?.organisationId !== adminOrgId) {
+        throw new ForbiddenError("You can only update users within your organization.");
       }
 
       const roleInstance = await roleRepository.findOneBy({ roleName: role });
@@ -815,7 +1022,6 @@ class UserServices {
 
       userInstance.roles = [roleInstance];
       await userRepository.save(userInstance);
-      await userRepository.save(adminUser);
       return;
     }
   };
@@ -857,7 +1063,7 @@ class UserServices {
       userId: userInfo.userId,
     });
 
-    if (adminUser) {
+    if (adminUser && adminUser.invitedUsers) {
       adminUser.invitedUsers = adminUser.invitedUsers.filter(
         (user) => user.id != userId
       );
@@ -872,6 +1078,23 @@ class UserServices {
       throw new ResourceNotFoundError("Email not provided.");
     }
     const userRepository = AppDataSource.getRepository(User);
+
+    const encryptedEmail = encryption(userEmail);
+
+    let existingUser = await userRepository.findOne({
+      where: { email: encryptedEmail },
+      relations: ["organisation", "roles"],
+    });
+
+    if (existingUser) {
+      existingUser = await userDecryption(existingUser);
+      if (existingUser.organisation) {
+        existingUser.organisation = await orgnizationDecryption(
+          existingUser.organisation
+        );
+      }
+      return existingUser;
+    }
     const allUsers = await userRepository
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.organisation", "organisation")
@@ -885,7 +1108,13 @@ class UserServices {
     for (const user of allUsers) {
       if (user.invitedUsers) {
         for (const cur of user.invitedUsers) {
-          if (cur.email === userEmail) {
+          if (cur.email.toLowerCase() === userEmail.toLowerCase()) {
+            // If user is already onboarded (created directly), do not return invitation details
+            // This prevents the frontend from forcing the onboarding flow
+            if (cur.onboardingStatus === "ONBOARDED") {
+              break;
+            }
+
             targetUser = userDecryption(user);
             user.organisation = await orgnizationDecryption(user.organisation);
             break;
@@ -897,22 +1126,22 @@ class UserServices {
   };
 
   isInvitationRevoked = async (payload: IsIinvitationRevokedSchemaType) => {
-    const {organizationId, userEmail} = payload
+    const { organizationId, userEmail } = payload
     const orgRepository = AppDataSource.getRepository(Organisation);
     const organization = await orgRepository.createQueryBuilder("organization")
-    .leftJoinAndSelect("organization.users", "user")
-    .leftJoinAndSelect("user.roles", "role")
-    .where("organization.organisationId = :organizationId", {organizationId})
-    .getOne()
+      .leftJoinAndSelect("organization.users", "user")
+      .leftJoinAndSelect("user.roles", "role")
+      .where("organization.organisationId = :organizationId", { organizationId })
+      .getOne()
 
-    if(!organization){
+    if (!organization) {
       throw new ResourceNotFoundError("Provided Organization does not exist.")
     }
     const admin = organization.users.find(cur => cur.roles[0].roleName === roleNames.ADMIN)
 
-    if(admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
+    if (admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
 
-    const isInvitationValid = admin.invitedUsers.some(cur => cur.email === userEmail);
+    const isInvitationValid = admin.invitedUsers?.some(cur => cur.email === userEmail) ?? false;
     return isInvitationValid;
   }
 }

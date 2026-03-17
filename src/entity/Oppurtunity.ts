@@ -1,5 +1,6 @@
-import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from "typeorm";
-import { Currency, encryption, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage } from "../common/utils";
+import { BeforeInsert, BeforeUpdate, Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToMany, OneToOne, AfterLoad } from "typeorm";
+import { Currency, encryption, decrypt, forecastCategory, opportunityLostReason, opportunityStatus, opportunityWonReason, priorityStatus, probability, purchaseProcess, purchaseTimeFrame, stage, ApplicantType } from "../common/utils";
+import { Bank } from "./Bank";
 import { Account } from "./Account";
 import { Activity } from "./Activity";
 import { Contact } from "./Contact";
@@ -8,6 +9,10 @@ import { Lead } from "./Lead";
 import { User } from "./User";
 import { Note } from "./Note";
 import { Organisation } from "./Organisation";
+import { SharePointDocument } from "./SharePointDocument";
+import { encrypt } from "typeorm-encrypted";
+import { ActivityPlan } from "./ActivityPlan";
+import { ProposalGroup } from "./ProposalGroup";
 
 @Entity()
 export class Oppurtunity extends CustomBaseEntity {
@@ -15,7 +20,8 @@ export class Oppurtunity extends CustomBaseEntity {
         super();
         Object.assign(this, payload);
     }
-    
+
+
     @Column({
         primary: true,
         unique: true,
@@ -27,178 +33,244 @@ export class Oppurtunity extends CustomBaseEntity {
         nullable: false,
     })
     title: string;
-    
-    @Column({
-        type:"enum",
-        enum:Currency,
-        default:Currency.INR
-    })
-    currency:Currency;
+
 
     @Column({
-        type:"enum",
-        enum:purchaseTimeFrame,   
+        type: "enum",
+        enum: Currency,
+        default: Currency.INR
+    })
+    currency: Currency;
+
+    @Column({
+        type: "enum",
+        enum: purchaseTimeFrame,
+        nullable: true,
         // default:purchaseTimeFrame.first_MONTH     
     })
-    purchaseTimeFrame:purchaseTimeFrame;
+    purchaseTimeFrame: purchaseTimeFrame;
 
     @Column({
-        type:"enum",
-        enum:purchaseProcess,
-        default:purchaseProcess.COMMITTEE
+        type: "enum",
+        enum: purchaseProcess,
+        default: purchaseProcess.COMMITTEE
     })
-    purchaseProcess:purchaseProcess;
+    purchaseProcess: purchaseProcess;
 
 
     @Column({
-        type:"enum",
-        enum:forecastCategory,
-        default:forecastCategory.PIPELINE
+        type: "enum",
+        enum: forecastCategory,
+        default: forecastCategory.PIPELINE
     })
-    forecastCategory:forecastCategory;
+    forecastCategory: forecastCategory;
 
-    @Column({
-        nullable: false,        
-    })
-    estimatedRevenue:string;
-    
     @Column({
         nullable: true,
     })
-    actualRevenue:string;
-    
+    estimatedRevenue: string;
+
     @Column({
-        type:"datetime",
+        nullable: true,
+    })
+    actualRevenue: string;
+
+    @Column({
+        type: "datetime",
         nullable: false,
     })
-    estimatedCloseDate:Date;
-        
+    estimatedCloseDate: Date;
+
     @Column({
-        type:"datetime",
+        type: "datetime",
         nullable: true,
     })
-    actualCloseDate:Date;
+    actualCloseDate: Date;
 
     @Column({
-        type:"text",
+        type: "text",
         nullable: true,
     })
-    description:string;
-    
+    description: string;
+
     @Column({
-        type:"text",
+        type: "text",
         nullable: true,
     })
-    currentNeed:string;
+    currentNeed: string;
 
     @Column({
-        type:"text",
+        type: "text",
         nullable: true,
     })
-    proposedSolution:string;
+    proposedSolution: string;
 
     @Column({
-        type:"enum",
-        enum:probability,        
-        default:probability.fifthRange
+        type: "enum",
+        enum: probability,
+        default: probability.fifthRange
     })
-    probability:probability;
+    probability: probability;
 
     @Column({
-        type:"enum",
-        enum:stage,        
-        default:stage.ANALYSIS
+        type: "enum",
+        enum: stage,
+        default: stage.DOCUMENT_COLLECTION
     })
-    stage:stage;
+    stage: stage;
 
     @Column({
-        type:"enum",
-        enum:opportunityStatus,
-        default:opportunityStatus.ACTIVE       
+        type: "enum",
+        enum: opportunityStatus,
+        default: opportunityStatus.ACTIVE
     })
-    status:opportunityStatus;
+    status: opportunityStatus;
 
     @Column({
-        type:"enum",
-        enum:priorityStatus,
-        default:priorityStatus.MEDIUM
+        type: "enum",
+        enum: priorityStatus,
+        default: priorityStatus.MEDIUM
     })
-    priority:priorityStatus;   
+    priority: priorityStatus;
 
     @Column({
-        type:"enum",
-        enum:opportunityWonReason,    
-        nullable: true,           
-    })
-    wonReason:opportunityWonReason;
-
-    @Column({
-        type:"enum",
-        enum:opportunityLostReason,               
+        type: "enum",
+        enum: opportunityWonReason,
         nullable: true,
     })
-    lostReason:opportunityLostReason;
+    wonReason: opportunityWonReason;
 
-    @Column({length: 2500,nullable: true})
-    wonLostDescription:string;
-    
-    @OneToOne(()=>Lead)
-    @JoinColumn()
-    Lead:Lead;
-    
+    @Column({
+        type: "enum",
+        enum: opportunityLostReason,
+        nullable: true,
+    })
+    lostReason: opportunityLostReason;
+
+    @Column({ length: 2500, nullable: true })
+    wonLostDescription: string;
+
+    @ManyToOne(() => Lead)
+    @JoinColumn({ name: "leadLeadId" })
+    Lead: Lead;
+
     @ManyToOne(() => Account, (Account) => Account.oppurtunities, {
         cascade: true,
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
         nullable: true,
-        eager:true //ethe egar true karun data yeto ka bagane 
+        eager: true //ethe egar true karun data yeto ka bagane 
     })
     @JoinColumn()
-    company:Account;
+    company: Account;
 
     @ManyToOne(() => Contact, (Contact) => Contact.oppurtunities, {
         cascade: true,
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
         nullable: true,
-        eager:true 
+        eager: true
     })
     @JoinColumn()
-    contact:Contact;
+    contact: Contact;
 
-    @OneToMany(()=>Activity,Activity=>Activity.opportunity)
-    activity:Activity[];
+    @OneToMany(() => Activity, Activity => Activity.opportunity)
+    activity: Activity[];
 
-    @ManyToOne(()=>User,(User)=>User.opportunity,{   
+    @ManyToOne(() => User, (User) => User.opportunity, {
         // onDelete:"CASCADE",
-        onUpdate:"CASCADE",  
-        eager:true
-      })
+        onUpdate: "CASCADE",
+        eager: true
+    })
     @JoinColumn({ name: "ownerId" })
-    owner : User; 
+    owner: User;
 
-    @OneToMany(()=>Note,(Note)=>Note.opportunity)
-    notes:Note[];
+    @OneToMany(() => Note, (Note) => Note.opportunity)
+    notes: Note[];
 
     @ManyToOne(() => Organisation, (Organisation) => Organisation.opportunities, {
         cascade: true,
         // onDelete: "CASCADE",
         onUpdate: "CASCADE",
         nullable: true,
-        eager:true
+        eager: true
     })
     @JoinColumn({ name: "organizationId" })
-    organization:Organisation;
+    organization: Organisation;
+
+    @OneToMany(() => SharePointDocument, (doc) => doc.opportunity)
+    sharepointDocuments: SharePointDocument[];
+
+    @OneToMany(() => ActivityPlan, (plan) => plan.opportunity)
+    activityPlans: ActivityPlan[];
+
+    // ─── Proposal Group (for multi-bank submissions) ─────────────────
+    @Column({ type: "varchar", length: 36, nullable: true })
+    proposalGroupId: string | null;
+
+    @ManyToOne(() => ProposalGroup, (pg) => pg.opportunities, {
+        nullable: true,
+        onDelete: "SET NULL",
+        onUpdate: "CASCADE",
+    })
+    @JoinColumn({ name: "proposalGroupId" })
+    proposalGroup: ProposalGroup | null;
+
+    @Column({ type: "boolean", default: false })
+    isPrimary: boolean;
+    // ─────────────────────────────────────────────────────────────────
+
+    @ManyToMany(() => Bank, { nullable: true, eager: true })
+    @JoinTable({
+        name: "opportunity_banks",
+        joinColumn: { name: "opportunityId", referencedColumnName: "opportunityId" },
+        inverseJoinColumn: { name: "bankId", referencedColumnName: "bankId" }
+    })
+    banks: Bank[];
+
+    @Column({
+        type: "enum",
+        enum: ApplicantType,
+        nullable: true,
+    })
+    applicantType: ApplicantType;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    loanType: string;
+
+    @Column({
+        type: "varchar",
+        nullable: true
+    })
+    loanAmount: string;
 
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {
-        if(this.title) this.title=encryption(this.title);                  
-        if(this.description) this.description=encryption(this.description);
-        if(this.currentNeed) this.currentNeed=encryption(this.currentNeed);       
-        if(this.proposedSolution) this.proposedSolution=encryption(this.proposedSolution); 
-        if(this.wonLostDescription) this.wonLostDescription=encryption(this.wonLostDescription); 
-        if(this.estimatedRevenue) this.estimatedRevenue=encryption(this.estimatedRevenue); 
-        if(this.actualRevenue) this.actualRevenue=encryption(this.actualRevenue);                
+        if (this.title) this.title = encryption(this.title);
+        if (this.description) this.description = encryption(this.description);
+        if (this.currentNeed) this.currentNeed = encryption(this.currentNeed);
+        if (this.proposedSolution) this.proposedSolution = encryption(this.proposedSolution);
+        if (this.wonLostDescription) this.wonLostDescription = encryption(this.wonLostDescription);
+        if (this.estimatedRevenue) this.estimatedRevenue = encryption(this.estimatedRevenue);
+        if (this.actualRevenue) this.actualRevenue = encryption(this.actualRevenue);
+        if (this.loanType) this.loanType = encryption(this.loanType);
+        if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
+    }
+
+    @AfterLoad()
+    decrypt() {
+        if (this.title) this.title = decrypt(this.title);
+        if (this.description) this.description = decrypt(this.description);
+        if (this.currentNeed) this.currentNeed = decrypt(this.currentNeed);
+        if (this.proposedSolution) this.proposedSolution = decrypt(this.proposedSolution);
+        if (this.wonLostDescription) this.wonLostDescription = decrypt(this.wonLostDescription);
+        if (this.estimatedRevenue) this.estimatedRevenue = decrypt(this.estimatedRevenue);
+        if (this.actualRevenue) this.actualRevenue = decrypt(this.actualRevenue);
+        if (this.loanType) this.loanType = decrypt(this.loanType);
+        if (this.loanAmount) this.loanAmount = decrypt(this.loanAmount);
     }
 }

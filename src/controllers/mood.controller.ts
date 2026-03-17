@@ -4,7 +4,7 @@ import { makeResponse, moodCategory } from "../common/utils";
 import { errorHandler } from "../common/errors";
 // import { ContactSchemaType } from "../schemas/contact.schema";
 // import { Contact } from "../entity/Contact";
-import { CustomRequest } from "../interfaces/types";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { AppDataSource } from "../data-source";
 // import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
@@ -15,7 +15,7 @@ const _moodServices = new MoodServices();
 
 class MoodController{
    	
-	async addMoodImage(request:CustomRequest,response:Response){
+	async addMoodImage(request:AuthenticatedRequest,response:Response){
         try {
             const userId = request.user.userId;
             // const moodes:MoodImage[] = request.body.imgarray as MoodImage[]; 
@@ -40,7 +40,7 @@ class MoodController{
         }
     }
 	    
-  async getAllMoodImages(request:CustomRequest, response: Response) {
+  async getAllMoodImages(request:AuthenticatedRequest, response: Response) {
         try{                  
             const moodCategory:moodCategory = request.query.moodCategory as moodCategory;
             
@@ -56,7 +56,7 @@ class MoodController{
     }
 
 
-    async setMoodOfUser(request:CustomRequest,response:Response){
+    async setMoodOfUser(request:AuthenticatedRequest,response:Response){
         try{
             const mood:User = await AppDataSource.transaction(
                 async(transactionEntityManager)=>{

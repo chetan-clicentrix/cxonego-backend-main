@@ -126,10 +126,14 @@ export const MyEncryptionTransformerConfig = {
 };
 
 export enum stage {
-  ANALYSIS = "Analysis",
-  SOLUTIONING = "Solutioning",
-  PROPOSAL = "Proposal",
-  NEGOTIATION = "Negotiation",
+  DOCUMENT_COLLECTION = "Document collection",
+  PROPOSAL_PREPARATION = "Proposal Preparation",
+  LOGIN_DESK = "Login Desk",
+  QUERY = "Query",
+  QUERY_RESOLUTION = "Query Resolution",
+  APPROVED = "Approved",
+  DISBURSED = "Disbursed",
+  PDD = "PDD",
   WON = "Won",
   LOST = "Lost",
 }
@@ -224,6 +228,14 @@ export enum purchaseTimeFrame {
   tenth_MONTH = "10 Months",
   eleventh_MONTH = "11 Months",
   twelve_MONTH = "12 Months",
+  ONE_TWO_DAYS = "1-2 days",
+  TWO_FIVE_DAYS = "2-5 days",
+  FIVE_TEN_DAYS = "5-10 days",
+  TEN_FIFTEEN_DAYS = "10-15 days",
+  FIFTEEN_TWENTY_DAYS = "15-20 days",
+  TWENTY_TWENTYFIVE_DAYS = "20-25 days",
+  TWENTYFIVE_THIRTY_DAYS = "25-30 days",
+  ONE_ONE_POINT_FIVE_MONTHS = "1-1.5 months",
 }
 // Encrypt plaintext using AES-GCM
 
@@ -315,8 +327,8 @@ export enum referStatus {
 }
 
 //-------------------
-const key = Buffer.from("df32a38775fe682bf3bede615b8707c2", "hex");
-const staticIV = Buffer.from("9ad530ff86c4b33c21258adaf364e354", "hex");
+const key = Buffer.from("df32a38775fe682bf3bede615b8707c2", "hex") as crypto.CipherKey;
+const staticIV = Buffer.from("9ad530ff86c4b33c21258adaf364e354", "hex") as crypto.BinaryLike;
 export function encryption(text: string) {
   try {
     const cipher = crypto.createCipheriv("aes-128-cbc", key, staticIV);
@@ -335,12 +347,13 @@ export function decrypt(encryptedData: string) {
     return encryptedData;
   }
 
-  try{
+  try {
     const decipher = crypto.createDecipheriv("aes-128-cbc", key, staticIV);
     let decrypted = decipher.update(encryptedData, "base64", "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;
-  }catch(error){
+  } catch (error) {
+    // console.error(`[DECRYPT ERROR] Failed to decrypt: ${encryptedData}`, error);
     return encryptedData
   }
 }
@@ -377,4 +390,125 @@ export enum customRequestStatus {
   PENDING = "Pending",
   APPROVED = "Approved",
   REJECTED = "Rejected",
+}
+
+// Customer Service Ticketing Module Enums
+export enum ticketStatus {
+  NEW = "New",
+  ASSIGNED = "Assigned",
+  IN_PROGRESS = "In Progress",
+  ON_HOLD = "On Hold",
+  RESOLVED = "Resolved",
+  CLOSED = "Closed",
+  CANCELLED = "Cancelled"
+}
+
+export enum ticketPriority {
+  LOW = "Low",
+  MEDIUM = "Medium",
+  HIGH = "High",
+  CRITICAL = "Critical"
+}
+
+export enum ticketCategory {
+  ELECTRONICS = "Electronics",
+  APPLIANCES = "Appliances",
+  PLUMBING = "Plumbing",
+  ELECTRICAL = "Electrical",
+  HVAC = "HVAC",
+  CARPENTRY = "Carpentry",
+  OTHER = "Other"
+}
+
+export enum warrantyStatus {
+  IN_WARRANTY = "In Warranty",
+  OUT_OF_WARRANTY = "Out of Warranty",
+  EXTENDED_WARRANTY = "Extended Warranty"
+}
+
+export enum technicianStatus {
+  ACTIVE = "Active",
+  INACTIVE = "Inactive",
+  ON_LEAVE = "On Leave"
+}
+
+export enum technicianAvailability {
+  AVAILABLE = "Available",
+  BUSY = "Busy",
+  OFF_DUTY = "Off Duty"
+}
+
+export enum assignmentStatus {
+  PENDING = "Pending",
+  ACCEPTED = "Accepted",
+  REJECTED = "Rejected",
+  IN_PROGRESS = "In Progress",
+  COMPLETED = "Completed",
+  CANCELLED = "Cancelled"
+}
+export enum routingOperator {
+  EQUALS = "EQUALS",
+  CONTAINS = "CONTAINS",
+  IN = "IN",
+  STARTS_WITH = "STARTS_WITH",
+}
+
+export enum routingAttribute {
+  PHONE = "phone",
+  TITLE = "title",
+  EMAIL = "email",
+  COUNTRY = "country",
+  STATE = "state",
+  CITY = "city",
+  LEAD_SOURCE = "leadSource",
+  COUNTRY_CODE = "countryCode",
+  PRICE = "price",
+  LEAD_TYPE = "leadType",
+}
+
+export enum routingAssignToType {
+  USER = "USER",
+  ROLE = "ROLE",
+}
+
+export enum proficiencyLevel {
+  BEGINNER = "Beginner",
+  INTERMEDIATE = "Intermediate",
+  ADVANCED = "Advanced",
+  EXPERT = "Expert"
+}
+
+export enum ApplicantType {
+  INDIVIDUAL = "Individual",
+  PROPRIETORSHIP = "Proprietorship",
+  PARTNERSHIP = "Partnership",
+  PRIVATE_LIMITED = "Private Limited",
+}
+
+export enum ActivityPlanStatus {
+  ACTIVE = "Active",
+  COMPLETED = "Completed",
+  ABANDONED = "Abandoned",
+}
+
+export enum ActivityPlanActionStatus {
+  PENDING = "Pending",
+  IN_PROGRESS = "In Progress",
+  COMPLETED = "Completed",
+  OVERDUE = "Overdue",
+  SKIPPED = "Skipped",
+}
+
+export enum ActivityPlanActionType {
+  DEFAULT = "Default",  // Standard activity with just comments
+  DOCUMENT_UPLOAD = "Document Upload",  // File upload to SharePoint
+  VERIFICATION = "Verification",  // Yes/No checkbox confirmation
+  DATA_ENTRY = "Data Entry",  // Text/number input field
+  SELECTION = "Selection",  // Dropdown from predefined choices
+  DATE_SELECTION = "Date Selection",  // Date picker
+  START_END_DATE = "Start & End Date", // New: Start date and end date picker
+  CALL_LOG = "Call Log",  // Structured call details form
+  MEETING_NOTES = "Meeting Notes",  // Rich text for meetings
+  APPROVAL = "Approval",  // Approve/Reject with comments
+  COMMENT = "Comment",  // Simple textarea for remarks
 }

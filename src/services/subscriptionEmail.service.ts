@@ -1,4 +1,5 @@
-import EmailManager from "./email-manager.service";
+import { EmailNotificationService } from "./emailNotification.service";
+import { EmailType } from "../entity/SentEmailLog";
 
 class SubscriptionEmailService {
   orderSuccess = async (
@@ -40,9 +41,18 @@ class SubscriptionEmailService {
   
   `;
 
-    const emailManager = new EmailManager();
-
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionFailure = async (
@@ -78,9 +88,18 @@ class SubscriptionEmailService {
   </body>
   
   `;
-    const emailManager = new EmailManager();
-
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionExpiryReminder = async (
@@ -112,8 +131,18 @@ class SubscriptionEmailService {
   
   `;
 
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionCancellation = async (
@@ -148,8 +177,18 @@ class SubscriptionEmailService {
   </body>
   
     `;
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionExpiration = async (
@@ -180,8 +219,18 @@ class SubscriptionEmailService {
     </div>
   </body>
     `;
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionActivation = async (
@@ -218,8 +267,18 @@ class SubscriptionEmailService {
   </body>
   
 `;
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([email], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: email,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   //   admin emails
@@ -272,8 +331,18 @@ class SubscriptionEmailService {
 </body>
 `;
 
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([adminEmail], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: adminEmail,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   cancellationRequested = async (
@@ -322,8 +391,18 @@ class SubscriptionEmailService {
 </body>
 `;
 
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([adminEmail], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: adminEmail,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   subscriptionReport = async (
@@ -374,8 +453,18 @@ class SubscriptionEmailService {
 </body>
 `;
 
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([adminEmail], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: adminEmail,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 
   newCustomPlanRequest = async (
@@ -417,8 +506,18 @@ class SubscriptionEmailService {
     </div>
   </div>
 </body> `;
-    const emailManager = new EmailManager();
-    await emailManager.sendEmail([adminEmail], subject, html);
+    const emailService = new EmailNotificationService();
+    try {
+      const result = await emailService.sendEmail({
+        to: adminEmail,
+        subject: subject,
+        bodyHtml: html,
+        emailType: EmailType.CUSTOM
+      });
+      console.log(`✓ Subscription email queued: ${result.jobId}`);
+    } catch (error: any) {
+      console.error(`Failed to queue subscription email:`, error.message);
+    }
   };
 }
 

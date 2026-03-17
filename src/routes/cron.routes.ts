@@ -23,4 +23,5 @@ cronRouter.get(
 cronRouter.get("/markUpcomingToActive", cronController.markUpcomingToActive);
 
 cronRouter.get("/checkActivity", cronController.checkActivityCronJob);
+
 export default cronRouter;

@@ -1,171 +1,167 @@
 import {
-    Entity,
-    Column,
-    ManyToOne,
-    PrimaryColumn,
-    BeforeInsert,
-    BeforeUpdate,
-    OneToMany,
-    JoinColumn,
-    AfterUpdate,
-    AfterInsert,
-  } from "typeorm";
-  
-  import { IsEmail, Matches } from "class-validator";
-  import {  Currency, ratingRate, statusType } from "../common/utils";
-  import { CustomBaseEntity } from "./CustomBaseEntity";
-  import { Account} from "./Account";
-  import { EncryptionTransformer} from "typeorm-encrypted";
-  import { encryption } from "../common/utils";
-  import { Contact } from "./Contact";
-  import { Activity } from "./Activity";
-  import { User } from "./User";
-  import { Note } from "./Note";
+  Entity,
+  Column,
+  ManyToOne,
+  PrimaryColumn,
+  BeforeInsert,
+  BeforeUpdate,
+  OneToMany,
+  JoinColumn,
+  AfterUpdate,
+  AfterInsert,
+  AfterLoad,
+} from "typeorm";
+
+import { IsEmail, Matches } from "class-validator";
+import { Currency, ratingRate, statusType, encryption, decrypt } from "../common/utils";
+import { CustomBaseEntity } from "./CustomBaseEntity";
+import { Account } from "./Account";
+import { EncryptionTransformer } from "typeorm-encrypted";
+import { Contact } from "./Contact";
+import { Activity } from "./Activity";
+import { User } from "./User";
+import { Note } from "./Note";
 import { Organisation } from "./Organisation";
-  @Entity()
-  export class Lead extends CustomBaseEntity {
-   
-    constructor(payload: Lead) {
-      super();
-      Object.assign(this, payload );
-    }
-    @PrimaryColumn()
-    leadId: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    firstName: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    lastName: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: true,
-    })
-    countryCode: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    phone: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    title: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    @IsEmail()
-    email: string;
-  
-    @ManyToOne(() => Account, (Account) => Account.leads, {
-      cascade: true,
-      // onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-      nullable: true,
-      eager:true
-    })
-    company?: Account;
-   
-    @ManyToOne(() => Contact, (Contact) => Contact.leads, {
-      cascade: true,
-      // onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-      nullable: true,
-      eager:true
-    })
-    contact?: Contact;
+@Entity()
+export class Lead extends CustomBaseEntity {
 
-    @Column({
-      type: "varchar",
-      default : "India",
-      nullable: false,
-    })
-    country: string;
-  
-    @Column({
-      nullable: false,
-    })
-    state: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    city: string;
-  
-    @Column({
-      type: "varchar",
-      nullable: false,
-    })
-    leadSource: string;
-    
-    @Column({
-      type: "enum",
-      enum: ratingRate,
-      default: ratingRate.COLD,
-    })
-    rating: ratingRate;
-  
-    @Column({
-      type: "enum",
-      enum:statusType,
-      default:statusType.NEW,
-    })
-    status: statusType;   
-    
-    @Column({
-      nullable: true,
-    })
-    price: string;
+  constructor(payload: Lead) {
+    super();
+    Object.assign(this, payload);
+  }
+  @PrimaryColumn()
+  leadId: string;
 
-    @Column({
-      type:"enum",
-      enum:Currency,
-      default:Currency.INR
-    })
-    currency:Currency;
-    
-    @OneToMany(()=>Activity,Activity=>Activity.lead)
-    activity:Activity[];
+  @Column({
+    type: "varchar",
+    nullable: false,
+  })
+  fullName: string;
 
-    @ManyToOne(()=>User,(User)=>User.lead,{  
-      // onDelete:"CASCADE",
-      onUpdate:"CASCADE",   
-      eager:true
-    })    
-    @JoinColumn({ name: "ownerId" })
-    owner : User;
+  @Column({
+    type: "varchar",
+    nullable: true,
+  })
+  countryCode: string;
 
-    @OneToMany(()=>Note,(Note)=>Note.Lead)
-    notes:Note[];
+  @Column({
+    type: "varchar",
+    nullable: false,
+  })
+  phone: string;
+
+  @Column({
+    type: "varchar",
+    nullable: false,
+  })
+  title: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true,
+  })
+  @IsEmail()
+  email: string;
+
+  @ManyToOne(() => Account, (Account) => Account.leads, {
+    cascade: true,
+    // onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+    nullable: true,
+    eager: true
+  })
+  company?: Account;
+
+  @ManyToOne(() => Contact, (Contact) => Contact.leads, {
+    cascade: true,
+    // onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+    nullable: true,
+    eager: true
+  })
+  contact?: Contact;
+
+  @Column({
+    type: "varchar",
+    default: "India",
+    nullable: false,
+  })
+  country: string;
+
+  @Column({
+    default: "Maharashtra",
+    nullable: false,
+  })
+  state: string;
+
+  @Column({
+    type: "varchar",
+    default: "Pune",
+    nullable: false,
+  })
+  city: string;
+
+  @Column({
+    type: "varchar",
+    nullable: false,
+  })
+  leadSource: string;
+
+  @Column({
+    type: "enum",
+    enum: ratingRate,
+    default: ratingRate.COLD,
+  })
+  rating: ratingRate;
+
+  @Column({
+    type: "enum",
+    enum: statusType,
+    default: statusType.NEW,
+  })
+  status: statusType;
+
+  @Column({
+    nullable: true,
+  })
+  price: string;
+
+  @Column({
+    type: "enum",
+    enum: Currency,
+    default: Currency.INR
+  })
+  currency: Currency;
+
+  @OneToMany(() => Activity, Activity => Activity.lead)
+  activity: Activity[];
+
+  @ManyToOne(() => User, (User) => User.lead, {
+    // onDelete:"CASCADE",
+    onUpdate: "CASCADE",
+    eager: true
+  })
+  @JoinColumn({ name: "ownerId" })
+  owner: User;
+
+  @OneToMany(() => Note, (Note) => Note.Lead)
+  notes: Note[];
 
   @ManyToOne(() => Organisation, (Organisation) => Organisation.leads, {
     cascade: true,
     // onDelete: "CASCADE",
     onUpdate: "CASCADE",
     nullable: true,
-    eager:true
+    eager: true
   })
   @JoinColumn({ name: "organizationId" })
-  organization:Organisation;
+  organization: Organisation;
 
   @Column({
-    type:"text",
+    type: "text",
     nullable: true
   })
-  description:string;
+  description: string;
 
   @Column({
     type: "varchar",
@@ -176,33 +172,109 @@ import { Organisation } from "./Organisation";
   @Column({ nullable: true })
   leadType: string;
 
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  loanType: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  loanAmount: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  zone: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  village: string;
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  pincode: string;
+
+
+  @Column({
+    type: "varchar",
+    nullable: true
+  })
+  taluka: string;
+
+  @Column({
+    type: "boolean",
+    default: false,
+  })
+  wasQualified: boolean;
+
+  @Column({
+    type: "text",
+    nullable: true
+  })
+  closureComments: string;
+
   @BeforeInsert()
   @BeforeUpdate()
   encrypt() {
-    if(this.firstName) this.firstName =encryption(this.firstName);
-    if(this.lastName) this.lastName =encryption(this.lastName);
-    if(this.countryCode) this.countryCode =encryption(this.countryCode);
-    if(this.phone) this.phone =encryption(this.phone);
-    if(this.country)  this.country =encryption(this.country);
-    if(this.leadSource)  this.leadSource =encryption(this.leadSource);
-    if(this.email )  this.email =encryption(this.email);
-    if(this.state)  this.state =encryption(this.state);
-    if(this.city )  this.city =encryption(this.city);
-    if(this.description)  this.description =encryption(this.description);
-    if(this.price) this.price =encryption(this.price);    
-    }
-
-    @AfterInsert()
-    auditHandlerAfterInsert(){
-      console.log(this)
-      
-    }
-    @AfterUpdate()
-    auditHandlerAfterUpdate(){
-      console.log(this)
-    }
+    if (this.fullName) this.fullName = encryption(this.fullName);
+    if (this.countryCode) this.countryCode = encryption(this.countryCode);
+    if (this.phone) this.phone = encryption(this.phone);
+    if (this.country) this.country = encryption(this.country);
+    if (this.leadSource) this.leadSource = encryption(this.leadSource);
+    if (this.email) this.email = encryption(this.email);
+    if (this.state) this.state = encryption(this.state);
+    if (this.city) this.city = encryption(this.city);
+    if (this.description) this.description = encryption(this.description);
+    if (this.price) this.price = encryption(this.price);
+    if (this.loanType) this.loanType = encryption(this.loanType);
+    if (this.loanAmount) this.loanAmount = encryption(this.loanAmount);
+    if (this.zone) this.zone = encryption(this.zone);
+    if (this.village) this.village = encryption(this.village);
+    if (this.pincode) this.pincode = encryption(this.pincode);
+    if (this.taluka) this.taluka = encryption(this.taluka);
+    if (this.closureComments) this.closureComments = encryption(this.closureComments);
   }
-  
+
+  @AfterInsert()
+  auditHandlerAfterInsert() {
+    console.log(this)
+
+  }
+  @AfterUpdate()
+  auditHandlerAfterUpdate() {
+    console.log(this)
+  }
+
+  @AfterLoad()
+  decrypt() {
+    if (this.fullName) this.fullName = decrypt(this.fullName);
+    if (this.countryCode) this.countryCode = decrypt(this.countryCode);
+    if (this.phone) this.phone = decrypt(this.phone);
+    if (this.country) this.country = decrypt(this.country);
+    if (this.leadSource) this.leadSource = decrypt(this.leadSource);
+    if (this.email) this.email = decrypt(this.email);
+    if (this.state) this.state = decrypt(this.state);
+    if (this.city) this.city = decrypt(this.city);
+    if (this.description) this.description = decrypt(this.description);
+    if (this.price) this.price = decrypt(this.price);
+    if (this.loanType) this.loanType = decrypt(this.loanType);
+    if (this.loanAmount) this.loanAmount = decrypt(this.loanAmount);
+    if (this.zone) this.zone = decrypt(this.zone);
+    if (this.village) this.village = decrypt(this.village);
+    if (this.pincode) this.pincode = decrypt(this.pincode);
+    if (this.taluka) this.taluka = decrypt(this.taluka);
+    if (this.closureComments) this.closureComments = decrypt(this.closureComments);
+  }
+}
+
 /**
  * @swagger
  * components:
@@ -235,4 +307,3 @@ import { Organisation } from "./Organisation";
  *           format: date-time
  *           description: Last update timestamp
  */
-  

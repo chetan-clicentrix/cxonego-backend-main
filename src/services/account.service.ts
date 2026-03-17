@@ -164,32 +164,12 @@ class AccountServices {
 
       const accounts = await accountsRepo.getMany();
 
-      accounts.forEach(async (account) => {
-        if (account.accountName)
-          account.accountName = decrypt(account.accountName);
-        if (account.country) account.country = decrypt(account.country);
-        if (account.state) account.state = decrypt(account.state);
-        if (account.city) account.city = decrypt(account.city);
-        if (account.companySize)
-          account.companySize = decrypt(account.companySize);
-        if (account.website) account.website = decrypt(account.website);
-        if (account.industry) account.industry = decrypt(account.industry);
-        if (account.businessType)
-          account.businessType = decrypt(account.businessType);
-        if (account.CurrencyCode)
-          account.CurrencyCode = decrypt(account.CurrencyCode);
-        if (account.annualRevenue)
-          account.annualRevenue = decrypt(account.annualRevenue);
-        if (account.email) account.email = decrypt(account.email);
-        if (account.phone) account.phone = decrypt(account.phone);
-        if (account.countryCode)
-          account.countryCode = decrypt(account.countryCode);
-        if (account.address) account.address = decrypt(account.address);
-        if (account.description)
-          account.description = decrypt(account.description);
-        if (account.area) account.area = decrypt(account.area);
-        if (account.owner) account.owner = await userDecryption(account.owner);
-      });
+      for (let i = 0; i < accounts.length; i++) {
+        accounts[i] = await accountDecryption(accounts[i]);
+        if (accounts[i].owner) {
+          accounts[i].owner = await userDecryption(accounts[i].owner);
+        }
+      }
       let searchedData: Account[] = [];
       let skip = 0;
       if (search) {
@@ -252,6 +232,12 @@ class AccountServices {
               .includes(String(search).toLowerCase()) ||
             account?.owner?.lastName
               ?.toLowerCase()
+              .includes(String(search).toLowerCase()) ||
+            account?.clientCategory
+              ?.toLowerCase()
+              .includes(String(search).toLowerCase()) ||
+            account?.segment
+              ?.toLowerCase()
               .includes(String(search).toLowerCase())
           ) {
             return true;
@@ -303,7 +289,7 @@ class AccountServices {
   }
   async getAccount(accountId: string) {
     try {
-      const account = await AppDataSource.getRepository(Account).findOne({
+      let account = await AppDataSource.getRepository(Account).findOne({
         where: {
           accountId: accountId,
         },
@@ -311,29 +297,7 @@ class AccountServices {
 
       if (!account) throw new ResourceNotFoundError("Account not found");
 
-      if (account?.accountName)
-        account.accountName = decrypt(account.accountName);
-      if (account?.description)
-        account.description = decrypt(account.description);
-      if (account?.country) account.country = decrypt(account.country);
-      if (account?.state) account.state = decrypt(account.state);
-      if (account?.city) account.city = decrypt(account.city);
-      if (account?.companySize)
-        account.companySize = decrypt(account.companySize);
-      if (account?.website) account.website = decrypt(account.website);
-      if (account?.industry) account.industry = decrypt(account.industry);
-      if (account?.businessType)
-        account.businessType = decrypt(account.businessType);
-      if (account?.CurrencyCode)
-        account.CurrencyCode = decrypt(account.CurrencyCode);
-      if (account?.annualRevenue)
-        account.annualRevenue = decrypt(account.annualRevenue);
-      if (account?.email) account.email = decrypt(account.email);
-      if (account?.phone) account.phone = decrypt(account.phone);
-      if (account?.countryCode)
-        account.countryCode = decrypt(account.countryCode);
-      if (account?.address) account.address = decrypt(account.address);
-      if (account?.area) account.area = decrypt(account.area);
+      account = await accountDecryption(account);
 
       if (account) {
         account.organization = await orgnizationDecryption(
@@ -406,7 +370,7 @@ class AccountServices {
     transactionEntityManager: EntityManager
   ) {
     if (await this.isAccountNameExists(payload.accountName, organizationId)) {
-      throw new Error("This account name is is allready use");
+      throw new Error("This account name is already in use");
     }
 
     if (payload?.socialMediaLink?.[0]?.name) {
@@ -460,17 +424,13 @@ class AccountServices {
     user: userInfo,
     transactionEntityManager: EntityManager
   ) {
-    // if(await this.isAccountNameExists(payload.accountName,user.organizationId)){
-    //     throw new Error("This account name is is allready use");;
-    // }
-
     payload.modifiedBy = user.email;
     const accountRepo = AppDataSource.getRepository(Account);
     const accountData = await accountRepo.findOneBy({ accountId: accountId });
     if (!accountData) {
       return;
     }
-   
+
     if (payload?.socialMediaLink?.[0]?.name) {
       const socialMedia = new SocialMedia();
       const socialMedias: SocialMedia[] = [];
@@ -502,7 +462,7 @@ class AccountServices {
         .getOne();
       if (userData) {
         payload.owner = userData as User;
-      }else{
+      } else {
         throw new ResourceNotFoundError("User not found in this organization.");
       }
     }
@@ -867,8 +827,7 @@ class AccountServices {
         .where("lead.company Like :account", { account: `%${accountId}%` })
         .getMany();
       leads.map((lead) => {
-        if (lead?.firstName) lead.firstName = decrypt(lead.firstName);
-        if (lead?.lastName) lead.lastName = decrypt(lead.lastName);
+        if (lead?.fullName) lead.fullName = decrypt(lead.fullName);
         if (lead?.phone) lead.phone = decrypt(lead.phone);
         if (lead?.country) lead.country = decrypt(lead.country);
         if (lead?.state) lead.state = decrypt(lead.state);
@@ -886,11 +845,7 @@ class AccountServices {
         skip = 1;
         searchedData = await leads.filter((lead) => {
           if (
-            lead?.firstName
-              ?.toString()
-              .toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            lead?.lastName
+            lead?.fullName
               ?.toString()
               .toLowerCase()
               .includes(String(search).toLowerCase()) ||
@@ -974,8 +929,7 @@ class AccountServices {
         .where("contact.company Like :account", { account: `%${accountId}%` })
         .getMany();
       contacts.map((contact) => {
-        if (contact.firstName) contact.firstName = decrypt(contact.firstName);
-        if (contact.lastName) contact.lastName = decrypt(contact.lastName);
+        if (contact.fullName) contact.fullName = decrypt(contact.fullName);
         if (contact.countryCode)
           contact.countryCode = decrypt(contact.countryCode);
         if (contact.phone) contact.phone = decrypt(contact.phone);
@@ -1000,13 +954,10 @@ class AccountServices {
         skip = 1;
         searchedData = contacts.filter((contact) => {
           if (
-            contact?.firstName
+            contact?.fullName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.countryCode
-              ?.toLowerCase()
-              .includes(String(search).toLowerCase()) ||
-            contact?.lastName
               ?.toLowerCase()
               .includes(String(search).toLowerCase()) ||
             contact?.country
@@ -1190,7 +1141,7 @@ class AccountServices {
   ) {
     const updatedAccount = Object(updatedAccountRecord);
     const oldAccount = Object(oldcompanyRecord);
-    
+
     const auditRepository = transactionEntityManager.getRepository(Audit);
     let description = "";
     const predescription = await auditRepository.findOne({

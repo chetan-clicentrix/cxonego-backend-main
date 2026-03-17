@@ -4,10 +4,10 @@ export interface CustomResponse {
   message: string;
 }
 
-export interface CustomeSuccessResponse{
+export interface CustomeSuccessResponse {
   data: any;
   message: string;
-  success:boolean
+  success: boolean
 }
 
 export interface JwtPayload {
@@ -21,26 +21,43 @@ export type RequestContext = {
   tenantCollegeId?: number;
 };
 
-interface userInfo  {
+interface userInfo {
   userId: string,
   email: string,
-  emailVerified:boolean,
+  emailVerified: boolean,
   role: Role[],
   auth_time: number,
-  organizationId : string | null
+  organizationId: string | null
 }
 
 
 import { Request } from 'express';
 import { Role } from '../entity/Role';
 export interface CustomRequest extends Request {
-  user: userInfo; 
+  user?: userInfo;
+  apiKey?: {
+    apiKeyId: string;
+    organisationId: string;
+    permissions: string[];
+    name: string;
+  };
+}
+
+// For routes that require authentication, use this type to guarantee user exists
+export interface AuthenticatedRequest extends Request {
+  user: userInfo; // Required, not optional
+  apiKey?: {
+    apiKeyId: string;
+    organisationId: string;
+    permissions: string[];
+    name: string;
+  };
 }
 
 
 
 export type VerificationQuery = {
-  userId:string,
+  userId: string,
   date: string
 }
 

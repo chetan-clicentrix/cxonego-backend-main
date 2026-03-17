@@ -3,13 +3,16 @@ import { Request, Response } from "express";
 import OppurtunityServices from "../services/oppurtunity.service";
 import { makeResponse, decrypt } from "../common/utils";
 import { Oppurtunity } from "../entity/Oppurtunity";
-import { CustomRequest } from "../interfaces/types";
+import { ProposalGroup } from "../entity/ProposalGroup";
+import { AuthenticatedRequest } from "../interfaces/types";
 import { DateRangeParamsType } from "../schemas/comman.schemas";
 import { Role } from "../entity/Role";
 import { AppDataSource } from "../data-source";
+import { v4 as uuidv4 } from "uuid";
+
 const oppurtunityServices = new OppurtunityServices();
 export class OppurtunityController {
-  async getAllOppurtunities(request: CustomRequest, response: Response) {
+  async getAllOppurtunities(request: AuthenticatedRequest, response: Response) {
     try {
       const oppurtunities = await oppurtunityServices.getAllOppurtunities(
         request.user
@@ -25,7 +28,7 @@ export class OppurtunityController {
       errorHandler(response, error.message);
     }
   }
-  async getAllOppurtunity(request: CustomRequest, response: Response) {
+  async getAllOppurtunity(request: AuthenticatedRequest, response: Response) {
     try {
       const search: string | undefined = request.query.search as
         | string
@@ -96,37 +99,130 @@ export class OppurtunityController {
       errorHandler(response, error.message);
     }
   }
-  async createOppurtunity(request: CustomRequest, response: Response) {
+  async createOppurtunity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
       const payload = request.body as Oppurtunity;
-      const opportunity = await AppDataSource.transaction(
-        async (transactionEntityManager) => {
-          const opportunity = await oppurtunityServices.createOppurtunity(
-            payload,
-            request.user,
-            transactionEntityManager
-          );
-          return opportunity;
-        }
-      );
 
-      if (!opportunity) {
+      // Extract and deduplicate bank IDs from the incoming payload
+      console.log("[OPPORTUNITY_CONTROLLER] Incoming payload banks:", payload.banks);
+      const rawBankIds: string[] = Array.isArray(payload.banks)
+        ? (payload.banks as any[]).map((b: any) =>
+          typeof b === "string" ? b : b?.bankId
+        ).filter(Boolean)
+        : [];
+
+      const rawBanks = Array.from(new Set(rawBankIds)); // Remove duplicate banks
+
+      let createdOpportunities: Oppurtunity[] = [];
+
+      if (rawBanks.length > 1) {
+        // ── Multi-bank: create one proposal per bank ─────────────────────
+        for (let i = 0; i < rawBanks.length; i++) {
+          const bankId = rawBanks[i];
+          const isPrimary = i === 0; // first bank = primary
+
+          const opp = await AppDataSource.transaction(
+            async (transactionEntityManager) => {
+              return oppurtunityServices.createOppurtunity(
+                { ...payload } as Oppurtunity,
+                request.user,
+                transactionEntityManager,
+                bankId,
+                isPrimary
+              );
+            }
+          );
+          createdOpportunities.push(opp);
+        }
+
+        // Link all created proposals into one group (outside individual
+        // per-bank transactions — they are already committed at this point)
+        const group = await AppDataSource.transaction(
+          async (transactionEntityManager) => {
+            return oppurtunityServices.createProposalGroup(
+              createdOpportunities,
+              request.user.organizationId ?? "",
+              transactionEntityManager
+            );
+          }
+        );
+
+        // Fire post-create tasks for all proposals
+        const decryptedOpportunities = [];
+        for (const opp of createdOpportunities) {
+          if (opp && typeof opp.decrypt === 'function') opp.decrypt();
+          oppurtunityServices
+            .postCreateOpportunityTasks(opp, request.user)
+            .catch((err) =>
+              console.error(
+                "[OPPORTUNITY_CONTROLLER] Post-create task error:",
+                err
+              )
+            );
+
+          const fullyDecryptedOpp = await oppurtunityServices.getOppurtunityById(opp.opportunityId);
+          if (fullyDecryptedOpp) {
+            decryptedOpportunities.push(fullyDecryptedOpp);
+          } else {
+            decryptedOpportunities.push(opp);
+          }
+        }
+
         return makeResponse(
           response,
-          400,
-          false,
-          "Fail to create opportunity",
-          null
+          201,
+          true,
+          "Opportunities created successfully",
+          { opportunities: decryptedOpportunities, proposalGroupId: group.proposalGroupId }
+        );
+      } else {
+        // ── Single bank (or no bank): original flow ───────────────────────
+        const opportunity = await AppDataSource.transaction(
+          async (transactionEntityManager) => {
+            return oppurtunityServices.createOppurtunity(
+              payload,
+              request.user,
+              transactionEntityManager
+            );
+          }
+        );
+
+        if (!opportunity) {
+          return makeResponse(
+            response,
+            400,
+            false,
+            "Fail to create opportunity",
+            null
+          );
+        }
+
+        // Run post-create tasks (activity plan auto-assignment) AFTER the transaction
+        // commits to avoid MySQL lock wait timeout caused by nested DB connections.
+        if (opportunity && typeof opportunity.decrypt === 'function') {
+          opportunity.decrypt();
+        }
+
+        oppurtunityServices
+          .postCreateOpportunityTasks(opportunity, request.user)
+          .catch((err) =>
+            console.error(
+              "[OPPORTUNITY_CONTROLLER] Post-create task error:",
+              err
+            )
+          );
+
+        const fullyDecryptedOpportunity = await oppurtunityServices.getOppurtunityById(opportunity.opportunityId);
+
+        return makeResponse(
+          response,
+          201,
+          true,
+          "Opportunity created successfully",
+          fullyDecryptedOpportunity || opportunity
         );
       }
-      return makeResponse(
-        response,
-        201,
-        true,
-        "Opportunity created successfully",
-        opportunity
-      );
     } catch (error) {
       let errorMessage = error.message;
       if (errorMessage.includes("Duplicate entry")) {
@@ -141,6 +237,7 @@ export class OppurtunityController {
           if (Object.prototype.hasOwnProperty.call(copiedObject, key)) {
             if (
               copiedObject[key] !== null &&
+              typeof copiedObject[key] === 'string' &&
               copiedObject[key].trim() === duplicateEntry.trim()
             ) {
               columnName = key;
@@ -155,22 +252,190 @@ export class OppurtunityController {
       errorHandler(response, errorMessage);
     }
   }
-  async updateOppurtunity(request: CustomRequest, response: Response) {
+  async updateOppurtunity(request: AuthenticatedRequest, response: Response) {
     const copiedObject = { ...request.body };
     try {
-      const oppurtunity = await AppDataSource.transaction(
-        async (transactionEntityManager) => {
-          const oppurtunity = await oppurtunityServices.updateOppurtunity(
-            request.params.opportunityId,
-            request.body,
-            request.user,
-            transactionEntityManager
-          );
-          return oppurtunity;
-        }
-      );
+      const opportunityId = request.params.opportunityId;
+      const user = request.user;
+      const payload = { ...request.body };
 
-      if (oppurtunity?.affected === 0 || oppurtunity == undefined) {
+      // Determine if a new banks list was provided and deduplicate it
+      const banksProvided = Array.isArray(payload.banks);
+      const rawBankIds: string[] = banksProvided
+        ? (payload.banks as any[]).map((b: any) =>
+          typeof b === "string" ? b : b?.bankId
+        ).filter(Boolean)
+        : [];
+
+      const rawBanks = Array.from(new Set(rawBankIds)); // Remove duplicate banks
+
+      // Ensure generic fields pass without overwriting system/relation fields
+      delete payload.banks;
+      delete payload.opportunityId;
+      delete payload.isPrimary;
+      delete payload.proposalGroupId;
+      delete payload.createdAt;
+      delete payload.updatedAt;
+      delete payload.deletedAt;
+
+      const oppurtunity = await AppDataSource.transaction(async (manager) => {
+        const oppRepo = manager.getRepository(Oppurtunity);
+
+        const targetOpp = await oppRepo.findOne({
+          where: { opportunityId },
+          relations: ["banks"]
+        });
+
+        if (!targetOpp) throw new Error("Opportunity not found");
+
+        let siblings = [targetOpp];
+        if (targetOpp.proposalGroupId) {
+          siblings = await oppRepo.find({
+            where: { proposalGroupId: targetOpp.proposalGroupId },
+            relations: ["banks"]
+          });
+        }
+
+        const currentBankIdToOppId = new Map<string, string>();
+        for (const sib of siblings) {
+          if (sib.banks && sib.banks.length > 0) {
+            currentBankIdToOppId.set(sib.banks[0].bankId, sib.opportunityId);
+          } else if (!sib.proposalGroupId && siblings.length === 1 && (!sib.banks || sib.banks.length === 0)) {
+            // Standalone with no bank attached yet
+            currentBankIdToOppId.set("NO_BANK", sib.opportunityId);
+          }
+        }
+
+        const UNIQUE_FIELDS = [
+          "stage",
+          "status",
+          "loanAmount",
+          "loanType",
+          "actualRevenue",
+          "estimatedRevenue",
+          "forecastCategory",
+          "probability",
+          "actualCloseDate",
+          "estimatedCloseDate",
+          "wonReason",
+          "lostReason",
+          "wonLostDescription",
+          "applicantType",
+        ];
+
+        let finalActiveOpportunities: Oppurtunity[] = [];
+        let primaryOppId = siblings.find(s => s.isPrimary)?.opportunityId || targetOpp.opportunityId;
+
+        if (banksProvided) {
+          const incomingBankIds = new Set(rawBanks);
+          const currentBankIds = new Set(Array.from(currentBankIdToOppId.keys()).filter(k => k !== "NO_BANK"));
+
+          for (const bankId of currentBankIds) {
+            const siblingId = currentBankIdToOppId.get(bankId)!;
+            if (!incomingBankIds.has(bankId)) {
+              // Bank removed -> archive sibling proposal
+              await oppurtunityServices.deleteOppurtunity(siblingId, user, manager);
+            } else {
+              // Bank kept -> update sibling proposal
+              let siblingPayload = { ...payload };
+              if (siblingId !== opportunityId) {
+                // If this is a sibling (not the target being edited), strip out fields that should be unique
+                UNIQUE_FIELDS.forEach(field => delete (siblingPayload as any)[field]);
+              }
+              // Make sure to explicitly pass the bank ID down so the many-to-many relationship isn't broken
+              const updated = await oppurtunityServices.updateOppurtunity(siblingId, { ...siblingPayload, banks: [bankId] } as any, user, manager);
+              finalActiveOpportunities.push(updated!);
+            }
+          }
+
+          for (const bankId of rawBanks) {
+            if (!currentBankIds.has(bankId)) {
+              if (currentBankIdToOppId.has("NO_BANK") && finalActiveOpportunities.length === 0) {
+                const noBankOppId = currentBankIdToOppId.get("NO_BANK")!;
+                const updated = await oppurtunityServices.updateOppurtunity(noBankOppId, { ...payload, banks: [bankId] }, user, manager);
+                finalActiveOpportunities.push(updated!);
+                currentBankIdToOppId.delete("NO_BANK");
+              } else {
+                // Create new sibling for new bank
+                // CRITICAL: We MUST strip opportunityId out of the payload specifically here, 
+                // so the service generates a distinct, new ID instead of upserting over the primary one.
+                const { opportunityId: _strippedId, ...createPayload } = payload;
+                const newOpp = await oppurtunityServices.createOppurtunity(
+                  { ...createPayload, banks: [bankId] } as any,
+                  user,
+                  manager,
+                  bankId,
+                  false
+                );
+                finalActiveOpportunities.push(newOpp);
+              }
+            }
+          }
+        } else {
+          // No banks provided; update siblings but protect unique fields
+          for (const sib of siblings) {
+            let siblingPayload = { ...payload };
+            if (sib.opportunityId !== opportunityId) {
+              // If this is a sibling, strip out unique fields
+              UNIQUE_FIELDS.forEach(field => delete (siblingPayload as any)[field]);
+            }
+            // Keep the sibling's existing bank
+            const existingBankId = sib.banks && sib.banks.length > 0 ? sib.banks[0].bankId : null;
+            const updatePayload = existingBankId ? { ...siblingPayload, banks: [existingBankId] } : { ...siblingPayload };
+            const updated = await oppurtunityServices.updateOppurtunity(sib.opportunityId, updatePayload as any, user, manager);
+            finalActiveOpportunities.push(updated!);
+          }
+        }
+
+        // Finalize group structure if >1 proposal
+        if (finalActiveOpportunities.length > 1) {
+          let groupId = targetOpp.proposalGroupId;
+          if (!groupId) {
+            const groupRepo = manager.getRepository(ProposalGroup);
+            const newGroup = groupRepo.create({ proposalGroupId: uuidv4(), organizationId: user.organizationId! });
+            await groupRepo.save(newGroup);
+            groupId = newGroup.proposalGroupId;
+          }
+
+          let hasPrimary = false;
+          for (let i = 0; i < finalActiveOpportunities.length; i++) {
+            const opp = finalActiveOpportunities[i];
+            let isPrimary = false;
+            if (opp.opportunityId === primaryOppId) {
+              isPrimary = true;
+              hasPrimary = true;
+            }
+
+            await oppRepo.update(opp.opportunityId, { proposalGroupId: groupId, isPrimary: isPrimary });
+            opp.proposalGroupId = groupId;
+            opp.isPrimary = isPrimary;
+          }
+
+          // If primary was deleted, set the first active one as primary
+          if (!hasPrimary && finalActiveOpportunities.length > 0) {
+            await oppRepo.update(finalActiveOpportunities[0].opportunityId, { isPrimary: true });
+            finalActiveOpportunities[0].isPrimary = true;
+          }
+        } else if (finalActiveOpportunities.length === 1) {
+          // If shrunk back to 1, ensure it is primary and can keep its group ID
+          await oppRepo.update(finalActiveOpportunities[0].opportunityId, { isPrimary: true });
+          finalActiveOpportunities[0].isPrimary = true;
+        }
+
+        // Return the one requested, or fallback to the primary
+        const returnOpp = finalActiveOpportunities.find(o => o.opportunityId === opportunityId)
+          || finalActiveOpportunities.find(o => o.isPrimary)
+          || finalActiveOpportunities[0]
+          || targetOpp;
+
+        if (returnOpp && typeof returnOpp.decrypt === 'function') {
+          returnOpp.decrypt();
+        }
+
+        return returnOpp;
+      });
+
+      if (!oppurtunity) {
         return makeResponse(
           response,
           400,
@@ -179,12 +444,15 @@ export class OppurtunityController {
           null
         );
       }
+
+      const fullyDecryptedOpportunity = await oppurtunityServices.getOppurtunityById(oppurtunity.opportunityId);
+
       return makeResponse(
         response,
         200,
         true,
         "Oppurtunity updated successfully",
-        oppurtunity
+        fullyDecryptedOpportunity || oppurtunity
       );
     } catch (error) {
       let errorMessage = error.message;
@@ -200,6 +468,7 @@ export class OppurtunityController {
           if (Object.prototype.hasOwnProperty.call(copiedObject, key)) {
             if (
               copiedObject[key] !== null &&
+              typeof copiedObject[key] === 'string' &&
               copiedObject[key].trim() === duplicateEntry.trim()
             ) {
               columnName = key;
@@ -214,7 +483,7 @@ export class OppurtunityController {
       errorHandler(response, errorMessage);
     }
   }
-  async deleteOppurtunity(request: CustomRequest, response: Response) {
+  async deleteOppurtunity(request: AuthenticatedRequest, response: Response) {
     try {
       const oppurtunity = await AppDataSource.transaction(
         async (transactionEntityManager) => {
@@ -269,7 +538,7 @@ export class OppurtunityController {
     }
   }
 
-  async bulkDeleteOpportunity(request: CustomRequest, response: Response) {
+  async bulkDeleteOpportunity(request: AuthenticatedRequest, response: Response) {
     try {
       const userId = request.user.userId;
       const auth_time = request.user.auth_time;
@@ -309,7 +578,7 @@ export class OppurtunityController {
   }
 
   async getAllOppurtunityByAccountId(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -387,7 +656,7 @@ export class OppurtunityController {
   }
 
   async getAllOppurtunityByContactId(
-    request: CustomRequest,
+    request: AuthenticatedRequest,
     response: Response
   ) {
     try {
@@ -459,6 +728,65 @@ export class OppurtunityController {
         "Opportunity fetched successfully",
         oppurtunity
       );
+    } catch (error) {
+      errorHandler(response, error.message);
+    }
+  }
+
+  async exportOpportunitiesToExcel(
+    request: AuthenticatedRequest,
+    response: Response
+  ) {
+    try {
+      const search: string | undefined = request.query.search as string | undefined;
+      let createdAt: string = request.query.createdAt as string;
+      let updatedAt: string = request.query.updatedAt as string;
+      let dateRange: DateRangeParamsType = request.body.dateRange as DateRangeParamsType;
+      const userId: string = request.user.userId;
+      const organizationId: string | null = request.user.organizationId;
+      const role: Role[] = request.user.role;
+      const purchaseTimeFrame: string[] = request.body.purchaseTimeFrame as string[];
+      const forecastCategory: string[] = request.body.forecastCategory as string[];
+      const probability: string[] = request.body.probability as string[];
+      const stage: string[] = request.body.stage as string[];
+      const status: string[] = request.body.status as string[];
+      const priority: string[] = request.body.priority as string[];
+      const purchaseProcess: string[] = request.body.purchaseProcess as string[];
+      const company: string = request.body.company;
+      const contact: string = request.body.contact;
+      let view: string = request.query.view as string;
+      const excludedColumns: string[] = request.body.excludedColumns as string[];
+
+      const buffer = await oppurtunityServices.exportOpportunitiesToExcel(
+        userId,
+        role,
+        search,
+        purchaseTimeFrame,
+        forecastCategory,
+        probability,
+        stage,
+        status,
+        priority,
+        purchaseProcess,
+        createdAt,
+        updatedAt,
+        dateRange,
+        company,
+        contact,
+        organizationId,
+        view,
+        excludedColumns
+      );
+
+      response.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      response.setHeader(
+        "Content-Disposition",
+        "attachment; filename=opportunities.xlsx"
+      );
+      return response.send(buffer);
     } catch (error) {
       errorHandler(response, error.message);
     }

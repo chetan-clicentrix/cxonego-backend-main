@@ -9,9 +9,17 @@ import {
   updateUserRoleSchema,
   updateUserProfileSchema,
   isIinvitationRevokedSchema,
+  createUserDirectlySchema,
 } from "../schemas/user.schemas";
 const userRouter = Router();
 const userController = new UserController();
+
+
+userRouter.post(
+  "/create",
+  bodySchemaValidator(createUserDirectlySchema),
+  userController.createUserDirectly
+);
 
 userRouter.get("/", userController.getUsers);
 userRouter.get("/getUsersSubscriptions", userController.getUsersSubscriptions);
@@ -25,7 +33,7 @@ userRouter.post(
 userRouter.get("/:userId", userController.getUserById);
 
 userRouter.post(
-  "/",
+  ["/", ""],
   //bodySchemaValidator(UpdateProfileSchema),
   userController.updateSertUser
 );
