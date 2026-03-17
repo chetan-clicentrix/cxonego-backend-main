@@ -64,6 +64,7 @@ const verifyToken = async (
     }
     next();
   } catch (err: any) {
+    console.error("🔴 Firebase token verification failed:", err?.code, err?.message);
     next({ name: "UnauthorizedError", message: "Invalid token" });
   }
 };

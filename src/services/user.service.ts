@@ -6,7 +6,7 @@ import { roleNames, subscriptionStatus } from "../common/utils";
 import { EntityManager, In, UpdateResult } from "typeorm";
 import { EmailNotificationService } from "./emailNotification.service";
 import { EmailType } from "../entity/SentEmailLog";
-import { ResourceNotFoundError, ValidationFailedError } from "../common/errors";
+import { ForbiddenError, ResourceNotFoundError, ValidationFailedError } from "../common/errors";
 import { encryption } from "../common/utils";
 import { InviteUserType } from "../schemas/comman.schemas";
 import { Organisation } from "../entity/Organisation";
@@ -316,11 +316,48 @@ class UserServices {
           );
         }
       }
+
+      const isAdmin = user.roles?.some((r) => r.roleName === roleNames.ADMIN);
+      if (isAdmin) {
+        const orgId = user.organisation?.organisationId;
+        if (orgId) {
+          const orgMembers = await AppDataSource.getRepository(User)
+            .createQueryBuilder("u")
+            .leftJoinAndSelect("u.roles", "role")
+            .where("u.organisationOrganisationId = :orgId", { orgId })
+            .andWhere("u.userId != :userId", { userId })
+            .select(["u.userId", "u.email", "u.firstName", "u.lastName", "u.isBlocked", "role.roleName"])
+            .getMany();
+
+          // Keep existing pending invites
+          const existingInvites = user.invitedUsers || [];
+          const pendingInvites = existingInvites.filter(i => i.onboardingStatus === "PENDING");
+          
+          user.invitedUsers = [...pendingInvites];
+
+          for (const member of orgMembers) {
+            // Avoid duplicates if a user is already in the list
+            if (user.invitedUsers.some(i => i.id === member.userId)) continue;
+
+            const decryptedMember = await userDecryption(member as User);
+            user.invitedUsers.push({
+                id: member.userId,
+                name: `${decryptedMember.firstName || ""} ${decryptedMember.lastName || ""}`.trim() || "N/A",
+                email: decrypt(member.email) || member.email,
+                role: member.roles?.[0]?.roleName || "SALESPERSON",
+                onboardingStatus: "ONBOARDED",
+                isBlocked: member.isBlocked || false,
+            });
+          }
+        }
+      }
+
       return user;
     } catch (error) {
       return;
     }
   }
+
   async getUsers(request: Request) {
     const page = parseInt(request.query.page as string, 10) || 1;
     const limit = parseInt(request.query.limit as string, 10) || 10;
@@ -329,17 +366,24 @@ class UserServices {
     const isBlocked: string | boolean =
       (request.query.isBlocked as string) || "";
 
+    const organizationId = (request as any).user?.organizationId;
+    if (!organizationId) {
+      console.warn("[UserService] organizationId missing in request.user for getUsers");
+      return { users: [], total: 0 };
+    }
+
     let query = AppDataSource.getRepository(User)
       .createQueryBuilder("user")
       .leftJoinAndSelect("user.organisation", "organisation")
       .leftJoinAndSelect("organisation.subscriptions", "subscription")
       .leftJoinAndSelect("subscription.plan", "plan")
       .leftJoinAndSelect("user.roles", "role")
-      .where("user.organisation is not null");
+      .where("organisation.organisationId = :orgId", { orgId: organizationId });
+
     if (isBlocked === "true") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: true });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: true });
     } else if (isBlocked === "false") {
-      query.where("user.isBlocked = :isBlocked", { isBlocked: false });
+      query.andWhere("user.isBlocked = :isBlocked", { isBlocked: false });
     }
     query
       .select(["user", "role", "organisation", "subscription", "plan.planType"])
@@ -733,14 +777,12 @@ class UserServices {
       try {
         await userRepository.save(newUser);
       } catch (dbError: any) {
-        // Rollback: delete Firebase user if database save fails
         await admin.auth().deleteUser(firebaseUser.uid);
         throw new Error(`Database error: ${dbError.message}`);
       }
 
-      // 6. Update admin's invitedUsers array
       adminUser.invitedUsers = adminUser.invitedUsers || [];
-      adminUser.invitedUsers.push({
+      const newUserEntry = {
         id: firebaseUser.uid,
         name:
           payload.firstName && payload.lastName
@@ -748,9 +790,10 @@ class UserServices {
             : "N/A",
         email: payload.email,
         role: payload.role,
-        onboardingStatus: "ONBOARDED", // Directly onboarded
+        onboardingStatus: "ONBOARDED",
         isBlocked: false,
-      });
+      };
+      adminUser.invitedUsers.push(newUserEntry);
 
       await userRepository.save(adminUser);
 
@@ -951,19 +994,25 @@ class UserServices {
       if (adminUser.roles[0].roleName !== roleNames.ADMIN) {
         throw new ValidationFailedError("Only Admin can update user role");
       }
-      const targetUserIndex = adminUser.invitedUsers.findIndex((user) => {
-        if (user.id === userId) {
-          return user;
-        }
-      });
 
-      if (targetUserIndex !== -1) {
+      const targetUserIndex = adminUser.invitedUsers?.findIndex((user) => user.id === userId);
+
+      if (targetUserIndex !== undefined && targetUserIndex !== -1) {
         adminUser.invitedUsers[targetUserIndex].role = role;
+        await userRepository.save(adminUser);
       }
 
-      const userInstance = await userRepository.findOneBy({ userId });
+      const userInstance = await userRepository.findOne({
+        where: { userId },
+        relations: ["organisation"]
+      });
       if (!userInstance) {
         throw new ResourceNotFoundError("User not found");
+      }
+
+      const adminOrgId = (request as any).user?.organizationId;
+      if (userInstance.organisation?.organisationId !== adminOrgId) {
+        throw new ForbiddenError("You can only update users within your organization.");
       }
 
       const roleInstance = await roleRepository.findOneBy({ roleName: role });
@@ -973,7 +1022,6 @@ class UserServices {
 
       userInstance.roles = [roleInstance];
       await userRepository.save(userInstance);
-      await userRepository.save(adminUser);
       return;
     }
   };
@@ -1015,7 +1063,7 @@ class UserServices {
       userId: userInfo.userId,
     });
 
-    if (adminUser) {
+    if (adminUser && adminUser.invitedUsers) {
       adminUser.invitedUsers = adminUser.invitedUsers.filter(
         (user) => user.id != userId
       );
@@ -1093,7 +1141,7 @@ class UserServices {
 
     if (admin === undefined) throw new ResourceNotFoundError("Any proper Admin not found in this organization.")
 
-    const isInvitationValid = admin.invitedUsers.some(cur => cur.email === userEmail);
+    const isInvitationValid = admin.invitedUsers?.some(cur => cur.email === userEmail) ?? false;
     return isInvitationValid;
   }
 }

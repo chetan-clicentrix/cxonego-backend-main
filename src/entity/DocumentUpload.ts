@@ -49,7 +49,11 @@ export class DocumentUpload extends CustomBaseEntity {
     @Column({ nullable: true })
     requirementId: string;
 
-    @ManyToOne(() => DocumentRequirement, { nullable: true, eager: true })
+    @ManyToOne(() => DocumentRequirement, {
+        nullable: true,
+        eager: true,
+        onDelete: "CASCADE"
+    })
     @JoinColumn({ name: "requirementId" })
     requirement: DocumentRequirement;
 

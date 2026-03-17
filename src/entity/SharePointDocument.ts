@@ -6,13 +6,21 @@ import { encryption } from "../common/utils";
 
 // Document types enum (reuse existing or define new if needed)
 export enum DocumentType {
+    AADHAAR = "AADHAAR",
+    PAN = "PAN",
+    BANK_STATEMENT = "BANK_STATEMENT",
+    SALARY_SLIP = "SALARY_SLIP",
+    ITR = "ITR",
+    BUSINESS_PROOF = "BUSINESS_PROOF",
+    ADDRESS_PROOF = "ADDRESS_PROOF",
+    PHOTO = "PHOTO",
+    OTHER = "OTHER",
     NDA = 'NDA',
     MSA = 'MSA',
     SOW = 'SOW',
     SLA = 'SLA',
     AMC = 'AMC',
-    MOU = 'MOU',
-    OTHER = 'OTHER'
+    MOU = 'MOU'
 }
 
 @Entity('sharepoint_document')

@@ -705,4 +705,63 @@ export class OppurtunityController {
       errorHandler(response, error.message);
     }
   }
+
+  async exportOpportunitiesToExcel(
+    request: AuthenticatedRequest,
+    response: Response
+  ) {
+    try {
+      const search: string | undefined = request.query.search as string | undefined;
+      let createdAt: string = request.query.createdAt as string;
+      let updatedAt: string = request.query.updatedAt as string;
+      let dateRange: DateRangeParamsType = request.body.dateRange as DateRangeParamsType;
+      const userId: string = request.user.userId;
+      const organizationId: string | null = request.user.organizationId;
+      const role: Role[] = request.user.role;
+      const purchaseTimeFrame: string[] = request.body.purchaseTimeFrame as string[];
+      const forecastCategory: string[] = request.body.forecastCategory as string[];
+      const probability: string[] = request.body.probability as string[];
+      const stage: string[] = request.body.stage as string[];
+      const status: string[] = request.body.status as string[];
+      const priority: string[] = request.body.priority as string[];
+      const purchaseProcess: string[] = request.body.purchaseProcess as string[];
+      const company: string = request.body.company;
+      const contact: string = request.body.contact;
+      let view: string = request.query.view as string;
+      const excludedColumns: string[] = request.body.excludedColumns as string[];
+
+      const buffer = await oppurtunityServices.exportOpportunitiesToExcel(
+        userId,
+        role,
+        search,
+        purchaseTimeFrame,
+        forecastCategory,
+        probability,
+        stage,
+        status,
+        priority,
+        purchaseProcess,
+        createdAt,
+        updatedAt,
+        dateRange,
+        company,
+        contact,
+        organizationId,
+        view,
+        excludedColumns
+      );
+
+      response.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      response.setHeader(
+        "Content-Disposition",
+        "attachment; filename=opportunities.xlsx"
+      );
+      return response.send(buffer);
+    } catch (error) {
+      errorHandler(response, error.message);
+    }
+  }
 }
