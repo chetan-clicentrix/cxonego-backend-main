@@ -10,7 +10,7 @@ export class ActivityPlanController {
             const { opportunityId } = req.body;
             // @ts-ignore
             const user = req.user;
-            const plan = await activityPlanService.createDefaultPlanForOpportunity(opportunityId, user);
+            const plan = await activityPlanService.generateDefaultPlanForOpportunity(opportunityId, user);
             res.status(201).send(buildResponse(plan, "Activity Plan created successfully"));
         } catch (error) {
             res.status(500).send(buildResponse(null, "Failed to create plan", error.message));

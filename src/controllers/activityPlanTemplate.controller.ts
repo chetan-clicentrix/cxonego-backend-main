@@ -73,4 +73,26 @@ export class ActivityPlanTemplateController {
             res.status(500).send(buildResponse(null, "Failed to clone actions", error.message));
         }
     }
+    async setDefaultTemplate(req: Request, res: Response) {
+        try {
+            const { templateId } = req.params;
+            // @ts-ignore
+            const user = req.user;
+            const template = await templateService.setDefaultTemplate(templateId, user);
+            res.status(200).send(buildResponse(template, "Default template set successfully"));
+        } catch (error) {
+            res.status(500).send(buildResponse(null, "Failed to set default template", error.message));
+        }
+    }
+
+    async getDefaultTemplate(req: Request, res: Response) {
+        try {
+            // @ts-ignore
+            const user = req.user;
+            const template = await templateService.getDefaultTemplate(user.organizationId);
+            res.status(200).send(buildResponse(template, "Default template fetched successfully"));
+        } catch (error) {
+            res.status(500).send(buildResponse(null, "Failed to fetch default template", error.message));
+        }
+    }
 }
