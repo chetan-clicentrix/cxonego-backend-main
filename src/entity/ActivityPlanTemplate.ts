@@ -43,6 +43,9 @@ export class ActivityPlanTemplate extends CustomBaseEntity {
     })
     actions: ActivityPlanTemplateAction[];
 
+    @Column({ type: "boolean", default: false })
+    isDefault: boolean;
+
     @BeforeInsert()
     @BeforeUpdate()
     encrypt() {

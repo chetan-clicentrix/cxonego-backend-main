@@ -165,8 +165,8 @@ class UserServices {
 
       return update;
     } catch (error) {
-      console.log(error);
-      throw new Error("Fail to update user");
+      console.error("Error in updateProfile:", error);
+      throw error;
     }
   }
 

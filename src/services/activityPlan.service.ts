@@ -16,154 +16,33 @@ export class ActivityPlanService {
     private actionRepository = AppDataSource.getRepository(ActivityPlanAction);
     private opportunityRepository = AppDataSource.getRepository(Oppurtunity);
 
-    async createDefaultPlanForOpportunity(opportunityId: string, user: any) {
-        const opportunity = await this.opportunityRepository.findOne({ where: { opportunityId } });
+    async applyDefaultTemplate(opportunityId: string, user: any) {
+        const templateService = new (require("./activityPlanTemplate.service").ActivityPlanTemplateService)();
+        const opportunity = await this.opportunityRepository.findOne({
+            where: { opportunityId },
+            relations: ["organization"]
+        });
         if (!opportunity) throw new Error("Opportunity not found");
 
-        const plan = new ActivityPlan({
-            name: "Retail-FTU Lead   Plan",
-            opportunity: opportunity,
-            organization: opportunity.organization,
-            status: ActivityPlanStatus.ACTIVE,
-            planId: undefined, // Let DB generate
-            lead: opportunity.Lead,
-            actions: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            deletedAt: null,
-            modifiedBy: user.userId
-        } as any);
+        // Try to get org ID from opportunity, then fallback to user's org ID
+        const orgIdFromOpp = opportunity.organization?.organisationId || (opportunity as any).organizationId;
+        const orgId = orgIdFromOpp || user?.organizationId;
 
-        const actionsConfig = [
-            {
-                sequence: 1,
-                stageName: "Document collection",
-                actionName: "1st Call to Customer",
-                description: "First call should be go within 2 hours of lead allocation",
-                tatHours: 0,
-                tatDays: 0
-            },
-            {
-                sequence: 2,
-                stageName: "Document collection",
-                actionName: "2nd Call / Site Visit",
-                description: "Visit client place. MANDATORY: Upload Google Geotagged Photo.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 3,
-                stageName: "Document collection",
-                actionName: "Document Collection",
-                description: "Share pending list with client via Mail/WhatsApp.",
-                tatHours: 3,
-                tatDays: 0
-            },
-            {
-                sequence: 4,
-                stageName: "Document collection",
-                actionName: "Collect Pending Documents",
-                description: "Verify Asset Location and Original Documents",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 5,
-                stageName: "Proposal Preparation",
-                actionName: "Prepare proposal",
-                description: "Create Proposals for banks.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 6,
-                stageName: "Login Desk",
-                actionName: "Login Desk",
-                description: "Login desk to verify all received documents against checklist.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 7,
-                stageName: "Query",
-                actionName: "Query Understanding",
-                description: "If there are query Understand those queries.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 8,
-                stageName: "Query Resolution",
-                actionName: "Query resolution.",
-                description: "Query Resolution with client collect final documents and re-login.",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 9,
-                stageName: "Approved",
-                actionName: "Get Approval from bank",
-                description: "when the loan is approved complete this activity",
-                tatHours: 0,
-                tatDays: 1
-            },
-            {
-                sequence: 10,
-                stageName: "Disbursed",
-                actionName: "Get all docuuments and Disbure money",
-                description: null,
-                tatHours: 0,
-                tatDays: 1
-            }
-        ];
+        console.log(`[ACTIVITY_PLAN] Attempting to apply default template for Org: ${orgId} (from Opp: ${orgIdFromOpp}, from User: ${user?.organizationId})`);
 
-        const savedPlan = await this.planRepository.save(plan);
-
-        let previousDueDate = new Date();
-
-        const actionsToSave = actionsConfig.map(config => {
-            let dueDate = new Date(previousDueDate);
-            if (config.tatHours > 0) dueDate.setHours(dueDate.getHours() + config.tatHours);
-            if (config.tatDays > 0) dueDate.setDate(dueDate.getDate() + config.tatDays);
-
-            previousDueDate = dueDate;
-
-            return new ActivityPlanAction({
-                plan: savedPlan,
-                sequence: config.sequence,
-                stageName: config.stageName,
-                actionName: config.actionName,
-                description: config.description,
-                tat: config.tatDays > 0 ? `${config.tatDays} Day(s)` : `${config.tatHours} Hour(s)`,
-                dueDate: dueDate,
-                status: ActivityPlanActionStatus.PENDING,
-                actionType: (config as any).actionType || ActivityPlanActionType.DEFAULT,
-                actionData: null,
-                actionId: undefined,
-                assignedTo: null,
-                completedAt: null,
-                remarks: null,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                deletedAt: null,
-                modifiedBy: user.userId
-            } as any);
-        });
-
-        await this.actionRepository.save(actionsToSave);
-        const planWithActions = await this.planRepository.findOne({
-            where: { planId: savedPlan.planId },
-            relations: ["actions", "actions.assignedTo"]
-        });
-
-        if (planWithActions && planWithActions.actions) {
-            planWithActions.actions.sort((a, b) => a.sequence - b.sequence);
+        const defaultTemplate = await templateService.getDefaultTemplate(orgId);
+        if (!defaultTemplate) {
+            console.error(`[ACTIVITY_PLAN] No default template found for Org: ${orgId}`);
+            const orgInfo = orgId ? `for Organization ID: ${orgId}` : "(No organization ID detected)";
+            throw new Error(`The system could not find a 'Default' activity plan template ${orgInfo}. Please go to 'Activity Plan Settings', select a template, and click 'Set as Default'.`);
         }
 
-        // Trigger overdue check immediately
-        await this.checkAndNotifyOverdueActions(savedPlan.planId);
+        console.log(`[ACTIVITY_PLAN] ✅ Applying default template: ${defaultTemplate.name}`);
+        return await this.applyTemplate(opportunityId, defaultTemplate.templateId, user);
+    }
 
-        return planWithActions;
+    async generateDefaultPlanForOpportunity(opportunityId: string, user: any) {
+        return await this.applyDefaultTemplate(opportunityId, user);
     }
 
     async getPlansByOpportunity(opportunityId: string) {
@@ -327,17 +206,24 @@ export class ActivityPlanService {
             console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2713 Found ${templates.length} matching template(s)`);
 
             if (templates.length === 0) {
-                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] \u26a0\ufe0f No matching templates found for:', {
-                    category: account.clientCategory,
-                    segment: account.segment,
-                    organizationId: opportunity.organization?.organisationId
-                });
-            }
+                console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ⚠️ No matching templates found for category/segment. Attempting fallback to default template.');
 
-            for (const template of templates) {
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \ud83d\udccb Applying template: ${template.name} (${template.templateId})`);
-                await this.applyTemplate(opportunity.opportunityId, template.templateId, user);
-                console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] \u2705 Template applied successfully`);
+                const templateService = new (require("./activityPlanTemplate.service").ActivityPlanTemplateService)();
+                const defaultTemplate = await templateService.getDefaultTemplate(opportunity.organization?.organisationId);
+
+                if (defaultTemplate) {
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] 📄 Applying default template: ${defaultTemplate.name} (${defaultTemplate.templateId})`);
+                    await this.applyTemplate(opportunity.opportunityId, defaultTemplate.templateId, user);
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✅ Default template applied successfully`);
+                } else {
+                    console.log('[ACTIVITY_PLAN_AUTO_ASSIGN] ❌ No default template found. No plan assigned.');
+                }
+            } else {
+                for (const template of templates) {
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] 📋 Applying matching template: ${template.name} (${template.templateId})`);
+                    await this.applyTemplate(opportunity.opportunityId, template.templateId, user);
+                    console.log(`[ACTIVITY_PLAN_AUTO_ASSIGN] ✅ Template applied successfully`);
+                }
             }
         } catch (error) {
             console.error('[ACTIVITY_PLAN_AUTO_ASSIGN] \u274c Error in autoAssignPlanToOpportunity:', error);
@@ -385,39 +271,43 @@ export class ActivityPlanService {
                     console.error('[ACTIVITY_PLAN] \u274c Could not find opportunity ID for plan:', planWithActions.planId);
                 }
 
-                console.log(`[ACTIVITY_PLAN] \ud83c\udfaf Action "${status}" status received for stage: ${decryptedStageName}`);
+                console.log(`[ACTIVITY_PLAN] 🎯 Action "${status}" status received for stage: ${decryptedStageName}`);
 
-                // 1. Find the first pending/in-progress task across the WHOLE plan to determine active stage
-                const nextPendingAction = planWithActions.actions
-                    .filter(a => a.status !== ActivityPlanActionStatus.COMPLETED && a.status !== ActivityPlanActionStatus.SKIPPED)
-                    .sort((a, b) => a.sequence - b.sequence)[0];
-
-                const crmStageValues = Object.values(stage);
-                let targetCRMStage = null;
-
-                if (nextPendingAction) {
-                    // Match the next pending action's stage name with CRM stage
-                    targetCRMStage = crmStageValues.find(
-                        s => s.toLowerCase().trim() === nextPendingAction.stageName.toLowerCase().trim()
+                if (status === ActivityPlanActionStatus.COMPLETED) {
+                    const actionsInCurrentStage = planWithActions.actions.filter(
+                        a => a.stageName.toLowerCase().trim() === decryptedStageName.toLowerCase().trim()
                     );
-                } else {
-                    // All actions completed! If we're closing the last action, 
-                    // ensure we're at least at the stage of the current action.
-                    const matchedStage = crmStageValues.find(
-                        s => s.toLowerCase().trim() === decryptedStageName.toLowerCase().trim()
-                    );
-                    targetCRMStage = matchedStage;
-                }
 
-                if (targetCRMStage) {
-                    console.log(`[ACTIVITY_PLAN] \ud83d\ude80 Updating opportunity "${oppId}" stage to "${targetCRMStage}" based on next activity: "${nextPendingAction?.actionName || 'Finalized'}"`);
-                    try {
-                        const updateRes = await this.opportunityRepository.update(oppId, {
-                            stage: targetCRMStage as any
-                        });
-                        console.log(`[ACTIVITY_PLAN] \u2705 Stage update result:`, updateRes);
-                    } catch (err) {
-                        console.error(`[ACTIVITY_PLAN] \u274c Failed to update opportunity stage:`, err);
+                    const allCompleted = actionsInCurrentStage.every(
+                        a => a.status === ActivityPlanActionStatus.COMPLETED || a.status === ActivityPlanActionStatus.SKIPPED
+                    );
+
+                    if (allCompleted && actionsInCurrentStage.length > 0) {
+                        const orderedStages = [
+                            "Document collection",
+                            "Proposal Preparation",
+                            "Login Desk",
+                            "Query",
+                            "Query Resolution",
+                            "Approved",
+                            "Disbursed",
+                            "PDD"
+                        ];
+
+                        const currentIndex = orderedStages.findIndex(s => s.toLowerCase() === decryptedStageName.toLowerCase().trim());
+
+                        if (currentIndex !== -1 && currentIndex < orderedStages.length - 1) {
+                            const nextStage = orderedStages[currentIndex + 1];
+
+                            console.log(`[ACTIVITY_PLAN] 🚀 All activities in "${decryptedStageName}" completed. Automatically advancing opportunity "${oppId}" stage to "${nextStage}"`);
+                            try {
+                                await this.opportunityRepository.update(oppId, {
+                                    stage: nextStage as any
+                                });
+                            } catch (err) {
+                                console.error(`[ACTIVITY_PLAN] ❌ Failed to update opportunity stage:`, err);
+                            }
+                        }
                     }
                 }
 
