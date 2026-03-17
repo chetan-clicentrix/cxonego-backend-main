@@ -306,6 +306,23 @@ export class OppurtunityController {
           }
         }
 
+        const UNIQUE_FIELDS = [
+          "stage",
+          "status",
+          "loanAmount",
+          "loanType",
+          "actualRevenue",
+          "estimatedRevenue",
+          "forecastCategory",
+          "probability",
+          "actualCloseDate",
+          "estimatedCloseDate",
+          "wonReason",
+          "lostReason",
+          "wonLostDescription",
+          "applicantType",
+        ];
+
         let finalActiveOpportunities: Oppurtunity[] = [];
         let primaryOppId = siblings.find(s => s.isPrimary)?.opportunityId || targetOpp.opportunityId;
 
@@ -320,8 +337,13 @@ export class OppurtunityController {
               await oppurtunityServices.deleteOppurtunity(siblingId, user, manager);
             } else {
               // Bank kept -> update sibling proposal
+              let siblingPayload = { ...payload };
+              if (siblingId !== opportunityId) {
+                // If this is a sibling (not the target being edited), strip out fields that should be unique
+                UNIQUE_FIELDS.forEach(field => delete (siblingPayload as any)[field]);
+              }
               // Make sure to explicitly pass the bank ID down so the many-to-many relationship isn't broken
-              const updated = await oppurtunityServices.updateOppurtunity(siblingId, { ...payload, banks: [bankId] } as any, user, manager);
+              const updated = await oppurtunityServices.updateOppurtunity(siblingId, { ...siblingPayload, banks: [bankId] } as any, user, manager);
               finalActiveOpportunities.push(updated!);
             }
           }
@@ -350,11 +372,16 @@ export class OppurtunityController {
             }
           }
         } else {
-          // No banks provided; just update basic fields on all siblings
+          // No banks provided; update siblings but protect unique fields
           for (const sib of siblings) {
+            let siblingPayload = { ...payload };
+            if (sib.opportunityId !== opportunityId) {
+              // If this is a sibling, strip out unique fields
+              UNIQUE_FIELDS.forEach(field => delete (siblingPayload as any)[field]);
+            }
             // Keep the sibling's existing bank
             const existingBankId = sib.banks && sib.banks.length > 0 ? sib.banks[0].bankId : null;
-            const updatePayload = existingBankId ? { ...payload, banks: [existingBankId] } : { ...payload };
+            const updatePayload = existingBankId ? { ...siblingPayload, banks: [existingBankId] } : { ...siblingPayload };
             const updated = await oppurtunityServices.updateOppurtunity(sib.opportunityId, updatePayload as any, user, manager);
             finalActiveOpportunities.push(updated!);
           }

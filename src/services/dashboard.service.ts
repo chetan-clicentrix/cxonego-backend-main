@@ -714,9 +714,13 @@ class DashboardServices {
 
       // Filter by bankId if specified (must be done after fetching due to many-to-many)
       if (bankId) {
-        opportunities = opportunities.filter(opp =>
-          opp.banks && opp.banks.some(bank => bank.bankId === bankId)
-        );
+        if (bankId === "none") {
+          opportunities = opportunities.filter(opp => !opp.banks || opp.banks.length === 0);
+        } else {
+          opportunities = opportunities.filter(opp =>
+            opp.banks && opp.banks.some(bank => bank.bankId === bankId)
+          );
+        }
       }
 
       if (salesPerson || (leadSource && leadSource.length > 0)) {

@@ -730,11 +730,6 @@ class opportunityService {
       }
     }
 
-    // Auto-mark as Won when stage is Disbursed
-    if (payload.stage === stage.DISBURSED) {
-      payload.stage = stage.WON;
-    }
-
     // Use save() instead of update() for many-to-many relationships
     // Merge the payload with the existing opportunity
     Object.assign(opportunity, payload);
