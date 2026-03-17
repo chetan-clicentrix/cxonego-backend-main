@@ -45,7 +45,9 @@ const verifyToken = async (
       ""
     );
 
-    if (user?.organisation?.organisationId == null) {
+    const isExempt = /^\/api\/v1\/users(\/[a-zA-Z0-9_-]+)?\/?$/.test(request.originalUrl.split('?')[0]);
+
+    if (user?.organisation?.organisationId == null && !isExempt) {
       next({
         name: "OrganisationUnregisteredError",
         message:
