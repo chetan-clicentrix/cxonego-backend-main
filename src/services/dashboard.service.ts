@@ -607,6 +607,7 @@ class DashboardServices {
     limit: number | undefined,
     search: string | undefined,
     stageFilter: string | undefined,
+    statusFilter: string | undefined,
     revenueRange: RevenueRangeParamsType,
     wonReason: string[],
     lostReason: string[],
@@ -680,7 +681,7 @@ class DashboardServices {
       // We'll filter in-memory after the query
 
       opportunityRepo
-        .andWhere("oppurtunity.status = :status", { status: "Active" }) //only active data show on whole dashboard
+        .andWhere("oppurtunity.status IN (:...status)", { status: ["Active", "Won", "Lost"] }) // include closed data on dashboard
         .orderBy("oppurtunity.updatedAt", "DESC");
 
       let opportunities = await opportunityRepo.getMany();
@@ -885,7 +886,7 @@ class DashboardServices {
       //total Opportunity closed count
       let totalOpportunityClosedCount = 0;
       for (const opportunity of opportunities) {
-        if (opportunity.stage == "Won" || opportunity.stage == "Lost") {
+        if (opportunity.stage == "Closed") {
           totalOpportunityClosedCount++;
         }
       }
@@ -915,6 +916,11 @@ class DashboardServices {
         if (stageFilter !== undefined && stageFilter != "") {
           opportunities = opportunities.filter(
             (opportunity) => opportunity.stage === stageFilter
+          );
+        }
+        if (statusFilter !== undefined && statusFilter != "") {
+          opportunities = opportunities.filter(
+            (opportunity) => opportunity.status === statusFilter
           );
         }
         let searchedData: Oppurtunity[] = [];

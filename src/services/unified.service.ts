@@ -463,7 +463,7 @@ export class UnifiedService {
                 const oppQuery = oppRepo.createQueryBuilder('opp')
                     .leftJoinAndSelect('opp.banks', 'banks')
                     .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
-                    .andWhere('opp.status = :status', { status: 'Active' });
+                    .andWhere('opp.status IN (:...status)', { status: ['Active', 'Won', 'Lost'] });
 
                 if (targetUserId !== 'all') oppQuery.andWhere('opp.ownerId = :userId', { userId: targetUserId });
 
@@ -842,7 +842,7 @@ export class UnifiedService {
             .leftJoinAndSelect('opp.banks', 'banks')
             .leftJoinAndSelect('opp.contact', 'contact')
             .where('opp.organizationId = :orgId', { orgId: ctx.orgId })
-            .andWhere('opp.status = :status', { status: 'Active' });
+            .andWhere('opp.status IN (:...status)', { status: ['Active', 'Won', 'Lost'] });
 
         if (stageFilter) query.andWhere('opp.stage = :stage', { stage: stageFilter });
         if (ownerId === 'mine') query.andWhere('opp.ownerId = :userId', { userId: ctx.userId });
@@ -891,7 +891,7 @@ export class UnifiedService {
         const { opportunityId, newStage, note } = params;
 
         if (!opportunityId) throw new Error("opportunityId is required.");
-        if (!newStage) throw new Error("newStage is required. Valid stages: Document collection | Proposal Preparation | Login Desk | Query | Query Resolution | Approved | Disbursed | PDD | Won | Lost");
+        if (!newStage) throw new Error("newStage is required. Valid stages: Analysis | Solutioning | Closed");
 
         const validStages = Object.values(stage);
         if (!validStages.includes(newStage as stage)) {
@@ -944,7 +944,7 @@ export class UnifiedService {
             .leftJoinAndSelect('opp.owner', 'owner')
             .leftJoinAndSelect('opp.contact', 'contact')
             .where('opp.organization = :orgId', { orgId: ctx.orgId })
-            .andWhere('opp.status = :status', { status: 'Active' });
+            .andWhere('opp.status IN (:...status)', { status: ['Active', 'Won', 'Lost'] });
 
         if (stageFilter) query.andWhere('opp.stage = :stage', { stage: stageFilter });
         query.limit(Number(limit));
@@ -1038,7 +1038,7 @@ export class UnifiedService {
         const opp = new Oppurtunity({} as Oppurtunity);
         opp.opportunityId = await oppService.getOpportunityId(new Date());
         (opp as any).title = `${this.safe(lead.fullName)} - ${loanType}`;
-        (opp as any).stage = 'Document collection';
+        (opp as any).stage = 'Analysis';
         (opp as any).status = 'Active';
         (opp as any).loanType = loanType;
         (opp as any).loanAmount = String(estimatedRevenue);
@@ -1484,7 +1484,7 @@ export class UnifiedService {
 
     async createOpportunity(params: any, ctx: ContextOptions) {
         this.requireOrg(ctx);
-        const { title, stageId = 'Document collection', loanType, loanAmount, estimatedRevenue, estimatedCloseDate, accountId, contactId, banks = [], description } = params;
+        const { title, stageId = 'Analysis', loanType, loanAmount, estimatedRevenue, estimatedCloseDate, accountId, contactId, banks = [], description } = params;
 
         if (!title) throw new Error("title is required.");
         if (!loanType) throw new Error("loanType is required.");

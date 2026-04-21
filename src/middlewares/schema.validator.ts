@@ -7,7 +7,7 @@ export const bodySchemaValidator = (schema: AnyZodObject) => {
     try {
       await schema.parseAsync(req.body);
       return next();
-    } catch (error) {
+    } catch (error: any) {
       res.status(400).send(buildResponse(null, "failure", error.issues));
     }
   };

@@ -126,16 +126,9 @@ export const MyEncryptionTransformerConfig = {
 };
 
 export enum stage {
-  DOCUMENT_COLLECTION = "Document collection",
-  PROPOSAL_PREPARATION = "Proposal Preparation",
-  LOGIN_DESK = "Login Desk",
-  QUERY = "Query",
-  QUERY_RESOLUTION = "Query Resolution",
-  APPROVED = "Approved",
-  DISBURSED = "Disbursed",
-  PDD = "PDD",
-  WON = "Won",
-  LOST = "Lost",
+  ANALYSIS = "Analysis",
+  SOLUTIONING = "Solutioning",
+  CLOSED = "Closed",
 }
 
 export enum priorityStatus {
@@ -243,6 +236,8 @@ export enum opportunityStatus {
   ACTIVE = "Active",
   INACTIVE = "Inactive",
   CANCELLED = "Cancelled",
+  WON = "Won",
+  LOST = "Lost",
 }
 
 export enum opportunityWonReason {

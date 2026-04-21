@@ -284,14 +284,9 @@ export class ActivityPlanService {
 
                     if (allCompleted && actionsInCurrentStage.length > 0) {
                         const orderedStages = [
-                            "Document collection",
-                            "Proposal Preparation",
-                            "Login Desk",
-                            "Query",
-                            "Query Resolution",
-                            "Approved",
-                            "Disbursed",
-                            "PDD"
+                            "Analysis",
+                            "Solutioning",
+                            "Closed"
                         ];
 
                         const currentIndex = orderedStages.findIndex(s => s.toLowerCase() === decryptedStageName.toLowerCase().trim());

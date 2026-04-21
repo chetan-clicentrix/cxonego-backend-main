@@ -119,6 +119,7 @@ class DashboardController {
             let limit: number | undefined = Number(request.query.limit) || undefined;
             const search = request.query.search as string;
             const stage = request.query.stage as string;//at a time one for table section filter            
+            const status = request.query.status as string;//at a time one for table section filter            
             const organizationId: string | null = request.user.organizationId;
             const ownerId: string = request.user.userId;
             const role: Role[] = request.user.role;
@@ -131,7 +132,7 @@ class DashboardController {
 
             const opportunities = await dashboardServices.getOpportunityDashboardData(
                 ownerId, role, currency, source, salesPerson, dateRange, page, limit,
-                search, stage, revenueRange, wonReason, lostReason, organizationId,
+                search, stage, status, revenueRange, wonReason, lostReason, organizationId,
                 groupBy, bank, loanType, applicantType
             );
             if (!opportunities) {

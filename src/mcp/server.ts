@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @swagger
  * tags:
  *   name: MCP Server
